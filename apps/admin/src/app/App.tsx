@@ -210,6 +210,8 @@ function Field({ label, value, onChange, type = "text", placeholder = "", as = "
       )}
     </div>
   );
+}
+
 function ImageDropzone({ value, onChange }: { value: string; onChange: (url: string) => void }) {
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
