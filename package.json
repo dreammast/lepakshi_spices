@@ -1,0 +1,25 @@
+{
+  "name": "lepakshi-spices",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev:user": "npm --prefix apps/user run dev",
+    "dev:admin": "npm --prefix apps/admin run dev",
+    "dev:server": "npm --prefix server run dev",
+    "build:user": "npm --prefix apps/user run build",
+    "build:admin": "npm --prefix apps/admin run build",
+    "build:server": "npm --prefix server run build",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:seed": "node database/seed/seed-data.mjs"
+  },
+  "dependencies": {
+    "dotenv": "^17.4.2",
+    "drizzle-orm": "^0.45.2",
+    "mysql2": "^3.23.1"
+  },
+  "devDependencies": {
+    "drizzle-kit": "^0.31.10"
+  }
+}

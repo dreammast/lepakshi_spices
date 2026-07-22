@@ -1,0 +1,13 @@
+packages:
+  - "apps/*"
+  - "server"
+supportedArchitectures:
+  os:
+    - linux
+    - win32
+  cpu:
+    - x64
+    - arm64
+  libc:
+    - glibc
+minimumReleaseAge: 10080
