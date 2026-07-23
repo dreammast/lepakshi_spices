@@ -1,6 +1,6 @@
 import { desc, eq } from 'drizzle-orm';
 import { db } from '../config/database.js';
-import { orderItems, orders, productVariants, products } from '../db/schema.js';
+import { orderItems, orders, productVariants, products, customerProfiles } from '../db/schema.js';
 
 export type CreateOrderInput = {
   customerId: number;
@@ -56,6 +56,19 @@ export async function findOrderById(id: number) {
   const [order] = await db.select().from(orders).where(eq(orders.id, id));
   if (!order) return null;
 
+  let customer = null;
+  if (order.customerId) {
+    const [c] = await db.select().from(customerProfiles).where(eq(customerProfiles.id, order.customerId));
+    if (c) {
+      customer = {
+        id: c.id,
+        name: `${c.firstName || ''} ${c.lastName || ''}`.trim() || c.email,
+        email: c.email,
+        phone: c.phone
+      };
+    }
+  }
+
   const items = await db
     .select({
       item: orderItems,
@@ -67,8 +80,14 @@ export async function findOrderById(id: number) {
     .leftJoin(products, eq(productVariants.productId, products.id))
     .where(eq(orderItems.orderId, id));
 
+  const total = Number(order.totalAmount || 0);
+
   return {
     ...order,
+    total,
+    customerName: customer ? customer.name : 'Guest Customer',
+    customer: customer ? customer.name : 'Guest Customer',
+    customerEmail: customer ? customer.email : '',
     items: items.map(row => ({
       ...row.item,
       variant: row.variant,

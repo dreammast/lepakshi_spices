@@ -4351,65 +4351,69 @@ export default function App() {
     });
   }
 
-  function login(email: string, password: string, rememberMe: boolean) {
-    return new Promise<void>(async (resolve, reject) => {
-      try {
-        const res = await fetch("http://localhost:4000/api/auth/login", {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, password })
-        });
-        const json = await res.json();
-        if (!res.ok || !json.success) {
-          return reject(new Error((json && json.message) || 'Login failed'));
-        }
-        const userData = { name: json.data.firstName + ' ' + (json.data.lastName || ''), email: json.data.email, isLoggedIn: true };
-        setUser(userData);
-        if (rememberMe) {
-          localStorage.setItem("spiceora_user", JSON.stringify(userData));
-        } else {
-          sessionStorage.setItem("spiceora_user", JSON.stringify(userData));
-        }
-        setAuthModalOpen('closed');
-        if (redirectAfterLogin) {
-          setCurrentPage(redirectAfterLogin as Page);
-          setRedirectAfterLogin(null);
-        }
-        resolve();
-      } catch (err: any) {
-        reject(new Error(err?.message || 'Login failed'));
-      }
+  async function login(email: string, password: string, rememberMe: boolean) {
+    const res = await fetch("http://localhost:4000/api/auth/login", {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password })
     });
+    const json = await res.json();
+    if (!res.ok || !json.success || !json.data?.token) {
+      throw new Error((json && json.message) || 'Invalid credentials');
+    }
+    const u = json.data.user;
+    const token = json.data.token;
+    const userData = {
+      id: u.id,
+      name: `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.email,
+      email: u.email,
+      role: u.role,
+      token,
+      isLoggedIn: true
+    };
+    setUser(userData);
+    if (rememberMe) {
+      localStorage.setItem("spiceora_user", JSON.stringify(userData));
+    } else {
+      sessionStorage.setItem("spiceora_user", JSON.stringify(userData));
+    }
+    setAuthModalOpen('closed');
+    if (redirectAfterLogin) {
+      setCurrentPage(redirectAfterLogin as Page);
+      setRedirectAfterLogin(null);
+    }
   }
 
-  function signup(name: string, email: string, password: string) {
-    return new Promise<void>(async (resolve, reject) => {
-      try {
-        const parts = name.trim().split(/\s+/);
-        const firstName = parts.shift() || '';
-        const lastName = parts.join(' ') || '';
-        const res = await fetch("http://localhost:4000/api/auth/register", {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ firstName, lastName, email, password })
-        });
-        const json = await res.json();
-        if (!res.ok || !json.success) {
-          return reject(new Error((json && json.message) || 'Signup failed'));
-        }
-        const userData = { name: json.data.firstName + ' ' + (json.data.lastName || ''), email: json.data.email, isLoggedIn: true };
-        setUser(userData);
-        sessionStorage.setItem("spiceora_user", JSON.stringify(userData));
-        setAuthModalOpen('closed');
-        if (redirectAfterLogin) {
-          setCurrentPage(redirectAfterLogin as Page);
-          setRedirectAfterLogin(null);
-        }
-        resolve();
-      } catch (err: any) {
-        reject(new Error(err?.message || 'Signup failed'));
-      }
+  async function signup(name: string, email: string, password: string) {
+    const parts = name.trim().split(/\s+/);
+    const firstName = parts.shift() || '';
+    const lastName = parts.join(' ') || '';
+    const res = await fetch("http://localhost:4000/api/auth/register", {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ firstName, lastName, email, password })
     });
+    const json = await res.json();
+    if (!res.ok || !json.success || !json.data?.token) {
+      throw new Error((json && json.message) || 'Signup failed');
+    }
+    const u = json.data.user;
+    const token = json.data.token;
+    const userData = {
+      id: u.id,
+      name: `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.email,
+      email: u.email,
+      role: u.role,
+      token,
+      isLoggedIn: true
+    };
+    setUser(userData);
+    localStorage.setItem("spiceora_user", JSON.stringify(userData));
+    setAuthModalOpen('closed');
+    if (redirectAfterLogin) {
+      setCurrentPage(redirectAfterLogin as Page);
+      setRedirectAfterLogin(null);
+    }
   }
 
   function forgotPassword(email: string) {

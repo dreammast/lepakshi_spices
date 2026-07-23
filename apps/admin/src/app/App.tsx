@@ -20,6 +20,7 @@ import {
   PieChart, Pie, Cell,
 } from "recharts";
 import { SmartPricingAssistant } from "./components/SmartPricingAssistant";
+import { categoriesApi } from "../lib/apiClient";
 
 // ─── Brand Tokens ─────────────────────────────────────────────
 const C = {
@@ -795,6 +796,64 @@ function ProductsPage() {
   // Inline Inventory editing state
   const [inventoryChanges, setInventoryChanges] = useState<Record<string, { stock: number; lowStockThreshold: number }>>({});
 
+  // Category CRUD state
+  const [catModalOpen, setCatModalOpen] = useState(false);
+  const [editingCat, setEditingCat] = useState<any | null>(null);
+  const [catForm, setCatForm] = useState({ name: "", description: "" });
+
+  const handleStartAddCat = () => {
+    setEditingCat(null);
+    setCatForm({ name: "", description: "" });
+    setCatModalOpen(true);
+  };
+
+  const handleStartEditCat = (cat: any, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingCat(cat);
+    setCatForm({ name: cat.name, description: cat.description || "" });
+    setCatModalOpen(true);
+  };
+
+  const handleSaveCategory = async () => {
+    if (!catForm.name.trim()) {
+      toast.error("Category name is required");
+      return;
+    }
+    const slug = catForm.name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    try {
+      if (editingCat) {
+        const numId = Number(editingCat.id);
+        if (!isNaN(numId)) {
+          await categoriesApi.update(numId, { name: catForm.name, slug, description: catForm.description });
+        }
+        toast.success("Category updated successfully");
+      } else {
+        await categoriesApi.create({ name: catForm.name, slug, description: catForm.description });
+        toast.success("New category created successfully");
+      }
+      setCatModalOpen(false);
+      loadDbData();
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to save category");
+    }
+  };
+
+  const handleDeleteCategory = async (cat: any, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (confirm(`Are you sure you want to delete the category "${cat.name}"?`)) {
+      try {
+        const numId = Number(cat.id);
+        if (!isNaN(numId)) {
+          await categoriesApi.remove(numId);
+        }
+        toast.success("Category removed");
+        loadDbData();
+      } catch (err: any) {
+        toast.error(err?.message || "Failed to delete category");
+      }
+    }
+  };
+
   useEffect(() => {
     localStorage.setItem("spiceora_products", JSON.stringify(products));
   }, [products]);
@@ -938,6 +997,7 @@ function ProductsPage() {
         </div>
         <div className="flex gap-2">
           {activeSubTab === "all" && <Btn icon={Plus} onClick={handleStartAdd}>Add Product</Btn>}
+          {activeSubTab === "categories" && <Btn icon={Plus} onClick={handleStartAddCat}>Add Category</Btn>}
           {activeSubTab === "inventory" && Object.keys(inventoryChanges).length > 0 && (
             <Btn icon={Save} onClick={handleSaveInventory}>Save Stock Changes</Btn>
           )}
@@ -1044,13 +1104,17 @@ function ProductsPage() {
       {activeSubTab === "categories" && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {categories.map(cat => (
-            <Card key={cat.id} className="p-5 flex flex-col justify-between hover:shadow-md transition-shadow cursor-pointer" onClick={() => { setCatFilter(cat.name); setActiveSubTab("all"); }}>
+            <Card key={cat.id} className="p-5 flex flex-col justify-between hover:shadow-md transition-shadow cursor-pointer relative group" onClick={() => { setCatFilter(cat.name); setActiveSubTab("all"); }}>
               <div>
                 <div className="flex items-center justify-between mb-3">
-                  <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-stone-100 text-stone-600 font-bold uppercase">{cat.id}</span>
+                  <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-stone-100 text-stone-600 font-bold uppercase">ID: {cat.id}</span>
+                  <div className="flex gap-1">
+                    <button title="Edit Category" onClick={(e) => handleStartEditCat(cat, e)} className="p-1.5 hover:bg-[#FAF8F5] rounded text-[#8B7355] transition-colors"><Edit2 className="w-3.5 h-3.5" /></button>
+                    <button title="Delete Category" onClick={(e) => handleDeleteCategory(cat, e)} className="p-1.5 hover:bg-red-50 rounded text-red-600 transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
+                  </div>
                 </div>
                 <h3 className="font-semibold text-lg text-[#2C2416] mb-1">{cat.name}</h3>
-                <p className="text-xs text-[#8B7355] leading-relaxed mb-4">{cat.description}</p>
+                <p className="text-xs text-[#8B7355] leading-relaxed mb-4">{cat.description || "No description provided."}</p>
               </div>
               <div className="border-t border-[#2C2416]/6 pt-4 flex items-center justify-between">
                 <span className="text-[10px] text-[#8B7355] uppercase font-semibold">Total Linked</span>
@@ -1060,6 +1124,11 @@ function ProductsPage() {
               </div>
             </Card>
           ))}
+          {categories.length === 0 && (
+            <div className="col-span-3 py-16 text-center text-[#8B7355] border border-dashed rounded-2xl bg-white">
+              No categories defined. Click "Add Category" to create one.
+            </div>
+          )}
         </div>
       )}
 
@@ -1310,6 +1379,32 @@ function ProductsPage() {
                     {editTarget ? "Update Catalog" : "Publish to Storefront"}
                   </Btn>
                 )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* CATEGORY ADD/EDIT MODAL */}
+      <AnimatePresence>
+        {catModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: "rgba(26,23,20,0.5)", backdropFilter: "blur(4px)" }}>
+            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="relative bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-5">
+              <div className="flex items-center justify-between border-b pb-3">
+                <h3 className="font-bold text-lg font-serif text-[#2C2416]">{editingCat ? "Edit Category" : "Add New Category"}</h3>
+                <button onClick={() => setCatModalOpen(false)} className="p-1 rounded-full hover:bg-stone-100 text-stone-500"><X className="w-4 h-4" /></button>
+              </div>
+
+              <div className="space-y-4">
+                <Field label="Category Name" value={catForm.name} onChange={v => setCatForm({ ...catForm, name: v })} placeholder="e.g. Whole Seeds & Pods" />
+                <Field label="Category Description" value={catForm.description} onChange={v => setCatForm({ ...catForm, description: v })} as="textarea" placeholder="Describe spices grouped under this category..." />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-3 border-t">
+                <button onClick={() => setCatModalOpen(false)} className="px-4 py-2 border rounded-xl text-xs text-[#8B7355] hover:bg-stone-50">
+                  Cancel
+                </button>
+                <Btn icon={Save} onClick={handleSaveCategory}>{editingCat ? "Update Category" : "Create Category"}</Btn>
               </div>
             </motion.div>
           </div>
