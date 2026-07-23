@@ -25,7 +25,7 @@ export async function uploadImageController(req: Request, res: Response, next: N
         if (uploadRes.ok) {
           const cloudJson = await uploadRes.json();
           if (cloudJson.secure_url) {
-            return sendSuccess(res, { url: cloudJson.secure_url }, 201);
+            return res.status(201).json({ success: true, data: { url: cloudJson.secure_url } });
           }
         }
       } catch (err) {
@@ -34,7 +34,7 @@ export async function uploadImageController(req: Request, res: Response, next: N
     }
 
     // If data URL or base64 string, return it directly
-    return sendSuccess(res, { url: image, message: 'Image processed successfully' }, 201);
+    return res.status(201).json({ success: true, data: { url: image, message: 'Image processed successfully' } });
   } catch (error) {
     next(error);
   }

@@ -292,6 +292,28 @@ function Header() {
 
   const closeAll = () => { setProfileOpen(false); setNotifOpen(false); };
 
+  const myOrders = (() => {
+    if (!user || !user.email) return [];
+    try {
+      const allOrders = JSON.parse(localStorage.getItem("spiceora_orders") || "[]");
+      return allOrders.filter((o: any) => o.userEmail === user.email);
+    } catch { return []; }
+  })();
+
+  const notifs = [
+    { title: "New Recipe Added", desc: "Try our Saffron Risotto recipe", time: "1d ago", icon: BookOpen, color: "#C9920A" },
+    { title: "Flash Sale — 20% Off", desc: "Saffron & Premium Blends today", time: "2d ago", icon: Tag, color: "#C55A20" },
+  ];
+
+  if (myOrders.length > 0) {
+    const latest = myOrders[myOrders.length - 1];
+    notifs.unshift({
+      title: `Order ${latest.status === 'dispatched' ? 'is on its way!' : 'Update'}`,
+      desc: `Order ${latest.id} is ${latest.status}`,
+      time: "Just now", icon: Truck, color: "#2A4A3C"
+    });
+  }
+
   return (
     <header className={`fixed top-0 inset-x-0 z-50 transition-all duration-300 ${scrolled ? "bg-white/85 backdrop-blur-xl border-b border-[#1A1714]/8 shadow-[0_2px_20px_rgba(26,23,20,0.06)]" : "bg-transparent"}`}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -400,11 +422,7 @@ function Header() {
                       <h3 className="font-semibold text-[#1A1714] text-sm">Notifications</h3>
                       <button onClick={() => setNotifOpen(false)} className="text-xs text-[#2A4A3C] hover:underline">Mark all read</button>
                     </div>
-                    {[
-                      { title: "Your order is on its way!", desc: "Order #SP-2847 dispatched", time: "2h ago", icon: Truck, color: "#2A4A3C" },
-                      { title: "New Recipe Added", desc: "Try our Saffron Risotto recipe", time: "1d ago", icon: BookOpen, color: "#C9920A" },
-                      { title: "Flash Sale — 20% Off", desc: "Saffron & Premium Blends today", time: "2d ago", icon: Tag, color: "#C55A20" },
-                    ].map((n, i) => (
+                    {notifs.map((n, i) => (
                       <button key={i} onClick={() => setNotifOpen(false)}
                         className="flex items-start gap-3 w-full p-4 hover:bg-[#FAF8F3] transition-colors border-b border-[#1A1714]/5 last:border-0 text-left">
                         <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: n.color + "18" }}>
@@ -608,6 +626,7 @@ function Hero() {
 function Categories() {
   const { navigate, categories } = useApp();
   const cats = categories.filter((c: any) => c.id !== "all") as any[];
+  if (!cats || cats.length === 0) return null;
 
   return (
     <section className="py-20 lg:py-28 bg-[#FAF8F3]">
@@ -665,6 +684,7 @@ function Categories() {
 
 function FeaturedProducts() {
   const { navigate, products } = useApp();
+  if (!products || products.length === 0) return null;
   return (
     <section className="py-20 lg:py-28 bg-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -810,6 +830,7 @@ function Process() {
 
 function Recipes() {
   const { navigate, recipes } = useApp();
+  if (!recipes || recipes.length === 0) return null;
   return (
     <section id="recipes" className="py-20 lg:py-28 bg-[#FAF8F3]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -1695,10 +1716,28 @@ function CartPage() {
       setTimeout(() => setCouponStatus("idle"), 2000);
       return;
     }
+
     setCouponStatus("loading");
     setTimeout(() => {
-      if (coupon.toUpperCase() === "SPICE20") { setDiscount(subtotal * 0.2); setCouponStatus("valid"); }
-      else { setCouponStatus("invalid"); setTimeout(() => setCouponStatus("idle"), 2000); }
+      try {
+        const stored = localStorage.getItem("spiceora_coupons");
+        const coupons = stored ? JSON.parse(stored) : [];
+        const matched = coupons.find((c: any) => c.active && c.code?.toUpperCase() === coupon.toUpperCase());
+
+        if (matched) {
+          const discountAmount = matched.discountType === "percentage"
+            ? subtotal * (matched.value / 100)
+            : matched.value;
+          setDiscount(discountAmount);
+          setCouponStatus("valid");
+        } else {
+          setCouponStatus("invalid");
+          setTimeout(() => setCouponStatus("idle"), 2000);
+        }
+      } catch {
+        setCouponStatus("invalid");
+        setTimeout(() => setCouponStatus("idle"), 2000);
+      }
     }, 1000);
   }
 
@@ -1790,7 +1829,7 @@ function CartPage() {
                 </div>
                 {discount > 0 && (
                   <div className="flex justify-between text-sm">
-                    <span className="text-[#2A4A3C]">Discount (SPICE20)</span>
+                    <span className="text-[#2A4A3C]">Discount {coupon ? `(${coupon})` : ""}</span>
                     <span className="font-medium text-[#2A4A3C]">−₹{discount.toFixed(2)}</span>
                   </div>
                 )}
@@ -1830,7 +1869,7 @@ function CartPage() {
                 Proceed to Checkout <ArrowRight className="w-4 h-4" />
               </Btn>
               <p className="text-xs text-center text-[#7A7064] mt-3">
-                Try <span className="font-mono font-bold text-[#2A4A3C]">SPICE20</span> for 20% off
+                Enter a valid promo code to apply available discounts at checkout.
               </p>
               {subtotal < 499 && (
                 <p className="text-xs text-center text-[#C55A20] mt-1 font-medium">
@@ -3385,8 +3424,8 @@ function WholesalePage() {
     contactName: "",
     email: "",
     phone: "",
-    productInterest: wholesaleData?.product || "Golden Turmeric",
-    volume: wholesaleData?.volume || "5kg Bulk Crate",
+    productInterest: wholesaleData?.product || "",
+    volume: wholesaleData?.volume || "",
     message: ""
   });
   
@@ -3397,29 +3436,23 @@ function WholesalePage() {
 
   // Dynamic CMS configurations loaded via localStorage
   const [cmsContact, setCmsContact] = useState({
-    whatsapp: "9390645710",
-    phone: "9390645710",
-    email: "dreammasterorigin@gmail.com",
-    address: "Premium Spiceora Yard, Guntur, AP",
-    website: "https://spiceora.in",
-    hours: "Mon-Sat (9am - 6pm)"
+    whatsapp: "",
+    phone: "",
+    email: "",
+    address: "",
+    website: "",
+    hours: ""
   });
 
-  const [cmsProducts, setCmsProducts] = useState<any[]>([
-    { name: "Chilli Powder", p100: "₹39", p250: "₹99", p500: "₹199", p1000: "Available" },
-    { name: "Turmeric Powder", p100: "₹29", p250: "₹65", p500: "₹129", p1000: "Available" },
-    { name: "Coriander Powder", p100: "₹29", p250: "₹75", p500: "₹149", p1000: "Available" },
-    { name: "Ginger Garlic Paste", p100: "₹30", p250: "₹60", p500: "₹120", p1000: "Available" },
-    { name: "Garam Masala", p100: "₹50", p250: "₹100", p500: "₹200", p1000: "Available" },
-  ]);
+  const [cmsProducts, setCmsProducts] = useState<any[]>([]);
 
   const [pdfTemplate, setPdfTemplate] = useState({
     headerVisible: true,
     footerVisible: true,
-    watermark: "OFFICIAL CATALOG",
-    primaryColor: [42, 74, 60], // RGB Green
-    secondaryColor: [201, 146, 10], // RGB Gold
-    terms: "Terms: Ex-works / F.O.B dispatch. Sample kits available on request."
+    watermark: "",
+    primaryColor: [42, 74, 60],
+    secondaryColor: [201, 146, 10],
+    terms: ""
   });
 
   useEffect(() => {
@@ -3458,10 +3491,10 @@ function WholesalePage() {
         setPdfTemplate({
           headerVisible: parsed.headerVisible !== false,
           footerVisible: parsed.footerVisible !== false,
-          watermark: parsed.watermark || "OFFICIAL CATALOG",
+          watermark: parsed.watermark || "",
           primaryColor: colorMap[parsed.primaryColor] || [42, 74, 60],
           secondaryColor: colorMap[parsed.secondaryColor] || [201, 146, 10],
-          terms: parsed.terms || "Terms: Ex-works / F.O.B dispatch. Sample kits available on request."
+          terms: parsed.terms || ""
         });
       }
     } catch (e) {
@@ -3478,6 +3511,15 @@ function WholesalePage() {
       }));
     }
   }, [wholesaleData]);
+
+  useEffect(() => {
+    if (!wholesaleData && products.length > 0) {
+      setFormData(prev => ({
+        ...prev,
+        productInterest: prev.productInterest || products[0].name || ""
+      }));
+    }
+  }, [products, wholesaleData]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -4156,47 +4198,42 @@ export default function App() {
   const [products, setProducts] = useState<any[]>(() => {
     try {
       const stored = localStorage.getItem("spiceora_products");
-      if (stored) return JSON.parse(stored);
-      // Seed initial from static list
-      const initial = PRODUCTS.map(p => ({
-        ...p,
-        status: p.inStock ? "active" : "out-of-stock",
-        stock: p.inStock ? 150 : 0,
-        sku: `SPH-00${p.id}`,
-        category: p.category === "roots" ? "Roots & Paste" : p.category === "seeds" ? "Seeds & Pods" : "Spice Blends"
-      }));
-      localStorage.setItem("spiceora_products", JSON.stringify(initial));
-      return initial;
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        const valid = parsed.filter((p: any) => p.price !== 12.5 && !String(p.id).startsWith("P00"));
+        if (valid.length > 0) return valid;
+      }
+      return [];
     } catch {
-      return PRODUCTS;
+      return [];
     }
   });
 
   const [categories, setCategories] = useState<any[]>(() => {
     try {
       const stored = localStorage.getItem("spiceora_categories");
-      if (stored) return JSON.parse(stored);
-      const initial = [
-        { id: "all", name: "All Spices", count: 5 },
-        { id: "roots", name: "Roots & Paste", count: 2, image: "/images/turmeric.png", description: "Turmeric, Ginger Garlic Paste" },
-        { id: "seeds", name: "Seeds & Pods", count: 1, image: "/images/coriander.jpg", description: "Coriander Powder" },
-        { id: "blends", name: "Spice Blends", count: 2, image: "/images/garam_masala.png", description: "Chilli Powder, Garam Masala" }
-      ];
-      localStorage.setItem("spiceora_categories", JSON.stringify(initial));
-      return initial;
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        const valid = parsed.filter((c: any) => c.image && !c.image.startsWith("/images/"));
+        if (valid.length > 0) return valid;
+      }
+      return [];
     } catch {
-      return CATEGORIES;
+      return [];
     }
   });
 
   const [recipes, setRecipes] = useState<any[]>(() => {
     try {
       const stored = localStorage.getItem("spiceora_recipes");
-      if (stored) return JSON.parse(stored);
-      localStorage.setItem("spiceora_recipes", JSON.stringify(RECIPES));
-      return RECIPES;
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        const valid = parsed.filter((r: any) => r.image && !r.image.startsWith("/images/"));
+        if (valid.length > 0) return valid;
+      }
+      return [];
     } catch {
-      return RECIPES;
+      return [];
     }
   });
 
@@ -4204,50 +4241,29 @@ export default function App() {
     try {
       const stored = localStorage.getItem("spiceora_testimonials");
       if (stored) return JSON.parse(stored);
-      localStorage.setItem("spiceora_testimonials", JSON.stringify(TESTIMONIALS));
-      return TESTIMONIALS;
+      return [];
     } catch {
-      return TESTIMONIALS;
+      return [];
     }
   });
 
   const [cmsSettings, setCmsSettings] = useState(() => {
     try {
       const stored = localStorage.getItem("spiceora_homepage_cms");
-      if (stored) return JSON.parse(stored);
-      const initial = {
-        hero: {
-          headline: "Single-Origin Premium Spices",
-          subheadline: "Directly sourced from organic farms of Ceylon, Kashmir, and Guntur — stone-ground and hand-packed to keep fresh kitchen aromas alive.",
-          buttonText: "Shop Raw Spices",
-          buttonLink: "shop",
-          image: "/images/hero_spice.jpg"
-        },
-        cta: {
-          headline: "Sourced Direct. Milled Fresh.",
-          description: "We work directly with certified farmers across Guntur, Kota, and Salem. By skipping bulk commercial distributors, we pay farmers a higher wage while guaranteeing our customers ground spices milled within 7 days of dispatch.",
-          buttonText: "Our Sourcing Promise",
-          buttonLink: "founder",
-          image: "/images/founder_promise.jpg"
-        },
-        about: {
-          founderStory: "Spiceora was founded with a single mission: to bring unadulterated, stone-ground, single-origin spices directly from organic farm gates to high-end kitchens. We bypass intermediate distributors, supporting ethical farm wages while delivering peak volatile oil freshness.",
-          mission: "To deliver the purest, most aromatic culinary spices while promoting sustainable agriculture.",
-          vision: "To become the global gold standard for direct-farm food traceability.",
-          trustText: "Every batch is certified by third-party laboratories for curcumin, volatile oil contents, and zero pesticide residues."
-        },
-        announcement: "FREE SHIPPING ON ALL ORDERS OVER ₹500! CODE: SPICE20 FOR 20% OFF!",
-        newsletterText: "Subscribe for curated spice recipes and wholesale bulk alerts."
+      return stored ? JSON.parse(stored) : {
+        hero: { headline: "", subheadline: "", buttonText: "", buttonLink: "", image: "" },
+        cta: { headline: "", description: "", buttonText: "", buttonLink: "", image: "" },
+        about: { founderStory: "", mission: "", vision: "", trustText: "" },
+        announcement: "",
+        newsletterText: ""
       };
-      localStorage.setItem("spiceora_homepage_cms", JSON.stringify(initial));
-      return initial;
     } catch {
       return {
-        hero: { headline: "Single-Origin Premium Spices", subheadline: "Directly sourced from organic farms.", buttonText: "Shop Raw Spices", buttonLink: "shop", image: "/images/hero_spice.jpg" },
-        cta: { headline: "Sourced Direct. Milled Fresh.", description: "We work directly with certified farmers.", buttonText: "Our Sourcing Promise", buttonLink: "founder", image: "/images/founder_promise.jpg" },
-        about: { founderStory: "Spiceora was founded to bring unadulterated spices from farm gates.", mission: "Purity and sustainability.", vision: "Direct farm traceability.", trustText: "Batch certified by third-party laboratories." },
-        announcement: "FREE SHIPPING ON ALL ORDERS OVER ₹500! CODE: SPICE20 FOR 20% OFF!",
-        newsletterText: "Subscribe for curated recipes."
+        hero: { headline: "", subheadline: "", buttonText: "", buttonLink: "", image: "" },
+        cta: { headline: "", description: "", buttonText: "", buttonLink: "", image: "" },
+        about: { founderStory: "", mission: "", vision: "", trustText: "" },
+        announcement: "",
+        newsletterText: ""
       };
     }
   });
@@ -4275,9 +4291,7 @@ export default function App() {
   const [user, setUser] = useState<any>(null);
   const [authModalOpen, setAuthModalOpen] = useState<'login' | 'signup' | 'forgot' | 'closed'>('closed');
   const [redirectAfterLogin, setRedirectAfterLogin] = useState<string | null>(null);
-  const [users, setUsers] = useState<any[]>([
-    { name: "Ananya Krishnan", email: "ananya@email.com", password: "password" }
-  ]);
+  const [users, setUsers] = useState<any[]>([]);
 
   useEffect(() => {
     const fetchApiData = async () => {
@@ -4338,50 +4352,63 @@ export default function App() {
   }
 
   function login(email: string, password: string, rememberMe: boolean) {
-    return new Promise<void>((resolve, reject) => {
-      setTimeout(() => {
-        const found = users.find(u => u.email.toLowerCase() === email.toLowerCase() && u.password === password);
-        if (found) {
-          const userData = { name: found.name, email: found.email, isLoggedIn: true };
-          setUser(userData);
-          if (rememberMe) {
-            localStorage.setItem("spiceora_user", JSON.stringify(userData));
-          } else {
-            sessionStorage.setItem("spiceora_user", JSON.stringify(userData));
-          }
-          setAuthModalOpen('closed');
-          if (redirectAfterLogin) {
-            setCurrentPage(redirectAfterLogin as Page);
-            setRedirectAfterLogin(null);
-          }
-          resolve();
-        } else {
-          reject(new Error("Invalid email or password. Hint: Use ananya@email.com / password"));
+    return new Promise<void>(async (resolve, reject) => {
+      try {
+        const res = await fetch("http://localhost:4000/api/auth/login", {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+        const json = await res.json();
+        if (!res.ok || !json.success) {
+          return reject(new Error((json && json.message) || 'Login failed'));
         }
-      }, 1000);
+        const userData = { name: json.data.firstName + ' ' + (json.data.lastName || ''), email: json.data.email, isLoggedIn: true };
+        setUser(userData);
+        if (rememberMe) {
+          localStorage.setItem("spiceora_user", JSON.stringify(userData));
+        } else {
+          sessionStorage.setItem("spiceora_user", JSON.stringify(userData));
+        }
+        setAuthModalOpen('closed');
+        if (redirectAfterLogin) {
+          setCurrentPage(redirectAfterLogin as Page);
+          setRedirectAfterLogin(null);
+        }
+        resolve();
+      } catch (err: any) {
+        reject(new Error(err?.message || 'Login failed'));
+      }
     });
   }
 
   function signup(name: string, email: string, password: string) {
-    return new Promise<void>((resolve, reject) => {
-      setTimeout(() => {
-        const exists = users.find(u => u.email.toLowerCase() === email.toLowerCase());
-        if (exists) {
-          reject(new Error("An account with this email already exists."));
-        } else {
-          const newUser = { name, email, password };
-          setUsers(prev => [...prev, newUser]);
-          const userData = { name, email, isLoggedIn: true };
-          setUser(userData);
-          sessionStorage.setItem("spiceora_user", JSON.stringify(userData));
-          setAuthModalOpen('closed');
-          if (redirectAfterLogin) {
-            setCurrentPage(redirectAfterLogin as Page);
-            setRedirectAfterLogin(null);
-          }
-          resolve();
+    return new Promise<void>(async (resolve, reject) => {
+      try {
+        const parts = name.trim().split(/\s+/);
+        const firstName = parts.shift() || '';
+        const lastName = parts.join(' ') || '';
+        const res = await fetch("http://localhost:4000/api/auth/register", {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ firstName, lastName, email, password })
+        });
+        const json = await res.json();
+        if (!res.ok || !json.success) {
+          return reject(new Error((json && json.message) || 'Signup failed'));
         }
-      }, 1000);
+        const userData = { name: json.data.firstName + ' ' + (json.data.lastName || ''), email: json.data.email, isLoggedIn: true };
+        setUser(userData);
+        sessionStorage.setItem("spiceora_user", JSON.stringify(userData));
+        setAuthModalOpen('closed');
+        if (redirectAfterLogin) {
+          setCurrentPage(redirectAfterLogin as Page);
+          setRedirectAfterLogin(null);
+        }
+        resolve();
+      } catch (err: any) {
+        reject(new Error(err?.message || 'Signup failed'));
+      }
     });
   }
 

@@ -12,7 +12,8 @@
     "build:server": "npm --prefix server run build",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "db:seed": "node database/seed/seed-data.mjs"
+    "db:seed": "node database/seed/seed-data.mjs",
+    "db:backup-clear": "node database/seed/backup-and-clear.mjs"
   },
   "dependencies": {
     "dotenv": "^17.4.2",

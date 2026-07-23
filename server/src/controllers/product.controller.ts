@@ -1,6 +1,6 @@
 import type { Request, Response, NextFunction } from 'express';
 import { getProductDetails, listProducts, createProduct, updateProduct, deleteProduct } from '../services/product.service.js';
-import { sendSuccess } from '../utils/response.util.js';
+import { sendSuccess, sendCreated } from '../utils/response.util.js';
 
 export async function listProductsController(_req: Request, res: Response, next: NextFunction) {
   try {
@@ -23,7 +23,7 @@ export async function getProductController(req: Request, res: Response, next: Ne
 export async function createProductController(req: Request, res: Response, next: NextFunction) {
   try {
     const insertedId = await createProduct(req.body);
-    sendSuccess(res, { id: insertedId, ...req.body }, 201);
+    sendCreated(res, { id: insertedId, ...req.body });
   } catch (error) {
     next(error);
   }

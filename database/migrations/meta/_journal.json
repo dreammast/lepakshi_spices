@@ -8,6 +8,20 @@
       "when": 1784553289796,
       "tag": "0000_parched_strong_guy",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1784740038458,
+      "tag": "0001_updated-schema",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1784815962726,
+      "tag": "0002_add-api-tables",
+      "breakpoints": true
     }
   ]
 }
