@@ -1,6 +1,6 @@
 import type { Request, Response, NextFunction } from 'express';
 import { getCategoryBySlug, listCategories, createCategory, deleteCategory } from '../services/category.service.js';
-import { sendSuccess } from '../utils/response.util.js';
+import { sendSuccess, sendCreated } from '../utils/response.util.js';
 
 export async function listCategoriesController(_req: Request, res: Response, next: NextFunction) {
   try {
@@ -28,7 +28,7 @@ export async function createCategoryController(req: Request, res: Response, next
       slug: slug || name.toLowerCase().replace(/\s+/g, '-'),
       description
     });
-    sendSuccess(res, { id: insertedId, name, slug }, 201);
+    sendCreated(res, { id: insertedId, name, slug });
   } catch (error) {
     next(error);
   }

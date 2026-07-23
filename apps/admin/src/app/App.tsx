@@ -19,6 +19,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell,
 } from "recharts";
+import { SmartPricingAssistant } from "./components/SmartPricingAssistant";
 
 // ─── Brand Tokens ─────────────────────────────────────────────
 const C = {
@@ -210,6 +211,8 @@ function Field({ label, value, onChange, type = "text", placeholder = "", as = "
       )}
     </div>
   );
+}
+
 function ImageDropzone({ value, onChange }: { value: string; onChange: (url: string) => void }) {
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
@@ -534,10 +537,10 @@ function DashboardPage({ navigateTo }: { navigateTo: (p: string) => void }) {
     try { return JSON.parse(localStorage.getItem("spiceora_testimonials") || "[]"); } catch { return []; }
   })();
 
-  const todayRevenue = orders.filter((o: any) => o.date === "2026-07-18" || o.date === "2024-12-28").reduce((s: number, o: any) => s + o.total, 0) || 12450;
-  const todayOrders = orders.filter((o: any) => o.date === "2026-07-18" || o.date === "2024-12-28").length || 8;
-  const pendingOrdersCount = orders.filter((o: any) => o.status === "pending" || o.status === "processing").length || 3;
-  const activeLeadsCount = inquiries.filter((i: any) => i.status === "new" || i.status === "Pending").length || 4;
+  const todayRevenue = orders.filter((o: any) => o.date === "2026-07-18" || o.date === "2024-12-28").reduce((s: number, o: any) => s + o.total, 0) || 0;
+  const todayOrders = orders.filter((o: any) => o.date === "2026-07-18" || o.date === "2024-12-28").length || 0;
+  const pendingOrdersCount = orders.filter((o: any) => o.status === "pending" || o.status === "processing").length || 0;
+  const activeLeadsCount = inquiries.filter((i: any) => i.status === "new" || i.status === "Pending").length || 0;
   const lowStockCount = products.filter((p: any) => p.stock < 30).length;
 
   const catSplit = [
@@ -724,11 +727,7 @@ function ProductsPage() {
   const [categories, setCategories] = useState<any[]>(() => {
     try {
       const stored = localStorage.getItem("spiceora_categories");
-      return stored ? JSON.parse(stored) : [
-        { id: "roots", name: "Roots & Paste", count: 2, description: "Raw ground ginger, garlic, turmeric paste blocks" },
-        { id: "seeds", name: "Seeds & Pods", count: 1, description: "Aromatic pods, raw cardamom, coriander seeds" },
-        { id: "blends", name: "Spice Blends", count: 2, description: "Artisan masala blends crafted by spice masters" }
-      ];
+      return stored ? JSON.parse(stored) : [];
     } catch {
       return [];
     }
@@ -772,10 +771,7 @@ function ProductsPage() {
   const [reviews, setReviews] = useState<any[]>(() => {
     try {
       const stored = localStorage.getItem("spiceora_testimonials");
-      return stored ? JSON.parse(stored) : [
-        { id: "R1", name: "Sarah Miller", rating: 5, comment: "Kashmiri Chilli Powder gave my curry the best vibrant red color without being overly spicy. Highly recommended!", status: "approved", product: "Chilli Powder", date: "18/07/2026" },
-        { id: "R2", name: "David K.", rating: 4, comment: "The ginger garlic paste tastes fresh and saves me so much prep time on weeknights.", status: "approved", product: "Ginger Garlic Paste", date: "17/07/2026" }
-      ];
+      return stored ? JSON.parse(stored) : [];
     } catch {
       return [];
     }
@@ -1257,46 +1253,19 @@ function ProductsPage() {
               {/* STEP 4: PRICING (WITH PROFIT MARGIN ASSISTANT) */}
               {wizardStep === 4 && (
                 <div className="space-y-4">
-                  <p className="text-sm font-semibold text-[#8B7355]">Step 4: Smart Commercial Pricing Assistant</p>
-                  <div className="p-4 bg-[#FAF8F5] rounded-2xl border border-[#2C2416]/10 space-y-4">
-                    <p className="text-xs font-bold text-[#2D5016] uppercase tracking-wider">Pricing Math Simulator</p>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="text-[10px] font-semibold text-[#8B7355] block mb-1">COGS (Per Unit Sourced Cost) (₹)</label>
-                        <input type="number" value={cogs} onChange={e => setCogs(Number(e.target.value))} className="w-full px-3 py-2 border rounded-xl text-xs bg-white outline-none" />
-                      </div>
-                      <div>
-                        <label className="text-[10px] font-semibold text-[#8B7355] block mb-1">Target Profit Margin (%)</label>
-                        <select value={margin} onChange={e => setMargin(Number(e.target.value))} className="w-full px-3 py-2 border rounded-xl text-xs bg-white outline-none">
-                          <option value={15}>15% (Economy Sourcing)</option>
-                          <option value={20}>20% (Standard Trader)</option>
-                          <option value={30}>30% (Recommended B2C)</option>
-                          <option value={40}>40% (Premium Brand)</option>
-                        </select>
-                      </div>
-                    </div>
-
-                    <div className="border-t border-[#2C2416]/8 pt-3 space-y-1.5 text-xs">
-                      <div className="flex justify-between text-[#8B7355]"><span>Raw Sourcing Cost:</span><span>₹{cogs}</span></div>
-                      <div className="flex justify-between text-[#8B7355]"><span>Net Markup Profit ({margin}%):</span><span>₹{Math.round(form.price - cogs)}</span></div>
-                      <div className="flex justify-between text-[#8B7355]"><span>Estimated GST (5%):</span><span>₹{Math.round(form.price * 0.05)}</span></div>
-                      <div className="flex justify-between font-bold text-sm text-[#2C2416] border-t border-dashed pt-2">
-                        <span>Dynamic Selling Price:</span>
-                        <span>₹{form.price}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="space-y-3">
-                    <Field type="number" label="Calculated Base Price (₹)" value={form.price} onChange={v => setForm({ ...form, price: Number(v) })} />
-                    <p className="text-[10px] font-bold text-[#8B7355] uppercase tracking-wider mt-2">B2C Retail Weight Variants (Auto-simulated)</p>
-                    <div className="grid grid-cols-4 gap-2">
-                      <Field type="number" label="100g Price" value={form.prices?.p100 || 0} onChange={v => setForm({ ...form, prices: { ...form.prices, p100: Number(v) } })} />
-                      <Field type="number" label="250g Price" value={form.prices?.p250 || 0} onChange={v => setForm({ ...form, prices: { ...form.prices, p250: Number(v) } })} />
-                      <Field type="number" label="500g Price" value={form.prices?.p500 || 0} onChange={v => setForm({ ...form, prices: { ...form.prices, p500: Number(v) } })} />
-                      <Field type="number" label="1kg Price" value={form.prices?.p1000 || 0} onChange={v => setForm({ ...form, prices: { ...form.prices, p1000: Number(v) } })} />
-                    </div>
-                  </div>
+                  <p className="text-sm font-semibold text-[#8B7355]">Step 4: Commercial Pricing Assistant</p>
+                  <SmartPricingAssistant
+                    initialCogs={cogs}
+                    initialMargin={margin}
+                    initialGst={5}
+                    onPriceCalculated={({ basePrice, variants }) => {
+                      setForm((prev: any) => ({
+                        ...prev,
+                        price: basePrice,
+                        prices: variants
+                      }));
+                    }}
+                  />
                 </div>
               )}
 
@@ -1623,18 +1592,24 @@ function CategoriesPage() {
   const [categories, setCategories] = useState<any[]>(() => {
     try {
       const stored = localStorage.getItem("spiceora_categories");
-      return stored ? JSON.parse(stored) : [
-        { id: "roots", name: "Roots & Paste", count: 2, description: "Raw ground ginger, garlic, turmeric paste blocks" },
-        { id: "seeds", name: "Seeds & Pods", count: 1, description: "Aromatic pods, raw cardamom, coriander seeds" },
-        { id: "blends", name: "Spice Blends", count: 2, description: "Artisan masala blends crafted by spice masters" }
-      ];
+      return stored ? JSON.parse(stored) : [];
     } catch {
       return [];
     }
   });
 
+  const [products] = useState<any[]>(() => {
+    try {
+      const stored = localStorage.getItem("spiceora_products");
+      return stored ? JSON.parse(stored) : [];
+    } catch { return []; }
+  });
+
   const [editTarget, setEditTarget] = useState<any | null>(null);
   const [form, setForm] = useState<any>({ id: "", name: "", description: "" });
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createForm, setCreateForm] = useState({ name: '', description: '' });
+  const [viewProductsFor, setViewProductsFor] = useState<any | null>(null);
 
   useEffect(() => {
     localStorage.setItem("spiceora_categories", JSON.stringify(categories));
@@ -1645,17 +1620,54 @@ function CategoriesPage() {
     setEditTarget(cat);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
+    // Update locally; server-side update endpoint is not implemented for partial edits, so keep local update
     setCategories(prev => prev.map(c => c.id === form.id ? { ...form } : c));
     setEditTarget(null);
     toast.success("Category updated successfully");
   };
 
+  const handleCreateCategory = async () => {
+    const name = createForm.name.trim();
+    if (!name) return toast.error('Category name is required');
+    const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    try {
+      const res = await fetch('http://localhost:4000/api/categories', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, slug, description: createForm.description })
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) throw new Error((json && json.message) || 'Failed to create');
+      // refetch categories from API to get canonical IDs
+      const resC = await fetch('http://localhost:4000/api/categories');
+      const jsonC = await resC.json();
+      const dataC = jsonC.data || jsonC;
+      setCategories(dataC.map((c: any) => ({ id: String(c.id), name: c.name, count: 0, description: c.description || '' })));
+      setCreateOpen(false);
+      setCreateForm({ name: '', description: '' });
+      toast.success('Category created');
+    } catch (err: any) {
+      console.error('Create category failed', err);
+      toast.error(err?.message || 'Failed to create category');
+    }
+  };
+
+  const openViewProducts = (cat: any) => {
+    // Show products related to this category by matching name or id
+    const related = products.filter(p => String(p.categoryId) === String(cat.id) || String(p.category) === String(cat.name) || (p.category && p.category.name === cat.name));
+    setViewProductsFor({ ...cat, products: related });
+  };
+
   return (
     <div className="space-y-6 text-left">
-      <div>
-        <h2 className="text-2xl font-bold font-serif text-[#2C2416]">Categories CMS</h2>
-        <p className="text-xs text-[#8B7355]">Manage storefront filter categories, headings, and descriptions</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold font-serif text-[#2C2416]">Categories CMS</h2>
+          <p className="text-xs text-[#8B7355]">Manage storefront filter categories, headings, and descriptions</p>
+        </div>
+        <div>
+          <Btn onClick={() => setCreateOpen(true)} icon={Plus}>New Category</Btn>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -1664,7 +1676,10 @@ function CategoriesPage() {
             <div>
               <div className="flex items-center justify-between mb-3">
                 <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-stone-100 text-stone-600 font-bold uppercase">{cat.id}</span>
-                <button onClick={() => handleEdit(cat)} className="p-1.5 text-[#8B7355] hover:bg-[#2C2416]/10 rounded-lg transition-colors"><Edit2 className="w-3.5 h-3.5" /></button>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => handleEdit(cat)} className="p-1.5 text-[#8B7355] hover:bg-[#2C2416]/10 rounded-lg transition-colors"><Edit2 className="w-3.5 h-3.5" /></button>
+                  <button onClick={() => openViewProducts(cat)} className="p-1.5 text-[#8B7355] hover:bg-[#2C2416]/10 rounded-lg transition-colors"><Eye className="w-3.5 h-3.5" /></button>
+                </div>
               </div>
               <h3 className="font-semibold text-lg text-[#2C2416] mb-1">{cat.name}</h3>
               <p className="text-xs text-[#8B7355] line-clamp-3 mb-4 leading-relaxed">{cat.description}</p>
@@ -1676,6 +1691,32 @@ function CategoriesPage() {
           </Card>
         ))}
       </div>
+
+      {/* Create modal */}
+      <AnimatePresence>
+        {createOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 0.4 }} exit={{ opacity: 0 }} onClick={() => setCreateOpen(false)} className="absolute inset-0 bg-black" />
+            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="relative bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-4">
+              <h3 className="font-bold text-lg font-serif text-[#2C2416]">Create New Category</h3>
+              <div className="space-y-3">
+                <div>
+                  <label className="text-[10px] font-semibold text-[#8B7355] uppercase block mb-1">Display Name</label>
+                  <input value={createForm.name} onChange={e => setCreateForm({ ...createForm, name: e.target.value })} className="w-full bg-[#FAF8F5] border border-[#2C2416]/10 rounded-xl px-3 py-2 text-xs outline-none" />
+                </div>
+                <div>
+                  <label className="text-[10px] font-semibold text-[#8B7355] uppercase block mb-1">Short Description</label>
+                  <textarea rows={3} value={createForm.description} onChange={e => setCreateForm({ ...createForm, description: e.target.value })} className="w-full bg-[#FAF8F5] border border-[#2C2416]/10 rounded-xl px-3 py-2 text-xs outline-none resize-none" />
+                </div>
+              </div>
+              <div className="flex gap-3">
+                <button onClick={() => setCreateOpen(false)} className="flex-1 py-2 text-xs font-semibold border border-[#2C2416]/10 rounded-xl hover:bg-[#FAF8F5]">Cancel</button>
+                <Btn onClick={handleCreateCategory} className="flex-1">Create Category</Btn>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Edit modal */}
       <AnimatePresence>
@@ -1702,6 +1743,34 @@ function CategoriesPage() {
           </div>
         )}
       </AnimatePresence>
+
+      {/* View Products Modal */}
+      <AnimatePresence>
+        {viewProductsFor && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 0.4 }} exit={{ opacity: 0 }} onClick={() => setViewProductsFor(null)} className="absolute inset-0 bg-black" />
+            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="relative bg-white rounded-2xl max-w-3xl w-full p-6 shadow-2xl space-y-4">
+              <h3 className="font-bold text-lg font-serif text-[#2C2416]">Products in {viewProductsFor.name}</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-96 overflow-y-auto">
+                {viewProductsFor.products.length === 0 ? <p className="text-sm text-[#8B7355]">No products linked to this category yet.</p> : viewProductsFor.products.map((p:any) => (
+                  <div key={p.id} className="p-3 border rounded-lg">
+                    <div className="flex items-center gap-3">
+                      <img src={p.imageUrl || p.image || 'https://images.unsplash.com/photo-1596040033229-a9821ebd058d?w=800&fit=crop'} alt={p.name} className="w-14 h-14 rounded-lg object-cover" />
+                      <div>
+                        <p className="font-semibold text-sm text-[#2C2416]">{p.name}</p>
+                        <p className="text-xs text-[#8B7355]">₹{p.price}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="flex justify-end">
+                <button onClick={() => setViewProductsFor(null)} className="py-2 px-4 rounded-xl border">Close</button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -1710,11 +1779,7 @@ function CollectionsPage() {
   const [collections, setCollections] = useState<any[]>(() => {
     try {
       const stored = localStorage.getItem("spiceora_collections");
-      return stored ? JSON.parse(stored) : [
-        { id: "best-sellers", name: "Best Sellers", active: true, products: ["P001", "P002", "P005"] },
-        { id: "new-arrivals", name: "New Arrivals", active: true, products: ["P003", "P004"] },
-        { id: "gift-boxes", name: "Gift Bundles", active: false, products: [] }
-      ];
+      return stored ? JSON.parse(stored) : [];
     } catch {
       return [];
     }
@@ -1765,11 +1830,7 @@ function CustomersPage() {
   const [customers] = useState<any[]>(() => {
     try {
       const stored = localStorage.getItem("spiceora_customers");
-      return stored ? JSON.parse(stored) : [
-        { id: "C01", name: "Rahul Sharma", email: "rahul@gmail.com", ltv: 1250, orders: 4, location: "New Delhi, India", phone: "+91 98100 12345", joined: "15/03/2025" },
-        { id: "C02", name: "Priya Nair", email: "priya.nair@yahoo.com", ltv: 3450, orders: 8, location: "Kochi, Kerala", phone: "+91 94470 54321", joined: "10/01/2025" },
-        { id: "C03", name: "Vikram Malhotra", email: "vikram@outlook.com", ltv: 450, orders: 1, location: "Mumbai, Maharashtra", phone: "+91 98200 98765", joined: "22/05/2025" }
-      ];
+      return stored ? JSON.parse(stored) : [];
     } catch {
       return [];
     }
@@ -1979,10 +2040,7 @@ function FeedbackPage() {
   const [reviews, setReviews] = useState<any[]>(() => {
     try {
       const stored = localStorage.getItem("spiceora_testimonials");
-      return stored ? JSON.parse(stored) : [
-        { id: "R1", name: "Sarah Miller", rating: 5, comment: "Kashmiri Chilli Powder gave my curry the best vibrant red color without being overly spicy. Highly recommended!", approved: true, product: "Chilli Powder" },
-        { id: "R2", name: "David K.", rating: 4, comment: "The ginger garlic paste tastes fresh and saves me so much prep time on weeknights.", approved: true, product: "Ginger Garlic Paste" }
-      ];
+      return stored ? JSON.parse(stored) : [];
     } catch {
       return [];
     }
@@ -2057,18 +2115,18 @@ function SettingsPage() {
   const [contacts, setContacts] = useState(() => {
     try {
       const stored = localStorage.getItem("spiceora_contact_settings");
-      return stored ? JSON.parse(stored) : { whatsapp: "9390645710", phone: "9390645710", email: "dreammasterorigin@gmail.com", hours: "Mon-Sat (9am - 6pm)" };
+      return stored ? JSON.parse(stored) : { whatsapp: "", phone: "", email: "", hours: "" };
     } catch {
-      return { whatsapp: "9390645710", phone: "9390645710", email: "dreammasterorigin@gmail.com", hours: "Mon-Sat (9am - 6pm)" };
+      return { whatsapp: "", phone: "", email: "", hours: "" };
     }
   });
 
   const [taxes, setTaxes] = useState(() => {
     try {
       const stored = localStorage.getItem("spiceora_tax_settings");
-      return stored ? JSON.parse(stored) : { gst: 18, stripeMock: true };
+      return stored ? JSON.parse(stored) : { gst: 18, stripeMock: false };
     } catch {
-      return { gst: 18, stripeMock: true };
+      return { gst: 18, stripeMock: false };
     }
   });
 
@@ -2085,10 +2143,7 @@ function SettingsPage() {
   const [coupons, setCoupons] = useState<any[]>(() => {
     try {
       const stored = localStorage.getItem("spiceora_coupons");
-      return stored ? JSON.parse(stored) : [
-        { code: "SPICE10", discountType: "percentage", value: 10, minPurchase: 500, active: true },
-        { code: "WELCOME50", discountType: "fixed", value: 50, minPurchase: 300, active: true }
-      ];
+      return stored ? JSON.parse(stored) : [];
     } catch {
       return [];
     }
@@ -2104,7 +2159,7 @@ function SettingsPage() {
   const [alertBanner, setAlertBanner] = useState(() => {
     try {
       const stored = localStorage.getItem("spiceora_campaign_alert");
-      return stored ? JSON.parse(stored) : { enabled: true, text: "🎉 Monsoons offer: Use code SPICE10 for 10% off store-wide!" };
+      return stored ? JSON.parse(stored) : { enabled: false, text: "" };
     } catch {
       return { enabled: false, text: "" };
     }
@@ -2113,7 +2168,7 @@ function SettingsPage() {
   const [modalOffer, setModalOffer] = useState(() => {
     try {
       const stored = localStorage.getItem("spiceora_campaign_popup");
-      return stored ? JSON.parse(stored) : { enabled: false, title: "Subscribe to Wholesale", description: "Sign up today to receive premium sample packs." };
+      return stored ? JSON.parse(stored) : { enabled: false, title: "", description: "" };
     } catch {
       return { enabled: false, title: "", description: "" };
     }
@@ -2528,12 +2583,7 @@ function SettingsPage() {
 }
 
 // ─── WHOLESALE MANAGEMENT CMS PAGE ───────────────────────────────────────────
-const DEFAULT_INQUIRIES = [
-  { id: "INQ-84920", date: "18/07/2026 14:32", businessName: "Taj Mahal Hotel", contactName: "Chef Vivek", email: "vivek@tajmahal.com", phone: "9876543210", productInterest: "Chilli Powder", volume: "25kg Bulk Supply", message: "Curry variety, needs low humidity dispatch.", status: "pending", assignedExecutive: "Unassigned", notes: ["Inquiry logged via store portal."], followUps: [] },
-  { id: "INQ-48293", date: "17/07/2026 11:15", businessName: "Zaffran Restaurant", contactName: "Mohit Shah", email: "mohit@zaffran.com", phone: "9390234859", productInterest: "Turmeric Powder", volume: "10kg Bulk Sack", status: "contacted", assignedExecutive: "Amit Verma", notes: ["Called client, confirmed volume requirement.", "Requested organic trade papers."], followUps: [] },
-  { id: "INQ-94820", date: "15/07/2026 16:45", businessName: "Curry Leaf Catering", contactName: "Seema Nair", email: "seema@curryleaf.in", phone: "8987456321", productInterest: "Coriander Powder", volume: "15kg Bulk Crate", status: "quotation_sent", assignedExecutive: "Priya Sen", notes: ["Quotation sent via email. Valid for 14 days."], followUps: [] },
-  { id: "INQ-18492", date: "14/07/2026 09:30", businessName: "Oberoi Group", contactName: "Deepak Kapoor", email: "deepak@oberoi.com", phone: "9988776655", productInterest: "Garam Masala", volume: "100kg - 500kg commercial", status: "converted", assignedExecutive: "Amit Verma", notes: ["Order confirmed. Delivery slated for 1st August."], followUps: [] },
-];
+const DEFAULT_INQUIRIES: any[] = [];
 
 function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => void }) {
   const [inquiries, setInquiries] = useState<any[]>(() => {
@@ -3021,13 +3071,7 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
       } catch {}
 
       // Load products prices
-      let productsData = [
-        { name: "Chilli Powder", p100: "₹39", p250: "₹99", p500: "₹199", p1000: "Available" },
-        { name: "Turmeric Powder", p100: "₹29", p250: "₹65", p500: "₹129", p1000: "Available" },
-        { name: "Coriander Powder", p100: "₹29", p250: "₹75", p500: "₹149", p1000: "Available" },
-        { name: "Ginger Garlic Paste", p100: "₹30", p250: "₹60", p500: "₹120", p1000: "Available" },
-        { name: "Garam Masala", p100: "₹50", p250: "₹100", p500: "₹200", p1000: "Available" },
-      ];
+      let productsData: any[] = [];
       try {
         const storedProducts = localStorage.getItem("spiceora_pdf_products");
         if (storedProducts) {
@@ -3906,10 +3950,7 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
 }
 
 // ─── QUOTATION MANAGEMENT CMS PAGE ───────────────────────────────────────────
-const DEFAULT_QUOTATIONS = [
-  { id: "QT-2026-8492", date: "18/07/2026", validUntil: "02/08/2026", businessName: "Taj Mahal Hotel", contactPerson: "Chef Vivek", email: "vivek@tajmahal.com", phone: "9876543210", billingAddress: "Taj Mahal Hotel, Apollo Bandar, Mumbai, MH", shippingAddress: "Taj Mahal Hotel Kitchen Yard, Colaba, Mumbai", gstin: "27AAAAT2918A1Z5", salesExecutive: "Amit Verma", items: [{ name: "Chilli Powder", weight: "25kg Bag", quantity: 10, unitPrice: 2750, discount: 5, gst: 5 }, { name: "Turmeric Powder", weight: "10kg Bag", quantity: 5, unitPrice: 1100, discount: 0, gst: 5 }], discountType: "percentage", discountValue: 5, shippingCharges: 450, paymentTerms: "50% Advance, 50% on Dispatch", leadTime: 5, packagingType: "Bulk Crate", deliveryMethod: "Road Freight", notes: "Fragile cargo, low moisture storage required.", termsList: ["Quotation Valid for 15 Days", "Prices Excluding GST", "Transportation Extra"], status: "sent", payableAmount: 30450, timeline: [{ time: "18/07/2026 14:40", event: "Quotation Created by Amit Verma" }, { time: "18/07/2026 14:45", event: "Quotation Marked as Sent" }] },
-  { id: "QT-2026-9281", date: "17/07/2026", validUntil: "01/08/2026", businessName: "Zaffran Restaurant", contactPerson: "Mohit Shah", email: "mohit@zaffran.com", phone: "9390234859", billingAddress: "Zaffran, Kemps Corner, Mumbai, MH", shippingAddress: "Zaffran Stores, Mumbai", gstin: "", salesExecutive: "Priya Sen", items: [{ name: "Turmeric Powder", weight: "10kg Bag", quantity: 20, unitPrice: 1100, discount: 10, gst: 5 }], discountType: "flat", discountValue: 500, shippingCharges: 600, paymentTerms: "100% Advance Required", leadTime: 3, packagingType: "Heavy Sack", deliveryMethod: "Express Courier", notes: "High curcumin batch requested.", termsList: ["Advance Payment Required", "Delivery Within 7 Days"], status: "accepted", payableAmount: 19800, timeline: [{ time: "17/07/2026 11:20", event: "Quotation Created by Priya Sen" }, { time: "17/07/2026 11:30", event: "Customer Accepted Quotation" }] },
-];
+const DEFAULT_QUOTATIONS: any[] = [];
 
 function QuotationManagementPage({ navigateTo }: { navigateTo: (p: string) => void }) {
   const [quotations, setQuotations] = useState<any[]>(() => {
@@ -5158,12 +5199,12 @@ function ProductCatalogCMSPage() {
   const [companyProfile, setCompanyProfile] = useState(() => {
     const saved = localStorage.getItem("spiceora_catalog_settings");
     return saved ? JSON.parse(saved) : {
-      name: "Spiceora Premium Spices",
-      logoUrl: "/images/logo.png",
-      description: "Direct farm sourcing of Guntur chillies, Ceylon cinnamon, and organic grade spices.",
-      mission: "To deliver authentic, unadulterated spices from standard farms to five-star kitchens.",
-      vision: "To set global standards for quality traceability in wholesale spice supply.",
-      promise: "Third-party tested batch quality with zero chemical additives."
+      name: "",
+      logoUrl: "",
+      description: "",
+      mission: "",
+      vision: "",
+      promise: ""
     };
   });
 
@@ -5171,37 +5212,31 @@ function ProductCatalogCMSPage() {
   const [contactSettings, setContactSettings] = useState(() => {
     const saved = localStorage.getItem("spiceora_contact_settings");
     return saved ? JSON.parse(saved) : {
-      whatsapp: "9390645710",
-      phone: "9390645710",
-      email: "dreammasterorigin@gmail.com",
-      address: "Spiceora Yard Gate 2, Guntur Industrial Area, Andhra Pradesh, India",
-      website: "https://spiceora.in",
-      hours: "Mon-Sat (9am - 6pm)"
+      whatsapp: "",
+      phone: "",
+      email: "",
+      address: "",
+      website: "",
+      hours: ""
     };
   });
 
   // CMS 3: PDF Product pricing states (5 basic spices)
   const [catalogProducts, setCatalogProducts] = useState<any[]>(() => {
     const saved = localStorage.getItem("spiceora_pdf_products");
-    return saved ? JSON.parse(saved) : [
-      { id: "sp-1", name: "Chilli Powder", description: "Bright red, fiery hot Guntur stemless chilli powder.", retailSizes: { p100: 39, p250: 99, p500: 199, p1000: "Available" }, order: 1, visible: true, active: true },
-      { id: "sp-2", name: "Turmeric Powder", description: "High curcumin Lakadong yellow turmeric root powder.", retailSizes: { p100: 29, p250: 65, p500: 129, p1000: "Available" }, order: 2, visible: true, active: true },
-      { id: "sp-3", name: "Coriander Powder", description: "Earthy, green coriander seeds finely milled.", retailSizes: { p100: 29, p250: 75, p500: 149, p1000: "Available" }, order: 3, visible: true, active: true },
-      { id: "sp-4", name: "Ginger Garlic Paste", description: "Balanced fresh ginger and garlic blend paste.", retailSizes: { p100: 30, p250: 60, p500: 120, p1000: "Available" }, order: 4, visible: true, active: true },
-      { id: "sp-5", name: "Garam Masala", description: "Blend of whole cinnamon, cardamom, cloves, and star anise.", retailSizes: { p100: 50, p250: 100, p500: 200, p1000: "Available" }, order: 5, visible: true, active: true },
-    ];
+    return saved ? JSON.parse(saved) : [];
   });
 
   // CMS 4: Bulk Packaging states
   const [bulkPackaging, setBulkPackaging] = useState(() => {
     const saved = localStorage.getItem("spiceora_bulk_packaging");
     return saved ? JSON.parse(saved) : {
-      p5kg: true, p10kg: true, p15kg: true, p25kg: true,
-      customOptions: "Custom packaging available for orders exceeding 500kg.",
-      grindingOptions: "Coarse powder, fine powder, custom mesh sieve specs.",
-      privateLabel: "White labeling available on export volumes.",
-      oemMfg: "OEM contract processing and warehouse dispatch.",
-      visible: true
+      p5kg: false, p10kg: false, p15kg: false, p25kg: false,
+      customOptions: "",
+      grindingOptions: "",
+      privateLabel: "",
+      oemMfg: "",
+      visible: false
     };
   });
 
@@ -5211,10 +5246,10 @@ function ProductCatalogCMSPage() {
     return saved ? JSON.parse(saved) : {
       headerVisible: true,
       footerVisible: true,
-      watermark: "OFFICIAL CATALOG",
-      primaryColor: "green", // green, gold, red, blue
+      watermark: "",
+      primaryColor: "green",
       secondaryColor: "gold",
-      terms: "Terms: Ex-works / F.O.B dispatch. Sample kits available on request.",
+      terms: "",
       typography: "Helvetica"
     };
   });
@@ -5223,9 +5258,7 @@ function ProductCatalogCMSPage() {
   const [pdfHistory, setPdfHistory] = useState<any[]>(() => {
     try {
       const saved = localStorage.getItem("spiceora_pdf_history");
-      return saved ? JSON.parse(saved) : [
-        { id: "PDF-39281", date: "18/07/2026 12:45", businessName: "Taj Mahal Hotel", contactPerson: "Chef Vivek", product: "Chilli Powder", volume: "25kg Bulk Supply", generatedBy: "System (Auto)" }
-      ];
+      return saved ? JSON.parse(saved) : [];
     } catch {
       return [];
     }
@@ -5243,10 +5276,7 @@ function ProductCatalogCMSPage() {
   const [auditLogs, setAuditLogs] = useState<any[]>(() => {
     try {
       const saved = localStorage.getItem("spiceora_audit_logs");
-      return saved ? JSON.parse(saved) : [
-        { time: "18/07/2026 15:10", action: "Admin Settings Updated", user: "Arjun Kumar (Admin)", details: "Company contact parameters changed." },
-        { time: "18/07/2026 14:32", action: "Inquiry Created", user: "Customer Portal", details: "New wholesale request submitted by Taj Mahal Hotel" }
-      ];
+      return saved ? JSON.parse(saved) : [];
     } catch {
       return [];
     }
@@ -5339,7 +5369,7 @@ function ProductCatalogCMSPage() {
       doc.setFont("Helvetica", "bold");
       doc.setFontSize(20);
       doc.setTextColor(26, 23, 20);
-      doc.text("SAMPLE PRODUCTS CATALOG", 20, 75);
+      doc.text("PRODUCT CATALOG PREVIEW", 20, 75);
 
       doc.setDrawColor(secondary[0], secondary[1], secondary[2]);
       doc.setLineWidth(0.8);
@@ -5359,7 +5389,7 @@ function ProductCatalogCMSPage() {
       doc.setFont("Helvetica", "bold");
       doc.setFontSize(15);
       doc.setTextColor(primary[0], primary[1], primary[2]);
-      doc.text("Sample Review Partner", 30, cardY);
+      doc.text(companyProfile.name || "Your Company", 30, cardY);
       cardY += 12;
 
       doc.setFontSize(11);
@@ -5495,8 +5525,8 @@ function ProductCatalogCMSPage() {
         doc.text(pdfTemplate.watermark, 30, 250, null, 45);
       }
 
-      doc.save("SPICEORA_Sample_Product_Catalog.pdf");
-      toast.success("Sample PDF downloaded successfully");
+      doc.save("SPICEORA_Product_Catalog_Preview.pdf");
+      toast.success("Catalog PDF preview downloaded successfully");
     } catch (e) {
       console.error(e);
       toast.error("Failed to generate sample PDF");
@@ -5706,7 +5736,7 @@ function ProductCatalogCMSPage() {
 
             <div className="pt-4 flex gap-3 flex-wrap">
               <Btn icon={Save} onClick={triggerTemplateSave}>Save PDF Template Styles</Btn>
-              <Btn variant="secondary" icon={FileText} onClick={generateSampleCatalogPDF}>Download Sample PDF Preview</Btn>
+              <Btn variant="secondary" icon={FileText} onClick={generateSampleCatalogPDF}>Download Catalog PDF Preview</Btn>
             </div>
           </div>
         )}
@@ -5832,10 +5862,7 @@ function HomepageCMSPage() {
   const [heroSlides, setHeroSlides] = useState<any[]>(() => {
     try {
       const stored = localStorage.getItem("spiceora_homepage_hero");
-      return stored ? JSON.parse(stored) : [
-        { id: 1, title: "100% Organic & Farm Fresh Spices", subtitle: "Sourced directly from local farmers across India's premium spice regions", ctaText: "Explore Catalog", ctaLink: "/shop" },
-        { id: 2, title: "Pure Aromatic Blends", subtitle: "Handcrafted recipes passed down through generations", ctaText: "View Blends", ctaLink: "/shop?category=blends" }
-      ];
+      return stored ? JSON.parse(stored) : [];
     } catch {
       return [];
     }
@@ -5894,10 +5921,7 @@ function RecipesCMSPage() {
   const [recipes, setRecipes] = useState<any[]>(() => {
     try {
       const stored = localStorage.getItem("spiceora_recipes");
-      return stored ? JSON.parse(stored) : [
-        { id: "R001", title: "Kashmiri Lal Murgh", time: "45 mins", difficulty: "Medium", ingredients: "Chicken, Kashmiri Chilli Powder, Ginger Garlic Paste, Yogurt, Garam Masala", steps: "1. Marinate chicken with ginger garlic paste and spices.\n2. Sear chicken in hot oil.\n3. Add yogurt sauce and simmer for 30 minutes." },
-        { id: "R002", title: "Golden Turmeric Latte", time: "10 mins", difficulty: "Easy", ingredients: "Milk, Turmeric Powder, Honey, Ceylon Cinnamon, Black Pepper", steps: "1. Heat milk in a saucepan.\n2. Whisk in turmeric, cinnamon, and pepper.\n3. Sweeten with honey and serve hot." }
-      ];
+      return stored ? JSON.parse(stored) : [];
     } catch {
       return [];
     }
@@ -6018,10 +6042,7 @@ function PagesCMSPage() {
   const [timeline, setTimeline] = useState<any[]>(() => {
     try {
       const stored = localStorage.getItem("spiceora_timeline");
-      return stored ? JSON.parse(stored) : [
-        { year: "2024", title: "Company Founded", description: "Began contract spice grinding for B2B exporters." },
-        { year: "2025", title: "Direct Farm Logistics", description: "Linked Salem, Guntur, and Shimoga farms to our primary warehouse." }
-      ];
+      return stored ? JSON.parse(stored) : [];
     } catch {
       return [];
     }
@@ -6030,10 +6051,7 @@ function PagesCMSPage() {
   const [policies, setPolicies] = useState(() => {
     try {
       const stored = localStorage.getItem("spiceora_policies");
-      return stored ? JSON.parse(stored) : {
-        privacy: "At Spiceora, we value customer privacy. All details are kept secure via strong local encryption systems.",
-        terms: "Payment terms are strictly COD or bank dispatch invoice setup within 15 days."
-      };
+      return stored ? JSON.parse(stored) : { privacy: "", terms: "" };
     } catch {
       return { privacy: "", terms: "" };
     }
@@ -6115,10 +6133,7 @@ function CouponsPage() {
   const [coupons, setCoupons] = useState<any[]>(() => {
     try {
       const stored = localStorage.getItem("spiceora_coupons");
-      return stored ? JSON.parse(stored) : [
-        { code: "SPICE10", discountType: "percentage", value: 10, minPurchase: 500, active: true },
-        { code: "WELCOME50", discountType: "fixed", value: 50, minPurchase: 300, active: true }
-      ];
+      return stored ? JSON.parse(stored) : [];
     } catch {
       return [];
     }
@@ -6232,7 +6247,7 @@ function CampaignsPage() {
   const [alertBanner, setAlertBanner] = useState(() => {
     try {
       const stored = localStorage.getItem("spiceora_campaign_alert");
-      return stored ? JSON.parse(stored) : { enabled: true, text: "🎉 Monsoons offer: Use code SPICE10 for 10% off store-wide!" };
+      return stored ? JSON.parse(stored) : { enabled: false, text: "" };
     } catch {
       return { enabled: false, text: "" };
     }
@@ -6241,7 +6256,7 @@ function CampaignsPage() {
   const [modalOffer, setModalOffer] = useState(() => {
     try {
       const stored = localStorage.getItem("spiceora_campaign_popup");
-      return stored ? JSON.parse(stored) : { enabled: false, title: "Subscribe to Wholesale", description: "Sign up today to receive premium sample packs." };
+      return stored ? JSON.parse(stored) : { enabled: false, title: "", description: "" };
     } catch {
       return { enabled: false, title: "", description: "" };
     }
@@ -6312,26 +6327,19 @@ function WebsiteCMSPage() {
   const [activeTab, setActiveTab] = useState<"homepage" | "recipes" | "testimonials" | "footer">("homepage");
 
   const [homepage, setHomepage] = useState(() => {
-    try { const s = localStorage.getItem("spiceora_homepage_cms"); return s ? JSON.parse(s) : { headline: "Premium Farm-Fresh Spices", subheadline: "Sourced from Guntur, Salem & Amritsar for five-star kitchens.", heroBanner: "Authentic Flavours. Unmatched Quality.", ctaButton: "Shop Wholesale Now", ctaUrl: "https://spiceora.in", bannerActive: true }; } catch { return {}; }
+    try { const s = localStorage.getItem("spiceora_homepage_cms"); return s ? JSON.parse(s) : { headline: "", subheadline: "", heroBanner: "", ctaButton: "", ctaUrl: "", bannerActive: false }; } catch { return { headline: "", subheadline: "", heroBanner: "", ctaButton: "", ctaUrl: "", bannerActive: false }; }
   });
 
   const [recipes, setRecipes] = useState<any[]>(() => {
-    try { const s = localStorage.getItem("spiceora_recipes"); return s ? JSON.parse(s) : [
-      { id: "R1", title: "Andhra Chicken Curry", difficulty: "Medium", prepTime: "45 mins", featured: true, category: "Non-Veg" },
-      { id: "R2", title: "Kerala Fish Moilee", difficulty: "Easy", prepTime: "30 mins", featured: false, category: "Non-Veg" },
-      { id: "R3", title: "Dal Tadka", difficulty: "Easy", prepTime: "25 mins", featured: true, category: "Vegetarian" }
-    ]; } catch { return []; }
+    try { const s = localStorage.getItem("spiceora_recipes"); return s ? JSON.parse(s) : []; } catch { return []; }
   });
 
   const [testimonials, setTestimonials] = useState<any[]>(() => {
-    try { const s = localStorage.getItem("spiceora_testimonials"); return s ? JSON.parse(s) : [
-      { id: "T1", name: "Sarah Miller", rating: 5, comment: "Kashmiri Chilli Powder gave my curry the best vibrant red.", status: "approved", product: "Chilli Powder" },
-      { id: "T2", name: "David K.", rating: 4, comment: "The ginger garlic paste tastes fresh.", status: "approved", product: "Ginger Garlic Paste" }
-    ]; } catch { return []; }
+    try { const s = localStorage.getItem("spiceora_testimonials"); return s ? JSON.parse(s) : []; } catch { return []; }
   });
 
   const [footer, setFooter] = useState(() => {
-    try { const s = localStorage.getItem("spiceora_footer"); return s ? JSON.parse(s) : { tagline: "Authentic Spices. Delivered Fresh.", copyright: "© 2026 Spiceora. All rights reserved.", instagramUrl: "", facebookUrl: "", whatsappNumber: "9390645710" }; } catch { return {}; }
+    try { const s = localStorage.getItem("spiceora_footer"); return s ? JSON.parse(s) : { tagline: "", copyright: "", instagramUrl: "", facebookUrl: "", whatsappNumber: "" }; } catch { return { tagline: "", copyright: "", instagramUrl: "", facebookUrl: "", whatsappNumber: "" }; }
   });
 
   const saveHomepage = () => { localStorage.setItem("spiceora_homepage_cms", JSON.stringify(homepage)); toast.success("Homepage content saved"); };

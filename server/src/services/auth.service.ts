@@ -4,7 +4,7 @@ export async function registerCustomer(input: {
   email: string;
   password: string;
   firstName: string;
-  lastName: string;
+  lastName?: string;
   phone?: string;
 }) {
   const existing = await findCustomerByEmail(input.email);
@@ -13,12 +13,23 @@ export async function registerCustomer(input: {
   }
 
   const passwordHash = `hashed:${input.password}`;
+  const lastNameSafe = input.lastName || '';
   return createCustomerProfile({
     email: input.email,
     passwordHash,
     firstName: input.firstName,
-    lastName: input.lastName,
+    lastName: lastNameSafe,
     phone: input.phone,
     role: 'customer'
   });
+}
+
+export async function authenticateCustomer(email: string, password: string) {
+  const customer = await findCustomerByEmail(email);
+  if (!customer) return null;
+  const expected = `hashed:${password}`;
+  if ((customer as any).passwordHash !== expected) return null;
+  // Do not return passwordHash to caller
+  const { passwordHash, ...sanitized } = customer as any;
+  return sanitized;
 }

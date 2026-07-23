@@ -154,3 +154,27 @@ export const quotations = mysqlTable('quotations', {
   updatedAt: datetime('updated_at').notNull()
 });
 
+// Additional tables added to match database schema used by front-end / session
+export const todos = mysqlTable('todos', {
+  id: serial('id').primaryKey(),
+  title: varchar('title', { length: 255 }).notNull(),
+  description: text('description'),
+  status: mysqlEnum('status', ['pending','in_progress','done','blocked']).notNull().default('pending'),
+  createdAt: datetime('created_at').notNull(),
+  updatedAt: datetime('updated_at').notNull()
+});
+
+export const todoDeps = mysqlTable('todo_deps', {
+  id: serial('id').primaryKey(),
+  todoId: int('todo_id').notNull(),
+  dependsOn: int('depends_on').notNull()
+});
+
+export const inboxEntries = mysqlTable('inbox_entries', {
+  id: serial('id').primaryKey(),
+  subject: varchar('subject', { length: 255 }),
+  message: text('message'),
+  isRead: boolean('is_read').notNull().default(false),
+  createdAt: datetime('created_at').notNull()
+});
+

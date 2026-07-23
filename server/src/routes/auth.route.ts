@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { registerController } from '../controllers/auth.controller.js';
+import { registerController, loginController } from '../controllers/auth.controller.js';
 import { asyncHandler } from '../middleware/async-handler.js';
 import { validateBody } from '../middleware/validate.middleware.js';
 import { z } from 'zod';
@@ -10,10 +10,17 @@ const registerSchema = z.object({
   email: z.string().email(),
   password: z.string().min(6),
   firstName: z.string().min(1),
-  lastName: z.string().min(1),
+  // lastName may be omitted by users with single-word names; accept optional and default server-side
+  lastName: z.string().optional(),
   phone: z.string().optional()
 });
 
+const loginSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(1)
+});
+
 router.post('/register', validateBody(registerSchema), asyncHandler(registerController));
+router.post('/login', validateBody(loginSchema), asyncHandler(loginController));
 
 export default router;
