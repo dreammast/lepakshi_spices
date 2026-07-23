@@ -20,7 +20,7 @@ import {
   PieChart, Pie, Cell,
 } from "recharts";
 import { SmartPricingAssistant } from "./components/SmartPricingAssistant";
-import { categoriesApi } from "../lib/apiClient";
+import { categoriesApi, customersApi } from "../lib/apiClient";
 
 // ─── Brand Tokens ─────────────────────────────────────────────
 const C = {
@@ -1922,7 +1922,7 @@ function CollectionsPage() {
 }
 
 function CustomersPage() {
-  const [customers] = useState<any[]>(() => {
+  const [customers, setCustomers] = useState<any[]>(() => {
     try {
       const stored = localStorage.getItem("spiceora_customers");
       return stored ? JSON.parse(stored) : [];
@@ -1931,9 +1931,44 @@ function CustomersPage() {
     }
   });
 
+  const [loading, setLoading] = useState(false);
   const [query, setQuery] = useState("");
   const [drawer, setDrawer] = useState<any | null>(null);
   const [drawerTab, setDrawerTab] = useState<"info" | "orders" | "products" | "timeline">("info");
+
+  const loadCustomersFromApi = async () => {
+    setLoading(true);
+    try {
+      const data = await customersApi.list();
+      if (Array.isArray(data)) {
+        const mapped = data.map((c: any) => ({
+          id: `CUST-${c.id}`,
+          rawId: c.id,
+          name: `${c.firstName || ''} ${c.lastName || ''}`.trim() || c.email,
+          firstName: c.firstName,
+          lastName: c.lastName,
+          email: c.email,
+          phone: c.phone || 'N/A',
+          location: 'India',
+          orders: c.orderCount || 0,
+          ltv: c.ltv || 0,
+          role: c.role || 'customer',
+          segment: c.segment || 'new',
+          createdAt: c.createdAt ? new Date(c.createdAt).toLocaleDateString() : 'N/A'
+        }));
+        setCustomers(mapped);
+        localStorage.setItem("spiceora_customers", JSON.stringify(mapped));
+      }
+    } catch (err) {
+      console.warn("Failed to fetch registered customers from API:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadCustomersFromApi();
+  }, []);
 
   const allOrders: any[] = (() => { try { const s = localStorage.getItem("spiceora_orders"); return s ? JSON.parse(s) : []; } catch { return []; } })();
   const allReviews: any[] = (() => { try { const s = localStorage.getItem("spiceora_testimonials"); return s ? JSON.parse(s) : []; } catch { return []; } })();
@@ -1941,13 +1976,16 @@ function CustomersPage() {
   const customerOrders = drawer ? allOrders.filter(o => o.customer?.toLowerCase() === drawer.name?.toLowerCase()) : [];
   const customerReviews = drawer ? allReviews.filter(r => r.name?.toLowerCase() === drawer.name?.toLowerCase()) : [];
 
-  const filtered = customers.filter(c => c.name.toLowerCase().includes(query.toLowerCase()) || c.email.toLowerCase().includes(query.toLowerCase()));
+  const filtered = customers.filter(c => (c.name || '').toLowerCase().includes(query.toLowerCase()) || (c.email || '').toLowerCase().includes(query.toLowerCase()));
 
   return (
     <div className="space-y-6 text-left">
-      <div>
-        <h2 className="text-2xl font-bold font-serif text-[#2C2416]">Customers Directory</h2>
-        <p className="text-xs text-[#8B7355]">Review registered profiles, transaction frequency, and lifetime value</p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-bold font-serif text-[#2C2416]">Customers Directory</h2>
+          <p className="text-xs text-[#8B7355]">Review registered profiles, transaction frequency, and lifetime value</p>
+        </div>
+        <Btn icon={RefreshCw} variant="secondary" onClick={loadCustomersFromApi}>Refresh Profiles</Btn>
       </div>
 
       <div className="flex gap-3 bg-white p-4 rounded-2xl border border-[#2C2416]/10">
@@ -1958,30 +1996,49 @@ function CustomersPage() {
       </div>
 
       <Card className="overflow-hidden">
-        <table className="w-full text-xs">
-          <thead>
-            <tr className="bg-[#FAF8F5] border-b border-[#2C2416]/8">
-              {["Client ID", "Name", "Email", "Location", "Retail Orders", "Total Spent (LTV)", "Details"].map(h => (
-                <th key={h} className="px-5 py-4 text-left font-semibold text-[#8B7355]">{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-[#2C2416]/8">
-            {filtered.map(c => (
-              <tr key={c.id} className="hover:bg-[#FAF8F5]/50 transition-colors">
-                <td className="px-5 py-4 font-mono font-medium text-[#8B7355]">{c.id}</td>
-                <td className="px-5 py-4 font-semibold text-[#2C2416]">{c.name}</td>
-                <td className="px-5 py-4">{c.email}</td>
-                <td className="px-5 py-4 text-[#8B7355]">{c.location}</td>
-                <td className="px-5 py-4">{c.orders} orders</td>
-                <td className="px-5 py-4 font-semibold text-[#2C2416]">₹{c.ltv}</td>
-                <td className="px-5 py-4">
-                  <button onClick={() => setDrawer(c)} className="p-1 text-[#8B7355] hover:bg-[#2C2416]/10 rounded-lg"><Eye className="w-4 h-4" /></button>
-                </td>
+        {loading ? (
+          <div className="p-12 flex flex-col items-center justify-center space-y-3">
+            <RefreshCw className="w-6 h-6 text-[#2D5016] animate-spin" />
+            <p className="text-xs text-[#8B7355]">Loading registered user profiles...</p>
+          </div>
+        ) : (
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="bg-[#FAF8F5] border-b border-[#2C2416]/8">
+                {["Client ID", "Name", "Email", "Phone", "Segment", "Retail Orders", "Total Spent (LTV)", "Details"].map(h => (
+                  <th key={h} className="px-5 py-4 text-left font-semibold text-[#8B7355]">{h}</th>
+                ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-[#2C2416]/8">
+              {filtered.map(c => (
+                <tr key={c.id} className="hover:bg-[#FAF8F5]/50 transition-colors">
+                  <td className="px-5 py-4 font-mono font-medium text-[#8B7355]">{c.id}</td>
+                  <td className="px-5 py-4 font-semibold text-[#2C2416]">{c.name}</td>
+                  <td className="px-5 py-4 text-[#2C2416]">{c.email}</td>
+                  <td className="px-5 py-4 text-[#8B7355]">{c.phone}</td>
+                  <td className="px-5 py-4 capitalize">
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                      {c.segment}
+                    </span>
+                  </td>
+                  <td className="px-5 py-4">{c.orders} orders</td>
+                  <td className="px-5 py-4 font-semibold text-[#2D5016]">₹{c.ltv}</td>
+                  <td className="px-5 py-4">
+                    <button onClick={() => setDrawer(c)} className="p-1.5 text-[#8B7355] hover:bg-[#2C2416]/10 rounded-lg transition-colors"><Eye className="w-4 h-4" /></button>
+                  </td>
+                </tr>
+              ))}
+              {filtered.length === 0 && (
+                <tr>
+                  <td colSpan={8} className="py-12 text-center text-[#8B7355]">
+                    No registered customers found.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        )}
       </Card>
 
       {/* Customer details Drawer */}
