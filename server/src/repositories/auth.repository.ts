@@ -16,6 +16,11 @@ export async function findCustomerByEmail(email: string) {
   return customer ?? null;
 }
 
+export async function findCustomerById(id: number) {
+  const [customer] = await db.select().from(customerProfiles).where(eq(customerProfiles.id, id));
+  return customer ?? null;
+}
+
 export async function createCustomerProfile(input: CreateCustomerProfileInput) {
   await db.insert(customerProfiles).values({
     email: input.email,

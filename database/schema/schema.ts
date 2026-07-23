@@ -602,3 +602,62 @@ export const healthCheck = mysqlTable('health_check', {
   createdAt: timestamp('created_at').defaultNow()
 });
 
+// API-facing collection tables (alongside product_collections)
+export const collections = mysqlTable('collections', {
+  id: serial('id').primaryKey(),
+  name: varchar('name', { length: 200 }).notNull(),
+  slug: varchar('slug', { length: 200 }).notNull(),
+  description: text('description'),
+  imageUrl: varchar('image_url', { length: 512 }),
+  isActive: boolean('is_active').notNull().default(true),
+  sortOrder: int('sort_order').notNull().default(0),
+  createdAt: datetime('created_at').notNull(),
+  updatedAt: datetime('updated_at').notNull()
+}, (table) => ({ slugIdx: uniqueIndex('collections_slug_idx').on(table.slug) }));
+
+export const collectionProducts = mysqlTable('collection_products', {
+  id: serial('id').primaryKey(),
+  collectionId: int('collection_id').notNull(),
+  productId: int('product_id').notNull(),
+  sortOrder: int('sort_order').notNull().default(0)
+}, (table) => ({
+  collectionIdx: index('collection_products_collection_idx').on(table.collectionId),
+  productIdx: index('collection_products_product_idx').on(table.productId),
+  uniquePair: uniqueIndex('collection_products_unique').on(table.collectionId, table.productId)
+}));
+
+export const bulkPackaging = mysqlTable('bulk_packaging', {
+  id: serial('id').primaryKey(),
+  productId: int('product_id').notNull(),
+  packLabel: varchar('pack_label', { length: 100 }).notNull(),
+  price: decimal('price', { precision: 12, scale: 2 }).notNull(),
+  minOrderQty: int('min_order_qty').notNull().default(1),
+  isActive: boolean('is_active').notNull().default(true),
+  createdAt: datetime('created_at').notNull(),
+  updatedAt: datetime('updated_at').notNull()
+}, (table) => ({ productIdx: index('bulk_packaging_product_idx').on(table.productId) }));
+
+export const campaigns = mysqlTable('campaigns', {
+  id: serial('id').primaryKey(),
+  placement: mysqlEnum('placement', ['alert_banner', 'popup_modal']).notNull(),
+  title: varchar('title', { length: 200 }),
+  message: text('message').notNull(),
+  ctaLabel: varchar('cta_label', { length: 80 }),
+  ctaUrl: varchar('cta_url', { length: 512 }),
+  imageUrl: varchar('image_url', { length: 512 }),
+  isActive: boolean('is_active').notNull().default(false),
+  startsAt: datetime('starts_at'),
+  endsAt: datetime('ends_at'),
+  createdAt: datetime('created_at').notNull(),
+  updatedAt: datetime('updated_at').notNull()
+}, (table) => ({ placementIdx: index('campaigns_placement_idx').on(table.placement) }));
+
+export const pdfCatalogHistory = mysqlTable('pdf_catalog_history', {
+  id: serial('id').primaryKey(),
+  generatedBy: int('generated_by'),
+  productIds: json('product_ids').$type<number[]>().notNull(),
+  templateKey: varchar('template_key', { length: 80 }),
+  fileUrl: varchar('file_url', { length: 512 }),
+  createdAt: datetime('created_at').notNull()
+});
+

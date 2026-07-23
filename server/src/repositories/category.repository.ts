@@ -28,4 +28,10 @@ export async function deleteCategoryRecord(id: number) {
   return db.delete(categories).where(eq(categories.id, id));
 }
 
+export async function updateCategoryRecord(id: number, data: { name?: string; slug?: string; description?: string }) {
+  await db.update(categories).set({ ...data, updatedAt: new Date() }).where(eq(categories.id, id));
+  const [updated] = await db.select().from(categories).where(eq(categories.id, id));
+  return updated ?? null;
+}
+
 

@@ -1,4 +1,4 @@
-import { findAllCategories, findCategoryBySlug, createCategoryRecord, deleteCategoryRecord } from '../repositories/category.repository.js';
+import { findAllCategories, findCategoryBySlug, createCategoryRecord, deleteCategoryRecord, updateCategoryRecord } from '../repositories/category.repository.js';
 import { AppError } from '../utils/app-error.js';
 
 export async function listCategories() {
@@ -19,6 +19,10 @@ export async function createCategory(data: { name: string; slug: string; descrip
 
 export async function deleteCategory(id: number) {
   return deleteCategoryRecord(id);
+}
+
+export async function updateCategory(id: number, data: { name?: string; slug?: string; description?: string }) {
+  return updateCategoryRecord(id, data);
 }
 
 
