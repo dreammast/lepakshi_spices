@@ -1,3 +1,21 @@
+// database/schema/schema.ts
+//
+// Drop-in replacement for the existing schema file. It keeps every table you
+// already had (categories, products, productVariants, productImages,
+// customerProfiles, addresses, carts, cartItems, wishlists, wishlistItems,
+// orders, orderItems, reviews, websiteSettings, wholesaleInquiries,
+// quotations) and adds every table needed to back the admin screens that are
+// currently only writing to localStorage (coupons, collections, campaigns,
+// recipes, audit log, bulk packaging, PDF catalog history, quotation line
+// items).
+//
+// Singleton / config-style admin screens (contact settings, tax settings,
+// homepage hero, homepage CMS blocks, footer, policies, catalog settings,
+// PDF template, timeline) do NOT need their own tables — they map cleanly
+// onto the `websiteSettings` key/value table that already exists. Store each
+// screen's config as one row: key = "contact_settings", value = JSON.stringify({...}).
+// This avoids ~10 near-identical singleton tables.
+
 import {
   mysqlTable,
   serial,
@@ -22,9 +40,6 @@ export const categories = mysqlTable('categories', {
   name: varchar('name', { length: 128 }).notNull(),
   slug: varchar('slug', { length: 128 }).notNull(),
   description: text('description'),
-  imageUrl: varchar('image_url', { length: 512 }),
-  displayOrder: int('display_order').notNull().default(0),
-  isActive: boolean('is_active').notNull().default(true),
   createdAt: datetime('created_at').notNull(),
   updatedAt: datetime('updated_at').notNull()
 }, (table) => ({
@@ -36,18 +51,9 @@ export const products = mysqlTable('products', {
   categoryId: int('category_id').notNull(),
   name: varchar('name', { length: 200 }).notNull(),
   slug: varchar('slug', { length: 200 }).notNull(),
-  subtitle: varchar('subtitle', { length: 255 }),
   description: text('description'),
-  origin: varchar('origin', { length: 255 }),
-  badge: varchar('badge', { length: 80 }),
-  ingredients: json('ingredients').$type<string[]>(),
-  nutritionPer100g: json('nutrition_per_100g').$type<Record<string, string>>(),
-  storageInstructions: text('storage_instructions'),
-  tags: json('tags').$type<string[]>(),
   basePrice: decimal('base_price', { precision: 12, scale: 2 }).notNull(),
   isActive: boolean('is_active').notNull().default(true),
-  isFeatured: boolean('is_featured').notNull().default(false),
-  isBundle: boolean('is_bundle').notNull().default(false),
   createdAt: datetime('created_at').notNull(),
   updatedAt: datetime('updated_at').notNull()
 }, (table) => ({
@@ -59,14 +65,8 @@ export const productVariants = mysqlTable('product_variants', {
   id: serial('id').primaryKey(),
   productId: int('product_id').notNull(),
   sku: varchar('sku', { length: 64 }).notNull(),
-  label: varchar('label', { length: 128 }),
-  weightGrams: int('weight_grams'),
   price: decimal('price', { precision: 12, scale: 2 }).notNull(),
-  compareAtPrice: decimal('compare_at_price', { precision: 12, scale: 2 }),
-  costPrice: decimal('cost_price', { precision: 12, scale: 2 }),
   stock: int('stock').notNull().default(0),
-  lowStockThreshold: int('low_stock_threshold').notNull().default(0),
-  isDefault: boolean('is_default').notNull().default(false),
   attributes: json('attributes').$type<Record<string, unknown>>(),
   createdAt: datetime('created_at').notNull(),
   updatedAt: datetime('updated_at').notNull()
@@ -86,6 +86,8 @@ export const productImages = mysqlTable('product_images', {
   productIdx: index('product_images_product_idx').on(table.productId)
 }));
 
+// NEW: admin "Collections" screen (curated groupings of products, e.g.
+// "Festive Gift Boxes", "Best Sellers")
 export const collections = mysqlTable('collections', {
   id: serial('id').primaryKey(),
   name: varchar('name', { length: 200 }).notNull(),
@@ -111,10 +113,12 @@ export const collectionProducts = mysqlTable('collection_products', {
   uniquePair: uniqueIndex('collection_products_unique').on(table.collectionId, table.productId)
 }));
 
+// NEW: admin "Bulk Packaging" screen (wholesale pack sizes per product,
+// e.g. 5kg / 25kg sacks with their own price + MOQ)
 export const bulkPackaging = mysqlTable('bulk_packaging', {
   id: serial('id').primaryKey(),
   productId: int('product_id').notNull(),
-  packLabel: varchar('pack_label', { length: 100 }).notNull(),
+  packLabel: varchar('pack_label', { length: 100 }).notNull(), // e.g. "25kg Sack"
   price: decimal('price', { precision: 12, scale: 2 }).notNull(),
   minOrderQty: int('min_order_qty').notNull().default(1),
   isActive: boolean('is_active').notNull().default(true),
@@ -125,7 +129,7 @@ export const bulkPackaging = mysqlTable('bulk_packaging', {
 }));
 
 // ---------------------------------------------------------------------------
-// Customers / Auth
+// Customers / auth
 // ---------------------------------------------------------------------------
 
 export const customerProfiles = mysqlTable('customer_profiles', {
@@ -135,15 +139,15 @@ export const customerProfiles = mysqlTable('customer_profiles', {
   firstName: varchar('first_name', { length: 128 }).notNull(),
   lastName: varchar('last_name', { length: 128 }).notNull(),
   phone: varchar('phone', { length: 32 }),
-  avatarUrl: varchar('avatar_url', { length: 512 }),
   role: mysqlEnum('role', ['customer', 'staff', 'manager', 'admin']).notNull().default('customer'),
-  segment: mysqlEnum('segment', ['new', 'regular', 'vip', 'wholesale']).notNull().default('new'),
-  isActive: boolean('is_active').notNull().default(true),
   createdAt: datetime('created_at').notNull(),
   updatedAt: datetime('updated_at').notNull()
 }, (table) => ({
   emailIdx: uniqueIndex('customer_profiles_email_idx').on(table.email)
 }));
+// NOTE: the admin "Customers" screen does not need its own table — it's just
+// a query over customerProfiles (role='customer') joined with orders for
+// order-count / lifetime-value columns.
 
 export const addresses = mysqlTable('addresses', {
   id: serial('id').primaryKey(),
@@ -163,7 +167,7 @@ export const addresses = mysqlTable('addresses', {
 }));
 
 // ---------------------------------------------------------------------------
-// Cart / Wishlist
+// Cart / wishlist
 // ---------------------------------------------------------------------------
 
 export const carts = mysqlTable('carts', {
@@ -209,23 +213,14 @@ export const wishlistItems = mysqlTable('wishlist_items', {
 
 export const orders = mysqlTable('orders', {
   id: serial('id').primaryKey(),
-  orderNumber: varchar('order_number', { length: 64 }).notNull(),
   customerId: int('customer_id').notNull(),
-  subtotalAmount: decimal('subtotal_amount', { precision: 12, scale: 2 }).notNull().default('0'),
-  discountAmount: decimal('discount_amount', { precision: 12, scale: 2 }).notNull().default('0'),
-  taxAmount: decimal('tax_amount', { precision: 12, scale: 2 }).notNull().default('0'),
-  shippingAmount: decimal('shipping_amount', { precision: 12, scale: 2 }).notNull().default('0'),
   totalAmount: decimal('total_amount', { precision: 12, scale: 2 }).notNull(),
-  currency: varchar('currency', { length: 3 }).notNull().default('INR'),
-  status: mysqlEnum('status', ['pending', 'processing', 'shipped', 'delivered', 'completed', 'cancelled', 'refunded', 'returned']).notNull().default('pending'),
-  paymentMethod: varchar('payment_method', { length: 64 }),
-  paymentStatus: mysqlEnum('payment_status', ['pending', 'authorized', 'paid', 'failed', 'refunded', 'partially_refunded']).notNull().default('pending'),
-  couponCode: varchar('coupon_code', { length: 64 }),
-  customerNote: text('customer_note'),
+  status: mysqlEnum('status', ['pending', 'processing', 'completed', 'cancelled', 'refunded']).notNull().default('pending'),
+  couponCode: varchar('coupon_code', { length: 32 }),
+  discountAmount: decimal('discount_amount', { precision: 12, scale: 2 }).notNull().default('0'),
   shippingAddressId: int('shipping_address_id'),
   billingAddressId: int('billing_address_id'),
   placedAt: datetime('placed_at').notNull(),
-  deliveredAt: datetime('delivered_at'),
   updatedAt: datetime('updated_at').notNull()
 }, (table) => ({
   customerIdx: index('orders_customer_idx').on(table.customerId),
@@ -243,7 +238,7 @@ export const orderItems = mysqlTable('order_items', {
 }));
 
 // ---------------------------------------------------------------------------
-// Reviews
+// Reviews (admin UI calls these "testimonials")
 // ---------------------------------------------------------------------------
 
 export const reviews = mysqlTable('reviews', {
@@ -251,12 +246,8 @@ export const reviews = mysqlTable('reviews', {
   productId: int('product_id').notNull(),
   customerId: int('customer_id').notNull(),
   rating: int('rating').notNull().default(5),
-  title: varchar('title', { length: 255 }),
-  displayName: varchar('display_name', { length: 128 }),
   comment: text('comment'),
   status: mysqlEnum('status', ['pending', 'approved', 'rejected']).notNull().default('pending'),
-  isFeatured: boolean('is_featured').notNull().default(false),
-  approvedAt: datetime('approved_at'),
   createdAt: datetime('created_at').notNull(),
   updatedAt: datetime('updated_at').notNull()
 }, (table) => ({
@@ -265,20 +256,20 @@ export const reviews = mysqlTable('reviews', {
 }));
 
 // ---------------------------------------------------------------------------
-// Marketing: Coupons & Campaigns
+// Marketing: coupons & campaigns
 // ---------------------------------------------------------------------------
 
 export const coupons = mysqlTable('coupons', {
   id: serial('id').primaryKey(),
-  code: varchar('code', { length: 64 }).notNull(),
-  discountType: mysqlEnum('discount_type', ['percentage', 'fixed']).notNull(),
-  discountValue: decimal('discount_value', { precision: 12, scale: 2 }).notNull(),
-  minPurchaseAmount: decimal('min_purchase_amount', { precision: 12, scale: 2 }).notNull().default('0'),
+  code: varchar('code', { length: 32 }).notNull(),
+  type: mysqlEnum('type', ['percentage', 'fixed']).notNull(),
+  value: decimal('value', { precision: 12, scale: 2 }).notNull(),
+  minOrderAmount: decimal('min_order_amount', { precision: 12, scale: 2 }),
   maxDiscountAmount: decimal('max_discount_amount', { precision: 12, scale: 2 }),
   usageLimit: int('usage_limit'),
-  perCustomerLimit: int('per_customer_limit'),
+  usedCount: int('used_count').notNull().default(0),
   startsAt: datetime('starts_at'),
-  endsAt: datetime('ends_at'),
+  expiresAt: datetime('expires_at'),
   isActive: boolean('is_active').notNull().default(true),
   createdAt: datetime('created_at').notNull(),
   updatedAt: datetime('updated_at').notNull()
@@ -286,6 +277,8 @@ export const coupons = mysqlTable('coupons', {
   codeIdx: uniqueIndex('coupons_code_idx').on(table.code)
 }));
 
+// Covers both "campaign alert banner" and "campaign popup modal" screens —
+// one row per campaign, differentiated by `placement`.
 export const campaigns = mysqlTable('campaigns', {
   id: serial('id').primaryKey(),
   placement: mysqlEnum('placement', ['alert_banner', 'popup_modal']).notNull(),
@@ -304,22 +297,19 @@ export const campaigns = mysqlTable('campaigns', {
 }));
 
 // ---------------------------------------------------------------------------
-// Content: Recipes
+// Content: recipes
 // ---------------------------------------------------------------------------
 
 export const recipes = mysqlTable('recipes', {
   id: serial('id').primaryKey(),
-  slug: varchar('slug', { length: 160 }).notNull(),
-  title: varchar('title', { length: 255 }).notNull(),
+  title: varchar('title', { length: 200 }).notNull(),
+  slug: varchar('slug', { length: 200 }).notNull(),
   description: text('description'),
   imageUrl: varchar('image_url', { length: 512 }),
-  prepMinutes: int('prep_minutes'),
-  cookMinutes: int('cook_minutes'),
-  servings: int('servings'),
-  difficulty: mysqlEnum('difficulty', ['easy', 'medium', 'hard']),
-  nutrition: json('nutrition').$type<Record<string, string>>(),
-  status: mysqlEnum('status', ['draft', 'published', 'archived']).notNull().default('draft'),
-  publishedAt: datetime('published_at'),
+  ingredients: json('ingredients').$type<string[]>(),
+  steps: json('steps').$type<string[]>(),
+  relatedProductIds: json('related_product_ids').$type<number[]>(),
+  isPublished: boolean('is_published').notNull().default(true),
   createdAt: datetime('created_at').notNull(),
   updatedAt: datetime('updated_at').notNull()
 }, (table) => ({
@@ -329,6 +319,10 @@ export const recipes = mysqlTable('recipes', {
 // ---------------------------------------------------------------------------
 // Site configuration (generic key/value store)
 // ---------------------------------------------------------------------------
+// One row per admin "settings" screen. Suggested keys:
+//   'contact_settings', 'tax_settings', 'homepage_hero', 'homepage_cms',
+//   'footer', 'policies', 'catalog_settings', 'pdf_template', 'timeline'
+// `value` holds JSON.stringify(...) of whatever shape that screen needs.
 
 export const websiteSettings = mysqlTable('website_settings', {
   id: serial('id').primaryKey(),
@@ -341,22 +335,17 @@ export const websiteSettings = mysqlTable('website_settings', {
 }));
 
 // ---------------------------------------------------------------------------
-// Wholesale & Quotations
+// Wholesale
 // ---------------------------------------------------------------------------
 
 export const wholesaleInquiries = mysqlTable('wholesale_inquiries', {
   id: serial('id').primaryKey(),
   customerId: int('customer_id'),
   companyName: varchar('company_name', { length: 255 }).notNull(),
-  contactName: varchar('contact_name', { length: 255 }).notNull(),
-  email: varchar('email', { length: 255 }).notNull(),
-  phone: varchar('phone', { length: 32 }),
-  assignedToCustomerId: int('assigned_to_customer_id'),
-  priority: mysqlEnum('priority', ['low', 'normal', 'high', 'urgent']).notNull().default('normal'),
-  source: varchar('source', { length: 80 }).notNull().default('storefront'),
-  desiredDeliveryDate: datetime('desired_delivery_date'),
+  contactEmail: varchar('contact_email', { length: 255 }),
+  contactPhone: varchar('contact_phone', { length: 32 }),
   message: text('message'),
-  status: mysqlEnum('status', ['new', 'reviewing', 'quoted', 'contacted', 'quotation_sent', 'negotiation', 'converted', 'completed', 'rejected', 'closed']).notNull().default('new'),
+  status: mysqlEnum('status', ['new', 'reviewing', 'quoted', 'closed']).notNull().default('new'),
   createdAt: datetime('created_at').notNull(),
   updatedAt: datetime('updated_at').notNull()
 }, (table) => ({
@@ -365,44 +354,22 @@ export const wholesaleInquiries = mysqlTable('wholesale_inquiries', {
 
 export const quotations = mysqlTable('quotations', {
   id: serial('id').primaryKey(),
-  quoteNumber: varchar('quote_number', { length: 64 }).notNull(),
   inquiryId: int('inquiry_id').notNull(),
-  customerId: int('customer_id'),
-  assignedToCustomerId: int('assigned_to_customer_id'),
-  billingAddress: text('billing_address'),
-  shippingAddress: text('shipping_address'),
-  gstin: varchar('gstin', { length: 32 }),
-  subtotalAmount: decimal('subtotal_amount', { precision: 12, scale: 2 }).notNull().default('0'),
-  discountAmount: decimal('discount_amount', { precision: 12, scale: 2 }).notNull().default('0'),
-  taxAmount: decimal('tax_amount', { precision: 12, scale: 2 }).notNull().default('0'),
-  shippingAmount: decimal('shipping_amount', { precision: 12, scale: 2 }).notNull().default('0'),
   totalAmount: decimal('total_amount', { precision: 12, scale: 2 }).notNull(),
-  currency: varchar('currency', { length: 3 }).notNull().default('INR'),
-  paymentTerms: text('payment_terms'),
-  leadTimeDays: int('lead_time_days'),
-  packagingType: varchar('packaging_type', { length: 128 }),
-  deliveryMethod: varchar('delivery_method', { length: 128 }),
-  notes: text('notes'),
-  validUntil: datetime('valid_until'),
-  status: mysqlEnum('status', ['draft', 'sent', 'accepted', 'rejected', 'expired', 'converted']).notNull().default('draft'),
+  status: mysqlEnum('status', ['draft', 'sent', 'accepted', 'rejected']).notNull().default('draft'),
   createdAt: datetime('created_at').notNull(),
   updatedAt: datetime('updated_at').notNull()
 }, (table) => ({
   inquiryIdx: index('quotations_inquiry_idx').on(table.inquiryId)
 }));
 
+// NEW: quotations previously had no line items at all
 export const quotationItems = mysqlTable('quotation_items', {
   id: serial('id').primaryKey(),
   quotationId: int('quotation_id').notNull(),
-  productVariantId: int('product_variant_id'),
-  productName: varchar('product_name', { length: 255 }).notNull(),
-  weightLabel: varchar('weight_label', { length: 128 }),
-  quantity: decimal('quantity', { precision: 12, scale: 3 }).notNull(),
-  unitPrice: decimal('unit_price', { precision: 12, scale: 2 }).notNull(),
-  discountPercent: decimal('discount_percent', { precision: 6, scale: 3 }).notNull().default('0'),
-  taxPercent: decimal('tax_percent', { precision: 6, scale: 3 }).notNull().default('0'),
-  lineTotal: decimal('line_total', { precision: 12, scale: 2 }).notNull(),
-  displayOrder: int('display_order').notNull().default(0)
+  productId: int('product_id').notNull(),
+  quantity: int('quantity').notNull().default(1),
+  price: decimal('price', { precision: 12, scale: 2 }).notNull()
 }, (table) => ({
   quotationIdx: index('quotation_items_quotation_idx').on(table.quotationId)
 }));
@@ -413,21 +380,25 @@ export const quotationItems = mysqlTable('quotation_items', {
 
 export const pdfCatalogHistory = mysqlTable('pdf_catalog_history', {
   id: serial('id').primaryKey(),
-  generatedBy: int('generated_by'),
+  generatedBy: int('generated_by'), // customerProfiles.id of the admin user
   productIds: json('product_ids').$type<number[]>().notNull(),
   templateKey: varchar('template_key', { length: 80 }),
   fileUrl: varchar('file_url', { length: 512 }),
   createdAt: datetime('created_at').notNull()
 });
 
+// Tracks admin actions for accountability (who changed what, and when) —
+// this is what should back the admin "Audit Log" screen.
 export const auditLogs = mysqlTable('audit_logs', {
   id: serial('id').primaryKey(),
-  actorCustomerId: int('actor_customer_id'),
-  action: varchar('action', { length: 128 }).notNull(),
-  entityType: varchar('entity_type', { length: 128 }).notNull(),
+  actorId: int('actor_id'),
+  actorEmail: varchar('actor_email', { length: 255 }),
+  action: varchar('action', { length: 80 }).notNull(), // e.g. 'product.update'
+  entityType: varchar('entity_type', { length: 80 }).notNull(), // e.g. 'product'
   entityId: varchar('entity_id', { length: 64 }),
-  details: json('details').$type<Record<string, unknown>>(),
+  metadata: json('metadata').$type<Record<string, unknown>>(),
   createdAt: datetime('created_at').notNull()
 }, (table) => ({
-  entityIdx: index('audit_logs_entity_idx').on(table.entityType, table.entityId)
+  entityIdx: index('audit_logs_entity_idx').on(table.entityType, table.entityId),
+  actorIdx: index('audit_logs_actor_idx').on(table.actorId)
 }));

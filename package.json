@@ -12,6 +12,7 @@
     "build:server": "npm --prefix server run build",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
+    "db:push": "drizzle-kit push",
     "db:seed": "node database/seed/seed-data.mjs",
     "db:backup-clear": "node database/seed/backup-and-clear.mjs"
   },

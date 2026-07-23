@@ -11,8 +11,7 @@
     "skipLibCheck": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
-    "noEmitOnError": true,
-    "types": ["node"]
+    "noEmitOnError": true
   },
   "include": ["src"]
 }

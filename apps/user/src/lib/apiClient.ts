@@ -49,22 +49,6 @@ export const api = {
   delete: <T>(path: string) => apiRequest<T>(path, { method: 'DELETE' })
 };
 
-export const productsApi = {
-  list: () => api.get<any[]>('/products'),
-  get: (slug: string) => api.get<any>(`/products/${slug}`),
-  create: (body: unknown) => api.post<any>('/products', body),
-  update: (id: number, body: unknown) => api.put<any>(`/products/${id}`, body),
-  remove: (id: number) => api.delete<any>(`/products/${id}`)
-};
-
-export const categoriesApi = {
-  list: () => api.get<any[]>('/categories'),
-  get: (slug: string) => api.get<any>(`/categories/${slug}`),
-  create: (body: unknown) => api.post<any>('/categories', body),
-  update: (id: number, body: unknown) => api.put<any>(`/categories/${id}`, body),
-  remove: (id: number) => api.delete<any>(`/categories/${id}`)
-};
-
 export const authApi = {
   login: (email: string, password: string) =>
     api.post<{ user: any; token: string }>('/auth/login', { email, password }),
@@ -73,12 +57,50 @@ export const authApi = {
   me: () => api.get<any>('/auth/me')
 };
 
+export const productsApi = {
+  list: () => api.get<any[]>('/products'),
+  get: (slug: string) => api.get<any>(`/products/${slug}`)
+};
+
+export const categoriesApi = {
+  list: () => api.get<any[]>('/categories'),
+  get: (slug: string) => api.get<any>(`/categories/${slug}`)
+};
+
+export const collectionsApi = {
+  list: () => api.get<any[]>('/collections'),
+  get: (slug: string) => api.get<any>(`/collections/${slug}`)
+};
+
+export const recipesApi = {
+  list: () => api.get<any[]>('/recipes'),
+  get: (slug: string) => api.get<any>(`/recipes/${slug}`)
+};
+
+export const reviewsApi = {
+  listForProduct: (productId: number) => api.get<any[]>(`/products/${productId}/reviews`),
+  createForProduct: (productId: number, body: unknown) => api.post<any>(`/products/${productId}/reviews`, body)
+};
+
+export const campaignsApi = {
+  active: () => api.get<any[]>('/campaigns/active')
+};
+
+export const settingsApi = {
+  get: (key: string) => api.get<any>(`/settings/${key}`)
+};
+
+export const wholesaleInquiryApi = {
+  submit: (body: unknown) => api.post<any>('/wholesale-inquiries', body)
+};
+
+export const couponsApi = {
+  validate: (code: string, cartTotal: number) => api.post<any>('/coupons/validate', { code, cartTotal })
+};
+
 export const ordersApi = {
   list: () => api.get<any[]>('/orders'),
-  create: (body: unknown) => api.post<any>('/orders', body),
-  adminList: () => api.get<any[]>('/admin/orders'),
-  updateStatus: (id: number, status: string) =>
-    api.put<any>(`/admin/orders/${id}/status`, { status })
+  create: (body: unknown) => api.post<any>('/orders', body)
 };
 
 export const cartApi = {

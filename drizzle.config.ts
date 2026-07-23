@@ -1,12 +1,25 @@
 import { defineConfig } from 'drizzle-kit';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import 'dotenv/config';
 
-const caPath = process.env.DATABASE_CA || process.env.DB_SSL_CA_PATH || '';
-const ssl = caPath ? { ca: readFileSync(caPath, 'utf8') } : undefined;
+let caPath = process.env.DATABASE_CA || process.env.DB_SSL_CA_PATH || './server/certs/tidb-ca.pem';
+
+if (caPath && !existsSync(caPath)) {
+  const c1 = resolve(process.cwd(), caPath);
+  const c2 = resolve(process.cwd(), './server/certs/tidb-ca.pem');
+  const c3 = resolve(process.cwd(), './certs/tidb-ca.pem');
+  if (existsSync(c1)) caPath = c1;
+  else if (existsSync(c2)) caPath = c2;
+  else if (existsSync(c3)) caPath = c3;
+}
+
+const ssl = caPath && existsSync(caPath)
+  ? { ca: readFileSync(caPath, 'utf8') }
+  : undefined;
 
 export default defineConfig({
-  schema: './database/schema/schema.ts',
+  schema: './server/src/db/schema.ts',
   out: './database/migrations',
   dialect: 'mysql',
   dbCredentials: {
