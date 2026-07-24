@@ -8,6 +8,7 @@ import {
   Instagram, Facebook, Twitter, Youtube, Mail, Globe, Zap, CheckCircle,
   AlertCircle, BookOpen, Tag, Clock, HelpCircle, FileText, Phone
 } from "lucide-react";
+import { campaignsApi, cartApi, ordersApi, productsApi, categoriesApi, recipesApi, settingsApi, wholesaleInquiryApi } from "../lib/apiClient";
 
 // ─── DATA & LIVE API INTEGRATION ──────────────────────────────────────────────────
 
@@ -17,6 +18,8 @@ export type Product = {
   subtitle?: string;
   category: string;
   price: number;
+  basePrice?: number;
+  prices?: { p100: number; p250: number; p500: number; p1000: number };
   originalPrice?: number;
   rating?: number;
   reviewCount?: number;
@@ -30,12 +33,9 @@ export type Product = {
   ingredients?: string[];
   storage?: string;
   tags?: string[];
+  variants?: { id: number; label?: string | null; weightGrams?: number | null; price: number; stock?: number }[];
+  packaging?: { id?: number; label: string; price: number; minOrderQty?: number }[];
 };
-
-const PRODUCTS: Product[] = [];
-const CATEGORIES: any[] = [];
-const TESTIMONIALS: any[] = [];
-const RECIPES: any[] = [];
 
 const PROCESS_STEPS = [
   { step: "01", title: "Ethically Sourced", desc: "Direct relationships with farming families across India. No middlemen. Fair prices. Traceable origins.", icon: Globe },
@@ -46,19 +46,56 @@ const PROCESS_STEPS = [
 
 // ─── TYPES ─────────────────────────────────────────────────────────────────────
 
-type CartItem = { product: Product; quantity: number };
+type CartItem = { product: Product; quantity: number; selectedWeight: string; price: number; productVariantId?: number };
 type Page = "home" | "shop" | "product" | "cart" | "checkout" | "profile" | "recipes" | "recipe" | "founder" | "bundle" | "wholesale";
 
-function getWeightOptions(basePrice: number) {
+function getWeightOptions(product: Product) {
+  const retail = product.variants?.length
+    ? product.variants
+        .filter(variant => (variant.stock ?? 1) > 0)
+        .sort((a, b) => (a.weightGrams ?? 0) - (b.weightGrams ?? 0))
+        .map(variant => ({
+          id: variant.id,
+          label: variant.label || (variant.weightGrams ? `${variant.weightGrams}g` : "Standard pack"),
+          price: Number(variant.price),
+          isWholesale: false
+        }))
+    : [];
+  const wholesale = (product.packaging || []).map(pack => ({
+    id: pack.id,
+    label: pack.label,
+    price: Number(pack.price),
+    isWholesale: true
+  }));
+  if (retail.length || wholesale.length) return [...retail, ...wholesale];
+  if (product.variants?.length) {
+    return product.variants
+      .filter(variant => (variant.stock ?? 1) > 0)
+      .sort((a, b) => (a.weightGrams ?? 0) - (b.weightGrams ?? 0))
+      .map(variant => ({
+        id: variant.id,
+        label: variant.label || (variant.weightGrams ? `${variant.weightGrams}g` : "Standard pack"),
+        price: Number(variant.price),
+        isWholesale: (variant.weightGrams || 0) >= 1000
+      }));
+  }
+  const prices = product.prices || {
+    p100: Math.round(product.price || 0),
+    p250: Math.round((product.price || 0) * 2.2),
+    p500: Math.round((product.price || 0) * 5.2),
+    p1000: Math.round(product.basePrice || (product.price || 0) * 11),
+  };
+  const kgPrice = prices.p1000 || Math.round((product.price || 0) * 11);
+
   return [
-    { label: "100g Standard", price: 50 },
-    { label: "250g Chef Pack", price: 110 },
-    { label: "500g Family Pack", price: 260 },
-    { label: "1000g Pantry Bag", price: 550 },
-    { label: "5kg Bulk Crate", price: 2750 },
-    { label: "10kg Bulk Sack", price: 5500 },
-    { label: "15kg Bulk Crate", price: 8250 },
-    { label: "25kg Bulk Supply", price: 11000 },
+    { label: "100g Standard", price: prices.p100 },
+    { label: "250g Chef Pack", price: prices.p250 },
+    { label: "500g Family Pack", price: prices.p500 },
+    { label: "1000g Pantry Bag", price: prices.p1000 },
+    { label: "5kg Bulk Crate", price: kgPrice * 5 },
+    { label: "10kg Bulk Sack", price: kgPrice * 10 },
+    { label: "15kg Bulk Crate", price: kgPrice * 15 },
+    { label: "25kg Bulk Supply", price: kgPrice * 25 },
   ];
 }
 
@@ -267,7 +304,7 @@ function ProductCard({ product, index = 0 }: { product: Product; index?: number 
 // ─── HEADER ────────────────────────────────────────────────────────────────────
 
 function Header() {
-  const { navigate, cart, wishlist, currentPage, user, setAuthModalOpen, logout, products } = useApp();
+  const { navigate, cart, wishlist, currentPage, user, setAuthModalOpen, logout, products, orders, campaigns } = useApp();
   const scrolled = useScrolled();
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -292,18 +329,20 @@ function Header() {
 
   const closeAll = () => { setProfileOpen(false); setNotifOpen(false); };
 
-  const myOrders = (() => {
-    if (!user || !user.email) return [];
-    try {
-      const allOrders = JSON.parse(localStorage.getItem("spiceora_orders") || "[]");
-      return allOrders.filter((o: any) => o.userEmail === user.email);
-    } catch { return []; }
-  })();
+  const myOrders = orders;
 
   const notifs = [
     { title: "New Recipe Added", desc: "Try our Saffron Risotto recipe", time: "1d ago", icon: BookOpen, color: "#C9920A" },
     { title: "Flash Sale — 20% Off", desc: "Saffron & Premium Blends today", time: "2d ago", icon: Tag, color: "#C55A20" },
   ];
+
+  notifs.splice(0, notifs.length, ...campaigns.map((campaign: any) => ({
+    title: campaign.title || "Store offer",
+    desc: campaign.message,
+    time: "Current",
+    icon: Tag,
+    color: "#C55A20"
+  })));
 
   if (myOrders.length > 0) {
     const latest = myOrders[myOrders.length - 1];
@@ -1326,9 +1365,9 @@ function ProductPage({ product }: { product: any }) {
     { id: "storage", label: "Storage & Origin" },
   ];
 
-  const weightOptions = getWeightOptions(product.price);
-  const retailOptions = weightOptions.filter(o => !o.label.toLowerCase().includes("kg"));
-  const wholesaleOptions = weightOptions.filter(o => o.label.toLowerCase().includes("kg"));
+  const weightOptions = getWeightOptions(product);
+  const retailOptions = weightOptions.filter((option: any) => !option.isWholesale && !option.label.toLowerCase().includes("kg"));
+  const wholesaleOptions = weightOptions.filter((option: any) => option.isWholesale || option.label.toLowerCase().includes("kg"));
   const [selectedWeightOpt, setSelectedWeightOpt] = useState(weightOptions[0]); // default 100g
 
   useEffect(() => {
@@ -1437,7 +1476,11 @@ function ProductPage({ product }: { product: any }) {
                 </button>
                 <button
                   type="button"
-                  onClick={() => { setWeightTab("wholesale"); setSelectedWeightOpt(wholesaleOptions[0]); }}
+                  onClick={() => {
+                    if (!wholesaleOptions.length) return;
+                    setWeightTab("wholesale");
+                    setSelectedWeightOpt(wholesaleOptions[0]);
+                  }}
                   className={`flex-1 py-2.5 text-xs font-semibold rounded-lg transition-all ${weightTab === "wholesale" ? "bg-white text-[#2A4A3C] shadow-sm font-bold" : "text-[#7A7064] hover:text-[#1A1714]"}`}
                 >
                   Wholesale Packs (B2B)
@@ -1888,7 +1931,7 @@ function CartPage() {
 // ─── CHECKOUT ──────────────────────────────────────────────────────────────────
 
 function CheckoutPage() {
-  const { navigate, cart, logAnalyticsEvent, discount } = useApp();
+  const { navigate, cart, logAnalyticsEvent, discount, couponCode, clearCart, refreshOrders } = useApp();
   const [step, setStep] = useState(0);
   const [delivery, setDelivery] = useState("standard");
   const [payment, setPayment] = useState("card");
@@ -1900,6 +1943,7 @@ function CheckoutPage() {
   const [upiId, setUpiId] = useState("");
   const [addr, setAddr] = useState({ name: "", phone: "", line1: "", city: "", state: "", pin: "" });
   const [errors, setErrors] = useState<any>({});
+  const [placedOrder, setPlacedOrder] = useState<any>(null);
 
   const steps = ["Address", "Delivery", "Payment", "Review"];
   const subtotal = cart.reduce((s: number, i: CartItem) => s + i.price * i.quantity, 0);
@@ -1912,7 +1956,7 @@ function CheckoutPage() {
     }
   }, [step]);
 
-  function handleNext() {
+  async function handleNext() {
     setErrors({});
     if (step === 0) {
       const newErrors: any = {};
@@ -1971,7 +2015,24 @@ function CheckoutPage() {
       setStep(3);
     } else if (step === 3) {
       setLoading(true);
-      setTimeout(() => { setLoading(false); setStep(4); }, 2000);
+      try {
+        const items = cart.map((item: CartItem) => ({
+          productVariantId: item.productVariantId || item.product.variants?.find(v => v.label === item.selectedWeight)?.id,
+          quantity: item.quantity,
+          price: item.price
+        }));
+        if (items.some(item => !item.productVariantId)) throw new Error("A selected product pack is unavailable. Refresh the cart and try again.");
+        const order = await ordersApi.create({ items, couponCode: couponCode || undefined, discountAmount: discount });
+        setPlacedOrder(order);
+        await cartApi.clear();
+        clearCart();
+        await refreshOrders();
+        setStep(4);
+      } catch (error: any) {
+        setErrors({ order: error.message || "Unable to place order" });
+      } finally {
+        setLoading(false);
+      }
     }
   }
 
@@ -1984,7 +2045,7 @@ function CheckoutPage() {
             <Check className="w-12 h-12 text-white" />
           </motion.div>
           <h2 className="text-3xl font-bold text-[#1A1714] mb-2" style={{ fontFamily: "'Bodoni Moda', serif" }}>Order Placed!</h2>
-          <p className="text-[#7A7064] mb-1">Order #SP-{Math.floor(Math.random() * 9000 + 1000)}</p>
+          <p className="text-[#7A7064] mb-1">Order #{placedOrder?.orderNumber || placedOrder?.id}</p>
           <p className="text-[#7A7064] mb-8 text-sm leading-relaxed">Your spices are being prepared with care. You'll receive a shipping confirmation within 24 hours.</p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <Btn onClick={() => navigate("profile")}>Track Order</Btn>
@@ -2142,7 +2203,7 @@ function CheckoutPage() {
                             <p className="text-sm font-medium text-[#1A1714]">{item.product.name}</p>
                             <p className="text-xs text-[#7A7064]">{item.product.weight} × {item.quantity}</p>
                           </div>
-                          <p className="font-semibold text-[#1A1714] text-sm">₹{(item.product.price * item.quantity).toFixed(2)}</p>
+                          <p className="font-semibold text-[#1A1714] text-sm">₹{(item.price * item.quantity).toFixed(2)}</p>
                         </div>
                       ))}
                     </div>
@@ -2205,7 +2266,7 @@ function CheckoutPage() {
 // ─── PROFILE PAGE ───────────────────────────────────────────────────────────────
 
 function ProfilePage() {
-  const { navigate, wishlist, user, logout, products } = useApp();
+  const { navigate, wishlist, user, logout, products, orders } = useApp();
   const [tab, setTab] = useState("overview");
   const [trackingOrderId, setTrackingOrderId] = useState<string | null>(null);
 
@@ -2215,14 +2276,6 @@ function ProfilePage() {
   const [settingsPhone, setSettingsPhone] = useState("");
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [saveLoading, setSaveLoading] = useState(false);
-
-  // User real orders
-  const [orders, setOrders] = useState<any[]>(() => {
-    if (!user?.email) return [];
-    try {
-      return JSON.parse(localStorage.getItem(`spiceora_orders_${user.email}`) || "[]");
-    } catch { return []; }
-  });
 
   // User real addresses
   const [userAddresses, setUserAddresses] = useState<any[]>(() => {
@@ -2235,10 +2288,8 @@ function ProfilePage() {
   useEffect(() => {
     if (user?.email) {
       try {
-        setOrders(JSON.parse(localStorage.getItem(`spiceora_orders_${user.email}`) || "[]"));
         setUserAddresses(JSON.parse(localStorage.getItem(`spiceora_addrs_${user.email}`) || "[]"));
       } catch {
-        setOrders([]);
         setUserAddresses([]);
       }
       setSettingsName(user.name || "");
@@ -2596,8 +2647,8 @@ function renderIngredient(ing: string, navigate: any) {
   if (matchedKey) {
     const prodId = SPICE_MAP[matchedKey];
     const stored = localStorage.getItem("spiceora_products");
-    const products = stored ? JSON.parse(stored) : PRODUCTS;
-    const product = products.find((p: any) => p.id === prodId || p.id === `P00${prodId}` || Number(p.id) === prodId);
+const productList = stored ? JSON.parse(stored) : products;
+       const product = productList.find((p: any) => p.id === prodId || p.id === `P00${prodId}` || Number(p.id) === prodId);
     if (product) {
       const parts = ing.split(new RegExp(`(${matchedKey})`, "i"));
       return (
@@ -3775,7 +3826,7 @@ function WholesalePage() {
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const validationErrors = handleValidation();
     if (Object.keys(validationErrors).length > 0) {
@@ -3791,41 +3842,18 @@ function WholesalePage() {
       volume: formData.volume
     });
 
-    const newInquiry = {
-      id: "INQ-" + Math.floor(Math.random() * 90000 + 10000),
-      date: new Date().toLocaleDateString('en-IN') + " " + new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
-      businessName: formData.businessName,
-      contactName: formData.contactName,
-      email: formData.email,
-      phone: formData.phone,
-      productInterest: formData.productInterest,
-      volume: formData.volume,
-      message: formData.message || "",
-      status: "pending", // pending, contacted, quotation_sent, converted, rejected
-      assignedExecutive: "Unassigned",
-      notes: [] as string[],
-      followUps: [] as { date: string; note: string }[]
-    };
-
-    // Save to localStorage
     try {
-      const stored = localStorage.getItem("spiceora_wholesale_inquiries");
-      const list = stored ? JSON.parse(stored) : [];
-      list.unshift(newInquiry);
-      localStorage.setItem("spiceora_wholesale_inquiries", JSON.stringify(list));
-      
-      // Also trigger browser notification for admin
-      const storedLogs = localStorage.getItem("spiceora_audit_logs");
-      const logs = storedLogs ? JSON.parse(storedLogs) : [];
-      logs.unshift({
-        time: new Date().toLocaleDateString('en-IN') + " " + new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
-        action: "Inquiry Created",
-        user: "Customer Portal",
-        details: `New wholesale request submitted by ${formData.businessName}`
+      await wholesaleInquiryApi.submit({
+        companyName: formData.businessName,
+        contactName: formData.contactName,
+        email: formData.email,
+        phone: formData.phone,
+        message: [formData.productInterest && `Product: ${formData.productInterest}`, formData.volume && `Volume: ${formData.volume}`, formData.message].filter(Boolean).join("\n")
       });
-      localStorage.setItem("spiceora_audit_logs", JSON.stringify(logs));
     } catch (e) {
-      console.error("Local storage sync error:", e);
+      console.error("Wholesale inquiry submission error:", e);
+      alert("We could not submit your inquiry. Please try again.");
+      return;
     }
 
     // Auto trigger personalized PDF download
@@ -4195,57 +4223,13 @@ function TelemetryDrawer() {
 // ─── APP ───────────────────────────────────────────────────────────────────────
 
 export default function App() {
-  const [products, setProducts] = useState<any[]>(() => {
-    try {
-      const stored = localStorage.getItem("spiceora_products");
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        const valid = parsed.filter((p: any) => p.price !== 12.5 && !String(p.id).startsWith("P00"));
-        if (valid.length > 0) return valid;
-      }
-      return [];
-    } catch {
-      return [];
-    }
-  });
+  const [products, setProducts] = useState<any[]>([]);
 
-  const [categories, setCategories] = useState<any[]>(() => {
-    try {
-      const stored = localStorage.getItem("spiceora_categories");
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        const valid = parsed.filter((c: any) => c.image && !c.image.startsWith("/images/"));
-        if (valid.length > 0) return valid;
-      }
-      return [];
-    } catch {
-      return [];
-    }
-  });
+  const [categories, setCategories] = useState<any[]>([]);
 
-  const [recipes, setRecipes] = useState<any[]>(() => {
-    try {
-      const stored = localStorage.getItem("spiceora_recipes");
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        const valid = parsed.filter((r: any) => r.image && !r.image.startsWith("/images/"));
-        if (valid.length > 0) return valid;
-      }
-      return [];
-    } catch {
-      return [];
-    }
-  });
+  const [recipes, setRecipes] = useState<any[]>([]);
 
-  const [testimonials, setTestimonials] = useState<any[]>(() => {
-    try {
-      const stored = localStorage.getItem("spiceora_testimonials");
-      if (stored) return JSON.parse(stored);
-      return [];
-    } catch {
-      return [];
-    }
-  });
+  const [testimonials, setTestimonials] = useState<any[]>([]);
 
   const [cmsSettings, setCmsSettings] = useState(() => {
     try {
@@ -4273,6 +4257,8 @@ export default function App() {
   const [selectedRecipe, setSelectedRecipe] = useState<any>(null);
   const [shopCategory, setShopCategory] = useState("all");
   const [cart, setCart] = useState<CartItem[]>([]);
+  const [orders, setOrders] = useState<any[]>([]);
+  const [campaigns, setCampaigns] = useState<any[]>([]);
   const [wishlist, setWishlist] = useState(new Set<number>());
   const [recentlyViewed, setRecentlyViewed] = useState<number[]>([]);
   const [analyticsEvents, setAnalyticsEvents] = useState<any[]>([]);
@@ -4296,35 +4282,28 @@ export default function App() {
   useEffect(() => {
     const fetchApiData = async () => {
       try {
-        const resP = await fetch("http://localhost:4000/api/products");
-        if (resP.ok) {
-          const jsonP = await resP.json();
-          const dataP = jsonP.data || jsonP;
-          if (Array.isArray(dataP)) {
-            setProducts(dataP);
-          }
-        }
-        const resC = await fetch("http://localhost:4000/api/categories");
-        if (resC.ok) {
-          const jsonC = await resC.json();
-          const dataC = jsonC.data || jsonC;
-          if (Array.isArray(dataC)) {
-            setCategories([
+        const [dataP, dataC, dataR, homepageCms] = await Promise.all([
+          productsApi.list(), categoriesApi.list(), recipesApi.list(),
+          settingsApi.get("homepage_cms").catch(() => null)
+        ]);
+        setProducts(dataP || []);
+        setCategories([
               { id: "all", name: "All Spices", count: 0 },
-              ...dataC.map((c: any) => ({
+              ...(dataC || []).map((c: any) => ({
                 id: c.slug || String(c.id),
                 name: c.name,
                 count: 0,
                 description: c.description || ""
               }))
             ]);
-          }
-        }
+        setRecipes(dataR || []);
+        if (homepageCms?.value) setCmsSettings(homepageCms.value);
       } catch (err) {
-        console.warn("User app API connection failed, using local state:", err);
+        console.warn("User app API connection failed:", err);
       }
     };
     fetchApiData();
+    campaignsApi.active().then(setCampaigns).catch(() => setCampaigns([]));
 
     const saved = localStorage.getItem("spiceora_user");
     if (saved) {
@@ -4340,6 +4319,24 @@ export default function App() {
       try { setRecentlyViewed(JSON.parse(stored)); } catch (e) {}
     }
   }, []);
+
+  async function refreshCustomerData() {
+    if (!user?.token) return;
+    const [serverCart, serverOrders] = await Promise.all([cartApi.get(), ordersApi.list()]);
+    setCart((serverCart.items || []).flatMap((row: any) => {
+      if (!row.product || !row.variant) return [];
+      return [{
+        product: row.product,
+        quantity: row.item.quantity,
+        selectedWeight: row.variant.label || `${row.variant.weightGrams}g`,
+        price: Number(row.item.price),
+        productVariantId: row.variant.id
+      }];
+    }));
+    setOrders(serverOrders || []);
+  }
+
+  useEffect(() => { refreshCustomerData().catch(console.error); }, [user?.token]);
 
 
   function trackProductView(id: number) {
@@ -4489,6 +4486,7 @@ export default function App() {
   function addToCart(product: Product, selectedWeight?: string, price?: number) {
     const weight = selectedWeight || "100g Standard";
     const itemPrice = price !== undefined ? price : product.price;
+    const variantId = product.variants?.find(v => (v.label || `${v.weightGrams}g`) === weight)?.id || product.variants?.[0]?.id;
     logAnalyticsEvent("Add Cart", { productId: product.id, name: product.name, weight, price: itemPrice });
 
     setCart(prev => {
@@ -4496,16 +4494,24 @@ export default function App() {
       if (exIdx > -1) {
         return prev.map((item, idx) => idx === exIdx ? { ...item, quantity: item.quantity + 1 } : item);
       }
-      return [...prev, { product, quantity: 1, selectedWeight: weight, price: itemPrice }];
+      return [...prev, { product, quantity: 1, selectedWeight: weight, price: itemPrice, productVariantId: variantId }];
     });
+    if (user?.token && variantId) {
+      const existing = cart.find(item => item.product.id === product.id && item.selectedWeight === weight);
+      cartApi.setItem({ productVariantId: variantId, quantity: (existing?.quantity || 0) + 1, price: itemPrice }).catch(console.error);
+    }
   }
 
   function updateCartItem(productId: number, selectedWeight: string, quantity: number) {
+    const item = cart.find(i => i.product.id === productId && i.selectedWeight === selectedWeight);
     setCart(prev => prev.map(i => i.product.id === productId && i.selectedWeight === selectedWeight ? { ...i, quantity } : i));
+    if (user?.token && item?.productVariantId) cartApi.setItem({ productVariantId: item.productVariantId, quantity, price: item.price }).catch(console.error);
   }
 
   function removeFromCart(productId: number, selectedWeight: string) {
+    const item = cart.find(i => i.product.id === productId && i.selectedWeight === selectedWeight);
     setCart(prev => prev.filter(i => !(i.product.id === productId && i.selectedWeight === selectedWeight)));
+    if (user?.token && item?.productVariantId) cartApi.setItem({ productVariantId: item.productVariantId, quantity: 0, price: item.price }).catch(console.error);
   }
 
   function toggleWishlist(productId: number) {
@@ -4518,12 +4524,13 @@ export default function App() {
 
   const [discount, setDiscount] = useState(0);
   const [couponCode, setCouponCode] = useState("");
+  const clearCart = () => setCart([]);
 
   const ctx = {
     currentPage, navigate, cart, addToCart, updateCartItem, removeFromCart, wishlist, toggleWishlist,
     user, authModalOpen, setAuthModalOpen, login, signup, logout, forgotPassword, recentlyViewed,
     analyticsEvents, logAnalyticsEvent, wholesaleData, setWholesaleData,
-    discount, setDiscount, couponCode, setCouponCode,
+    discount, setDiscount, couponCode, setCouponCode, orders, campaigns, clearCart, refreshOrders: refreshCustomerData,
     products, setProducts, categories, setCategories, recipes, setRecipes,
     testimonials, setTestimonials, cmsSettings, setCmsSettings
   };

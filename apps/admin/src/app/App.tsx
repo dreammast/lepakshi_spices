@@ -20,7 +20,7 @@ import {
   PieChart, Pie, Cell,
 } from "recharts";
 import { SmartPricingAssistant } from "./components/SmartPricingAssistant";
-import { categoriesApi, customersApi } from "../lib/apiClient";
+import { categoriesApi, customersApi, ordersApi, couponsApi, campaignsApi, recipesApi, reviewsApi, wholesaleApi, productsApi } from "../lib/apiClient";
 
 // ─── Brand Tokens ─────────────────────────────────────────────
 const C = {
@@ -40,12 +40,30 @@ const weeklyData: any[] = [];
 const geoData: any[] = [];
 
 type Product = {
-  id: string; name: string; category: string; price: number;
+  id: string; name: string; category: string; price: number; basePrice?: number;
+  prices?: { p100: number; p250: number; p500: number; p1000: number };
   stock: number; sold: number; rating: number; status: string;
   sku: string; origin: string; description: string; imageUrl: string;
 };
 
 const INIT_PRODUCTS: Product[] = [];
+
+const defaultPriceVariants = (basePrice: number) => ({
+  p100: Math.round(basePrice * 0.6),
+  p250: Math.round(basePrice * 1.3),
+  p500: Math.round(basePrice * 2.4),
+  p1000: Math.round(basePrice * 4.5),
+});
+
+function normalizeAdminPrices(product: any) {
+  const basePrice = Number(product.basePrice ?? product.prices?.p1000 ?? product.price ?? 0);
+  return {
+    ...product,
+    price: basePrice,
+    basePrice,
+    prices: product.prices || defaultPriceVariants(basePrice),
+  };
+}
 
 const CATEGORY_META = [
   { name: "Roots & Paste", icon: Leaf, color: C.orange, faint: C.orangeFaint, description: "Fresh organic ginger garlic paste and turmeric roots" },
@@ -524,25 +542,22 @@ function Header({ page, offset, notifs, bellOpen, onBell, toggleDarkMode, darkMo
 // ─── Dashboard ────────────────────────────────────────────────
 function DashboardPage({ navigateTo }: { navigateTo: (p: string) => void }) {
   const [metric, setMetric] = useState<"revenue" | "orders">("revenue");
-  
-  const products = (() => {
-    try { return JSON.parse(localStorage.getItem("spiceora_products") || "[]"); } catch { return []; }
-  })();
-  const orders = (() => {
-    try { return JSON.parse(localStorage.getItem("spiceora_orders") || "[]"); } catch { return []; }
-  })();
-  const inquiries = (() => {
-    try { return JSON.parse(localStorage.getItem("spiceora_wholesale_inquiries") || "[]"); } catch { return []; }
-  })();
-  const testimonials = (() => {
-    try { return JSON.parse(localStorage.getItem("spiceora_testimonials") || "[]"); } catch { return []; }
-  })();
+  const [products, setProducts] = useState<any[]>([]);
+  const [orders, setOrders] = useState<any[]>([]);
+  const [inquiries, setInquiries] = useState<any[]>([]);
+  useEffect(() => {
+    Promise.all([productsApi.list(), ordersApi.adminList(), wholesaleApi.listInquiries()])
+      .then(([productRows, orderRows, inquiryRows]) => { setProducts(productRows || []); setOrders(orderRows || []); setInquiries(inquiryRows || []); })
+      .catch((error: any) => console.warn("Unable to load dashboard data", error));
+  }, []);
 
-  const todayRevenue = orders.filter((o: any) => o.date === "2026-07-18" || o.date === "2024-12-28").reduce((s: number, o: any) => s + o.total, 0) || 0;
-  const todayOrders = orders.filter((o: any) => o.date === "2026-07-18" || o.date === "2024-12-28").length || 0;
+  const today = new Date().toDateString();
+  const todayOrdersList = orders.filter((o: any) => new Date(o.placedAt || o.createdAt || o.date).toDateString() === today);
+  const todayRevenue = todayOrdersList.reduce((sum: number, order: any) => sum + Number(order.totalAmount ?? order.total ?? 0), 0);
+  const todayOrders = todayOrdersList.length;
   const pendingOrdersCount = orders.filter((o: any) => o.status === "pending" || o.status === "processing").length || 0;
   const activeLeadsCount = inquiries.filter((i: any) => i.status === "new" || i.status === "Pending").length || 0;
-  const lowStockCount = products.filter((p: any) => p.stock < 30).length;
+  const lowStockCount = products.filter((p: any) => (p.variants || []).some((v: any) => Number(v.stock) <= Number(v.lowStockThreshold))).length;
 
   const catSplit = [
     { name: "Roots & Paste", value: 35, color: C.orange },
@@ -718,7 +733,7 @@ function ProductsPage() {
   const [products, setProducts] = useState<any[]>(() => {
     try {
       const stored = localStorage.getItem("spiceora_products");
-      return stored ? JSON.parse(stored) : INIT_PRODUCTS;
+      return stored ? JSON.parse(stored).map(normalizeAdminPrices) : INIT_PRODUCTS;
     } catch {
       return INIT_PRODUCTS;
     }
@@ -741,8 +756,9 @@ function ProductsPage() {
         const jsonP = await resP.json();
         const dataP = jsonP.data || jsonP;
         if (Array.isArray(dataP)) {
-          setProducts(dataP);
-          localStorage.setItem("spiceora_products", JSON.stringify(dataP));
+          const normalizedProducts = dataP.map(normalizeAdminPrices);
+          setProducts(normalizedProducts);
+          localStorage.setItem("spiceora_products", JSON.stringify(normalizedProducts));
         }
       }
       const resC = await fetch("http://localhost:4000/api/categories");
@@ -896,12 +912,12 @@ function ProductsPage() {
     setForm({
       ...p,
       imageUrl: p.imageUrl || p.image || "",
-      prices: p.prices || { p100: Math.round(p.price * 0.6), p250: Math.round(p.price * 1.3), p500: Math.round(p.price * 2.4), p1000: Math.round(p.price * 4.5) },
+      prices: p.prices || defaultPriceVariants(Number(p.basePrice ?? p.price ?? 0)),
       lowStockThreshold: p.lowStockThreshold || 30
     });
     setEditTarget(p);
     setWizardStep(1);
-    setCogs(Math.round(p.price * 0.7));
+    setCogs(Math.round(Number(p.basePrice ?? p.price ?? 0) * 0.7));
     setMargin(30);
     setWizardOpen(true);
   };
@@ -920,7 +936,9 @@ function ProductsPage() {
             name: form.name,
             categoryName: form.category,
             price: form.price,
+            prices: form.prices,
             stock: form.stock,
+            lowStockThreshold: form.lowStockThreshold,
             sku: form.sku,
             description: form.description,
             imageUrl: form.imageUrl || form.image
@@ -935,7 +953,9 @@ function ProductsPage() {
             name: form.name,
             categoryName: form.category,
             price: form.price,
+            prices: form.prices,
             stock: form.stock,
+            lowStockThreshold: form.lowStockThreshold,
             sku: form.sku,
             description: form.description,
             imageUrl: form.imageUrl || form.image
@@ -1327,6 +1347,7 @@ function ProductsPage() {
                     initialCogs={cogs}
                     initialMargin={margin}
                     initialGst={5}
+                    initialVariants={form.prices}
                     onPriceCalculated={({ basePrice, variants }) => {
                       setForm((prev: any) => ({
                         ...prev,
@@ -1415,14 +1436,7 @@ function ProductsPage() {
 }
 
 function OrdersPage() {
-  const [orders, setOrders] = useState<any[]>(() => {
-    try {
-      const stored = localStorage.getItem("spiceora_orders");
-      return stored ? JSON.parse(stored) : INIT_ORDERS;
-    } catch {
-      return INIT_ORDERS;
-    }
-  });
+  const [orders, setOrders] = useState<any[]>(INIT_ORDERS);
 
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -1433,38 +1447,48 @@ function OrdersPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 5;
 
-  useEffect(() => {
-    localStorage.setItem("spiceora_orders", JSON.stringify(orders));
-  }, [orders]);
+  const loadOrders = async () => {
+    setLoading(true);
+    try {
+      const data = await ordersApi.adminList();
+      setOrders(data.map((order: any) => ({
+        ...order,
+        id: String(order.id),
+        customer: order.customerName || order.customer || "Customer",
+        email: order.customerEmail || "",
+        items: order.items?.length || 0,
+        total: Number(order.totalAmount ?? order.total ?? 0),
+        date: order.placedAt ? new Date(order.placedAt).toLocaleDateString() : "",
+        location: "",
+        products: (order.items || []).map((item: any) => item.product?.name || item.variant?.label || "Product")
+      })));
+    } catch (error: any) { toast.error(error.message || "Unable to load orders"); }
+    finally { setLoading(false); }
+  };
 
   // Reset page on search/filter changes
   useEffect(() => {
     setCurrentPage(1);
   }, [query, statusFilter]);
 
-  // Simulated initial mount load
-  useEffect(() => {
-    setLoading(true);
-    const t = setTimeout(() => setLoading(false), 500);
-    return () => clearTimeout(t);
-  }, []);
+  useEffect(() => { loadOrders(); }, []);
 
   const handleReload = () => {
-    setLoading(true);
     setHasError(false);
-    setTimeout(() => setLoading(false), 600);
+    loadOrders();
   };
 
-  const updateStatus = (orderId: string, nextStatus: string) => {
+  const updateStatus = async (orderId: string, nextStatus: string) => {
     setUpdating(true);
-    setTimeout(() => {
+    try {
+      await ordersApi.updateStatus(Number(orderId), nextStatus);
       setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: nextStatus } : o));
       if (drawerTarget && drawerTarget.id === orderId) {
         setDrawerTarget((prev: any) => ({ ...prev, status: nextStatus }));
       }
-      setUpdating(false);
       toast.success(`Order ${orderId} updated to ${nextStatus}`);
-    }, 400);
+    } catch (error: any) { toast.error(error.message || "Unable to update order"); }
+    finally { setUpdating(false); }
   };
 
   const handleExportCSV = () => {
@@ -1935,6 +1959,7 @@ function CustomersPage() {
   const [query, setQuery] = useState("");
   const [drawer, setDrawer] = useState<any | null>(null);
   const [drawerTab, setDrawerTab] = useState<"info" | "orders" | "products" | "timeline">("info");
+  const [customerDetails, setCustomerDetails] = useState<any | null>(null);
 
   const loadCustomersFromApi = async () => {
     setLoading(true);
@@ -1970,11 +1995,13 @@ function CustomersPage() {
     loadCustomersFromApi();
   }, []);
 
-  const allOrders: any[] = (() => { try { const s = localStorage.getItem("spiceora_orders"); return s ? JSON.parse(s) : []; } catch { return []; } })();
-  const allReviews: any[] = (() => { try { const s = localStorage.getItem("spiceora_testimonials"); return s ? JSON.parse(s) : []; } catch { return []; } })();
+  useEffect(() => {
+    if (!drawer?.rawId) { setCustomerDetails(null); return; }
+    customersApi.get(drawer.rawId).then(setCustomerDetails).catch((error: any) => toast.error(error.message || "Unable to load customer details"));
+  }, [drawer?.rawId]);
 
-  const customerOrders = drawer ? allOrders.filter(o => o.customer?.toLowerCase() === drawer.name?.toLowerCase()) : [];
-  const customerReviews = drawer ? allReviews.filter(r => r.name?.toLowerCase() === drawer.name?.toLowerCase()) : [];
+  const customerOrders = customerDetails?.orders || [];
+  const customerReviews: any[] = [];
 
   const filtered = customers.filter(c => (c.name || '').toLowerCase().includes(query.toLowerCase()) || (c.email || '').toLowerCase().includes(query.toLowerCase()));
 
@@ -2738,16 +2765,7 @@ function SettingsPage() {
 const DEFAULT_INQUIRIES: any[] = [];
 
 function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => void }) {
-  const [inquiries, setInquiries] = useState<any[]>(() => {
-    try {
-      const stored = localStorage.getItem("spiceora_wholesale_inquiries");
-      if (stored) return JSON.parse(stored);
-      localStorage.setItem("spiceora_wholesale_inquiries", JSON.stringify(DEFAULT_INQUIRIES));
-      return DEFAULT_INQUIRIES;
-    } catch {
-      return DEFAULT_INQUIRIES;
-    }
-  });
+  const [inquiries, setInquiries] = useState<any[]>(DEFAULT_INQUIRIES);
 
   const [activeTab, setActiveTab] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
@@ -2788,18 +2806,18 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
   });
   const [customTerm, setCustomTerm] = useState<string>("");
 
-  const refreshInquiries = () => {
-    try {
-      const stored = localStorage.getItem("spiceora_wholesale_inquiries");
-      if (stored) setInquiries(JSON.parse(stored));
-    } catch {}
-  };
+  const refreshInquiries = () => wholesaleApi.listInquiries()
+    .then((items: any[]) => setInquiries(items.map(item => ({
+      ...item,
+      businessName: item.companyName,
+      contactPerson: item.contactName,
+      productInterest: item.message || "",
+      date: item.createdAt,
+      assignedExecutive: item.assignedExecutive || "Unassigned"
+    }))))
+    .catch((error: any) => console.warn("Unable to load wholesale inquiries", error));
 
-  useEffect(() => {
-    // Listen for storage changes to sync in real time
-    window.addEventListener("storage", refreshInquiries);
-    return () => window.removeEventListener("storage", refreshInquiries);
-  }, []);
+  useEffect(() => { refreshInquiries(); }, []);
 
   const saveInquiries = (updated: any[]) => {
     setInquiries(updated);
@@ -6070,22 +6088,14 @@ function HomepageCMSPage() {
 }
 
 function RecipesCMSPage() {
-  const [recipes, setRecipes] = useState<any[]>(() => {
-    try {
-      const stored = localStorage.getItem("spiceora_recipes");
-      return stored ? JSON.parse(stored) : [];
-    } catch {
-      return [];
-    }
-  });
+  const [recipes, setRecipes] = useState<any[]>([]);
 
   const [activeRecipe, setActiveRecipe] = useState<any | null>(null);
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [form, setForm] = useState({ id: "", title: "", time: "", difficulty: "Easy", ingredients: "", steps: "" });
 
-  useEffect(() => {
-    localStorage.setItem("spiceora_recipes", JSON.stringify(recipes));
-  }, [recipes]);
+  const loadRecipes = () => recipesApi.list().then(setRecipes).catch((error: any) => toast.error(error.message || "Unable to load recipes"));
+  useEffect(() => { loadRecipes(); }, []);
 
   const handleEdit = (recipe: any) => {
     setForm({ ...recipe });
@@ -6097,21 +6107,25 @@ function RecipesCMSPage() {
     setIsAddOpen(true);
   };
 
-  const handleSave = () => {
-    if (activeRecipe) {
-      setRecipes(prev => prev.map(r => r.id === form.id ? { ...form } : r));
-      setActiveRecipe(null);
-      toast.success("Recipe updated successfully");
-    } else {
-      setRecipes(prev => [...prev, form]);
-      setIsAddOpen(false);
-      toast.success("New recipe added");
-    }
+  const handleSave = async () => {
+    const payload = {
+      title: form.title,
+      description: `${form.ingredients || ""}\n\n${form.steps || ""}`,
+      cookMinutes: Number.parseInt(form.time, 10) || undefined,
+      difficulty: form.difficulty.toLowerCase(),
+      status: "published"
+    };
+    try {
+      if (activeRecipe) await recipesApi.update(Number(activeRecipe.id), payload);
+      else await recipesApi.create(payload);
+      setActiveRecipe(null); setIsAddOpen(false); loadRecipes();
+      toast.success(activeRecipe ? "Recipe updated successfully" : "New recipe published");
+    } catch (error: any) { toast.error(error.message || "Unable to save recipe"); }
   };
 
-  const handleDelete = (id: string) => {
-    setRecipes(prev => prev.filter(r => r.id !== id));
-    toast.success("Recipe deleted");
+  const handleDelete = async (id: string) => {
+    try { await recipesApi.remove(Number(id)); loadRecipes(); toast.success("Recipe deleted"); }
+    catch (error: any) { toast.error(error.message || "Unable to delete recipe"); }
   };
 
   return (
@@ -6282,40 +6296,46 @@ function PagesCMSPage() {
 }
 
 function CouponsPage() {
-  const [coupons, setCoupons] = useState<any[]>(() => {
-    try {
-      const stored = localStorage.getItem("spiceora_coupons");
-      return stored ? JSON.parse(stored) : [];
-    } catch {
-      return [];
-    }
-  });
+  const [coupons, setCoupons] = useState<any[]>([]);
 
   const [form, setForm] = useState({ code: "", discountType: "percentage", value: 10, minPurchase: 500, active: true });
   const [isAddOpen, setIsAddOpen] = useState(false);
 
-  useEffect(() => {
-    localStorage.setItem("spiceora_coupons", JSON.stringify(coupons));
-  }, [coupons]);
+  const loadCoupons = async () => {
+    const data = await couponsApi.list();
+    setCoupons(data.map((coupon: any) => ({
+      ...coupon,
+      value: Number(coupon.discountValue),
+      minPurchase: Number(coupon.minPurchaseAmount),
+      active: coupon.isActive
+    })));
+  };
+  useEffect(() => { loadCoupons().catch((error: any) => toast.error(error.message || "Unable to load coupons")); }, []);
 
-  const handleToggle = (code: string) => {
-    setCoupons(prev => prev.map(c => c.code === code ? { ...c, active: !c.active } : c));
-    toast.success("Coupon status toggled");
+  const handleToggle = async (code: string) => {
+    const coupon = coupons.find(c => c.code === code);
+    if (!coupon) return;
+    await couponsApi.update(coupon.id, { isActive: !coupon.active });
+    await loadCoupons();
+    toast.success("Coupon status updated");
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!form.code.trim()) return;
     if (coupons.some(c => c.code.toLowerCase() === form.code.toLowerCase())) {
       toast.error("Coupon code already exists");
       return;
     }
-    setCoupons(prev => [...prev, { ...form, code: form.code.toUpperCase() }]);
+    await couponsApi.create({ code: form.code.toUpperCase(), discountType: form.discountType, discountValue: form.value, minPurchaseAmount: form.minPurchase, isActive: form.active });
+    await loadCoupons();
     setIsAddOpen(false);
     toast.success("Promo code registered successfully");
   };
 
-  const handleDelete = (code: string) => {
-    setCoupons(prev => prev.filter(c => c.code !== code));
+  const handleDelete = async (code: string) => {
+    const coupon = coupons.find(c => c.code === code);
+    if (coupon) await couponsApi.remove(coupon.id);
+    await loadCoupons();
     toast.success("Coupon removed");
   };
 
@@ -6414,13 +6434,28 @@ function CampaignsPage() {
     }
   });
 
-  const saveAlert = () => {
-    localStorage.setItem("spiceora_campaign_alert", JSON.stringify(alertBanner));
+  const [campaignIds, setCampaignIds] = useState<Record<string, number>>({});
+  useEffect(() => {
+    campaignsApi.list().then((items: any[]) => {
+      const alert = items.find(item => item.placement === "alert_banner");
+      const popup = items.find(item => item.placement === "popup_modal");
+      if (alert) setAlertBanner({ enabled: alert.isActive, text: alert.message || "" });
+      if (popup) setModalOffer({ enabled: popup.isActive, title: popup.title || "", description: popup.message || "" });
+      setCampaignIds({ ...(alert ? { alert: alert.id } : {}), ...(popup ? { popup: popup.id } : {}) });
+    }).catch((error: any) => toast.error(error.message || "Unable to load campaigns"));
+  }, []);
+
+  const saveAlert = async () => {
+    const body = { placement: "alert_banner", message: alertBanner.text, isActive: alertBanner.enabled };
+    if (campaignIds.alert) await campaignsApi.update(campaignIds.alert, body);
+    else { const created = await campaignsApi.create(body); setCampaignIds(ids => ({ ...ids, alert: created.id })); }
     toast.success("Alert announcement banner settings saved");
   };
 
-  const savePopup = () => {
-    localStorage.setItem("spiceora_campaign_popup", JSON.stringify(modalOffer));
+  const savePopup = async () => {
+    const body = { placement: "popup_modal", title: modalOffer.title, message: modalOffer.description, isActive: modalOffer.enabled };
+    if (campaignIds.popup) await campaignsApi.update(campaignIds.popup, body);
+    else { const created = await campaignsApi.create(body); setCampaignIds(ids => ({ ...ids, popup: created.id })); }
     toast.success("Announcements modal popup campaign saved");
   };
 

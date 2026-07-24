@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Sparkles, Calculator, CheckCircle2, AlertTriangle, TrendingUp, Info, HelpCircle, ArrowRight, ShieldCheck } from "lucide-react";
 
@@ -165,6 +165,7 @@ export interface SmartPricingAssistantProps {
   initialCogs?: number;
   initialMargin?: number;
   initialGst?: number;
+  initialVariants?: { p100: number; p250: number; p500: number; p1000: number };
   onPriceCalculated?: (data: {
     basePrice: number;
     variants: { p100: number; p250: number; p500: number; p1000: number };
@@ -176,6 +177,7 @@ export function SmartPricingAssistant({
   initialCogs = 30,
   initialMargin = 30,
   initialGst = 5,
+  initialVariants,
   onPriceCalculated,
 }: SmartPricingAssistantProps) {
   const [cogs, setCogs] = useState<number>(initialCogs);
@@ -206,23 +208,47 @@ export function SmartPricingAssistant({
   const variants = calculateWeightVariants(currentInputs);
 
   // Extract variant prices
-  const variantPrices = {
+  const calculatedVariantPrices = {
     p100: variants.find((v) => v.weightGrams === 100)?.finalSellingPrice || 0,
     p250: variants.find((v) => v.weightGrams === 250)?.finalSellingPrice || 0,
     p500: variants.find((v) => v.weightGrams === 500)?.finalSellingPrice || 0,
     p1000: variants.find((v) => v.weightGrams === 1000)?.finalSellingPrice || result.finalSellingPrice,
   };
+  const [variantPrices, setVariantPrices] = useState(initialVariants || calculatedVariantPrices);
+  const inputKey = `${cogs}|${targetMargin}|${gstRate}|${packagingCost}|${shippingCost}|${platformFee}|${miscCost}`;
+  const lastInputKeyRef = useRef("");
 
   // Sync with parent wizard
   useEffect(() => {
-    if (onPriceCalculated) {
-      onPriceCalculated({
-        basePrice: result.finalSellingPrice,
-        variants: variantPrices,
+    const firstRun = lastInputKeyRef.current === "";
+    lastInputKeyRef.current = inputKey;
+
+    if (firstRun && initialVariants) {
+      onPriceCalculated?.({
+        basePrice: initialVariants.p1000,
+        variants: initialVariants,
         pricingResult: result,
       });
+      return;
     }
-  }, [cogs, targetMargin, gstRate, packagingCost, shippingCost, platformFee, miscCost]);
+
+    setVariantPrices(calculatedVariantPrices);
+    onPriceCalculated?.({
+      basePrice: calculatedVariantPrices.p1000,
+      variants: calculatedVariantPrices,
+      pricingResult: result,
+    });
+  }, [inputKey]);
+
+  function handleVariantPriceChange(key: keyof typeof variantPrices, value: number) {
+    const nextPrices = { ...variantPrices, [key]: Math.max(0, value || 0) };
+    setVariantPrices(nextPrices);
+    onPriceCalculated?.({
+      basePrice: nextPrices.p1000,
+      variants: nextPrices,
+      pricingResult: result,
+    });
+  }
 
   // Segment percentages for visual bar
   const totalPrice = result.exactFinalSellingPrice || 1;
@@ -253,7 +279,7 @@ export function SmartPricingAssistant({
 
         {/* Health Badge */}
         <div className={`px-3.5 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-2 ${result.healthBadge.bgClass}`}>
-          {result.targetMargin >= 20 ? (
+          {targetMargin >= 20 ? (
             <CheckCircle2 className="w-4 h-4 text-emerald-600" />
           ) : (
             <AlertTriangle className="w-4 h-4 text-amber-600" />
@@ -514,22 +540,33 @@ export function SmartPricingAssistant({
           </span>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          {variants.map((v) => (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {variants.map((v) => {
+            const key = `p${v.weightGrams}` as keyof typeof variantPrices;
+            return (
             <div
               key={v.weightLabel}
-              className="p-4 rounded-xl bg-[#FAF8F5] border border-[#2C2416]/10 hover:border-[#2D5016]/40 transition-all space-y-2.5"
+              className="min-w-0 p-4 rounded-xl bg-[#FAF8F5] border border-[#2C2416]/10 hover:border-[#2D5016]/40 transition-all space-y-3"
             >
-              <div className="flex items-center justify-between">
-                <span className="font-extrabold text-sm text-[#2C2416]">{v.weightLabel} Variant</span>
-                <span className="text-[10px] font-semibold text-[#8B7355] bg-white px-2 py-0.5 rounded-md border border-[#2C2416]/8">
+              <div className="flex items-center justify-between gap-3">
+                <span className="font-extrabold text-base text-[#2C2416] whitespace-nowrap">{v.weightLabel} pack</span>
+                <span className="shrink-0 text-[10px] font-semibold text-[#8B7355] bg-white px-2 py-1 rounded-md border border-[#2C2416]/8">
                   Cost: ₹{v.proportionalCogs}
                 </span>
               </div>
 
-              <div className="p-2.5 bg-white rounded-lg border border-[#2C2416]/8 text-center">
+              <div className="p-3 bg-white rounded-lg border border-[#2C2416]/8">
                 <span className="text-[10px] text-[#8B7355] uppercase font-bold tracking-wider block">Retail Selling Price</span>
-                <span className="text-xl font-extrabold text-[#2D5016]">₹{v.finalSellingPrice}</span>
+                <div className="relative mt-2">
+                  <span className="absolute left-3 top-2 text-xs font-bold text-[#8B7355]">₹</span>
+                  <input
+                    type="number"
+                    min="0"
+                    value={variantPrices[key] ?? v.finalSellingPrice}
+                    onChange={(e) => handleVariantPriceChange(key, Number(e.target.value))}
+                    className="w-full min-w-0 pl-8 pr-3 py-2.5 rounded-lg border border-[#2C2416]/10 text-right text-xl font-extrabold text-[#2D5016] outline-none focus:border-[#2D5016] bg-[#FAF8F5]"
+                  />
+                </div>
               </div>
 
               <div className="space-y-1 text-[11px] text-[#8B7355]">
@@ -543,7 +580,8 @@ export function SmartPricingAssistant({
                 </div>
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </div>
