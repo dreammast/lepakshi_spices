@@ -120,8 +120,9 @@ function Counter({ to, prefix = "", suffix = "" }: { to: number; prefix?: string
   return <>{prefix}{val.toLocaleString()}{suffix}</>;
 }
 
-function Av({ name, size = 36, g }: { name: string; size?: number; g?: string }) {
-  const ini = name.split(" ").map(p => p[0]).join("").slice(0, 2).toUpperCase();
+function Av({ name, size = 36, g }: { name?: string | null; size?: number; g?: string }) {
+  const safeName = typeof name === "string" && name.trim() ? name.trim() : "Unknown";
+  const ini = safeName.split(/\s+/).map(p => p[0]).join("").slice(0, 2).toUpperCase();
   return (
     <div className="flex items-center justify-center rounded-full text-white font-semibold shrink-0 select-none"
       style={{ width: size, height: size, fontSize: size * 0.36, background: g ?? `linear-gradient(135deg, ${C.green}, ${C.greenLight})` }}>
@@ -547,7 +548,15 @@ function DashboardPage({ navigateTo }: { navigateTo: (p: string) => void }) {
   const [inquiries, setInquiries] = useState<any[]>([]);
   useEffect(() => {
     Promise.all([productsApi.list(), ordersApi.adminList(), wholesaleApi.listInquiries()])
-      .then(([productRows, orderRows, inquiryRows]) => { setProducts(productRows || []); setOrders(orderRows || []); setInquiries(inquiryRows || []); })
+      .then(([productRows, orderRows, inquiryRows]) => {
+        setProducts(productRows || []);
+        setOrders(orderRows || []);
+        setInquiries((inquiryRows || []).map((inquiry: any) => ({
+          ...inquiry,
+          businessName: inquiry.businessName || inquiry.companyName || "Unknown business",
+          contactPerson: inquiry.contactPerson || inquiry.contactName || "",
+        })));
+      })
       .catch((error: any) => console.warn("Unable to load dashboard data", error));
   }, []);
 
