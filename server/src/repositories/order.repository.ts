@@ -1,6 +1,6 @@
 import { desc, eq } from 'drizzle-orm';
 import { db } from '../config/database.js';
-import { orderItems, orders, productVariants, products, customerProfiles } from '../db/schema.js';
+import { orderItems, orders, productVariants, products, customerProfiles, addresses } from '../db/schema.js';
 
 export type CreateOrderInput = {
   customerId: number;
@@ -69,6 +69,14 @@ export async function findOrderById(id: number) {
     }
   }
 
+  let shippingAddress = null;
+  if (order.shippingAddressId) {
+    const [addr] = await db.select().from(addresses).where(eq(addresses.id, order.shippingAddressId));
+    if (addr) {
+      shippingAddress = addr;
+    }
+  }
+
   const items = await db
     .select({
       item: orderItems,
@@ -88,6 +96,8 @@ export async function findOrderById(id: number) {
     customerName: customer ? customer.name : 'Guest Customer',
     customer: customer ? customer.name : 'Guest Customer',
     customerEmail: customer ? customer.email : '',
+    customerPhone: customer ? customer.phone : '',
+    shippingAddress,
     items: items.map(row => ({
       ...row.item,
       variant: row.variant,
@@ -95,6 +105,7 @@ export async function findOrderById(id: number) {
     }))
   };
 }
+
 
 export async function findOrdersByCustomerId(customerId: number) {
   const rows = await db.select().from(orders).where(eq(orders.customerId, customerId)).orderBy(desc(orders.placedAt));

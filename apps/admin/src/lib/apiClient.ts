@@ -130,8 +130,10 @@ export const packagingApi = {
 export const customersApi = {
   list: () => api.get<any[]>('/admin/customers'),
   get: (id: number) => api.get<any>(`/admin/customers/${id}`),
-  updateRole: (id: number, role: string) => api.put<any>(`/admin/customers/${id}/role`, { role })
+  updateRole: (id: number, role: string) => api.put<any>(`/admin/customers/${id}/role`, { role }),
+  updateProfile: (id: number, body: unknown) => api.put<any>(`/admin/customers/${id}/profile`, body)
 };
+
 
 export const auditApi = {
   list: (filters?: Record<string, string>) => {

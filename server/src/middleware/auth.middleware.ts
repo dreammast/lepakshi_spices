@@ -18,6 +18,20 @@ export function authenticate(req: AuthenticatedRequest, res: Response, next: Nex
   }
 }
 
+export function optionalAuthenticate(req: AuthenticatedRequest, _res: Response, next: NextFunction) {
+  const header = req.headers.authorization;
+  if (header?.startsWith('Bearer ')) {
+    try {
+      const token = header.slice(7);
+      req.user = verifyToken(token);
+    } catch {
+      // Ignore invalid token in optional authentication
+    }
+  }
+  next();
+}
+
+
 export function requireRole(...roles: JwtPayload['role'][]) {
   return (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     if (!req.user) {

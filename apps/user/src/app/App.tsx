@@ -8,7 +8,8 @@ import {
   Instagram, Facebook, Twitter, Youtube, Mail, Globe, Zap, CheckCircle,
   AlertCircle, BookOpen, Tag, Clock, HelpCircle, FileText, Phone
 } from "lucide-react";
-import { campaignsApi, cartApi, ordersApi, productsApi, categoriesApi, recipesApi, reviewsApi, settingsApi, wholesaleInquiryApi } from "../lib/apiClient";
+import { campaignsApi, cartApi, ordersApi, productsApi, categoriesApi, recipesApi, reviewsApi, settingsApi, wholesaleInquiryApi, addressesApi } from "../lib/apiClient";
+
 
 // ─── DATA & LIVE API INTEGRATION ──────────────────────────────────────────────────
 
@@ -1776,11 +1777,7 @@ function CartPage() {
     }
   }
 
-  useEffect(() => {
-    if (!subtotal || coupon) return;
-    const eligibleCode = orders.length === 0 ? "WELCOME50" : "SPICE50";
-    applyCoupon(eligibleCode);
-  }, [subtotal, orders.length]);
+
 
   function handleRemove(item: CartItem) {
     setRemoved(prev => [...prev, { ...item }]);
@@ -2275,25 +2272,169 @@ function ProfilePage() {
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [saveLoading, setSaveLoading] = useState(false);
 
-  // User real addresses
-  const [userAddresses, setUserAddresses] = useState<any[]>(() => {
-    if (!user?.email) return [];
-    try {
-      return JSON.parse(localStorage.getItem(`spiceora_addrs_${user.email}`) || "[]");
-    } catch { return []; }
+  // User real addresses from API
+  const [userAddresses, setUserAddresses] = useState<any[]>([]);
+  const [addressModalOpen, setAddressModalOpen] = useState(false);
+  const [editingAddress, setEditingAddress] = useState<any | null>(null);
+  const [addressForm, setAddressForm] = useState({
+    label: "Home",
+    line1: "",
+    line2: "",
+    city: "",
+    state: "",
+    postalCode: "",
+    country: "India",
+    isDefault: false
   });
 
+  const loadUserAddresses = async () => {
+    if (!user?.token) return;
+    try {
+      const list = await addressesApi.list();
+      if (Array.isArray(list)) setUserAddresses(list);
+    } catch (err: any) {
+      console.warn("Unable to load addresses from API:", err);
+    }
+  };
+
+  // User reviews from API
+  const [userReviews, setUserReviews] = useState<any[]>([]);
+  const [reviewModalOpen, setReviewModalOpen] = useState(false);
+  const [editingReview, setEditingReview] = useState<any | null>(null);
+  const [reviewForm, setReviewForm] = useState({
+    productId: 0,
+    rating: 5,
+    title: "",
+    comment: ""
+  });
+
+  const loadUserReviews = async () => {
+    if (!user?.token) return;
+    try {
+      const list = await reviewsApi.myReviews();
+      if (Array.isArray(list)) setUserReviews(list);
+    } catch (err: any) {
+      console.warn("Unable to load reviews from API:", err);
+    }
+  };
+
   useEffect(() => {
-    if (user?.email) {
-      try {
-        setUserAddresses(JSON.parse(localStorage.getItem(`spiceora_addrs_${user.email}`) || "[]"));
-      } catch {
-        setUserAddresses([]);
-      }
+    if (user?.token) {
+      loadUserAddresses();
+      loadUserReviews();
       setSettingsName(user.name || "");
       setSettingsEmail(user.email || "");
     }
-  }, [user]);
+  }, [user?.token]);
+
+  const handleOpenAddAddress = () => {
+    setEditingAddress(null);
+    setAddressForm({ label: "Home", line1: "", line2: "", city: "", state: "", postalCode: "", country: "India", isDefault: userAddresses.length === 0 });
+    setAddressModalOpen(true);
+  };
+
+  const handleOpenEditAddress = (addr: any) => {
+    setEditingAddress(addr);
+    setAddressForm({
+      label: addr.label || "Home",
+      line1: addr.line1 || "",
+      line2: addr.line2 || "",
+      city: addr.city || "",
+      state: addr.state || "",
+      postalCode: addr.postalCode || addr.pin || "",
+      country: addr.country || "India",
+      isDefault: addr.isDefault || false
+    });
+    setAddressModalOpen(true);
+  };
+
+  const handleSaveAddress = async () => {
+    if (!addressForm.line1.trim() || !addressForm.city.trim() || !addressForm.postalCode.trim()) {
+      toast.error("Please fill in required address fields");
+      return;
+    }
+    try {
+      if (editingAddress) {
+        await addressesApi.update(editingAddress.id, addressForm);
+        toast.success("Address updated successfully");
+      } else {
+        await addressesApi.create(addressForm);
+        toast.success("New address added successfully");
+      }
+      setAddressModalOpen(false);
+      loadUserAddresses();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to save address");
+    }
+  };
+
+  const handleDeleteAddress = async (id: number) => {
+    try {
+      await addressesApi.remove(id);
+      setUserAddresses(prev => prev.filter(a => a.id !== id));
+      toast.success("Address deleted");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to delete address");
+    }
+  };
+
+  const handleOpenWriteReview = () => {
+    setEditingReview(null);
+    const firstProductId = products[0]?.id || 1;
+    setReviewForm({ productId: firstProductId, rating: 5, title: "", comment: "" });
+    setReviewModalOpen(true);
+  };
+
+  const handleOpenEditReview = (rev: any) => {
+    const reviewObj = rev.review || rev;
+    setEditingReview(reviewObj);
+    setReviewForm({
+      productId: reviewObj.productId || products[0]?.id || 1,
+      rating: reviewObj.rating || 5,
+      title: reviewObj.title || "",
+      comment: reviewObj.comment || ""
+    });
+    setReviewModalOpen(true);
+  };
+
+  const handleSaveReview = async () => {
+    if (!reviewForm.comment.trim()) {
+      toast.error("Please enter your review comment");
+      return;
+    }
+    try {
+      if (editingReview) {
+        await reviewsApi.updateMyReview(editingReview.id, {
+          rating: reviewForm.rating,
+          title: reviewForm.title,
+          comment: reviewForm.comment
+        });
+        toast.success("Review updated successfully");
+      } else {
+        await reviewsApi.createForProduct(reviewForm.productId, {
+          rating: reviewForm.rating,
+          title: reviewForm.title,
+          comment: reviewForm.comment
+        });
+        toast.success("Review submitted for moderation");
+      }
+      setReviewModalOpen(false);
+      loadUserReviews();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to save review");
+    }
+  };
+
+  const handleDeleteReview = async (id: number) => {
+    try {
+      await reviewsApi.deleteMyReview(id);
+      setUserReviews(prev => prev.filter(r => (r.review?.id || r.id) !== id));
+      toast.success("Review deleted");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to delete review");
+    }
+  };
+
 
   // Support states
   const [supportMsg, setSupportMsg] = useState("");
@@ -2505,35 +2646,196 @@ function ProfilePage() {
                 )}
 
                 {tab === "reviews" && (
-                  <div className="bg-white rounded-2xl border border-[#1A1714]/8 p-12 text-center">
-                    <Star className="w-12 h-12 text-[#7A7064] mx-auto mb-3" />
-                    <p className="font-semibold text-[#1A1714] mb-1">No Reviews Written Yet</p>
-                    <p className="text-sm text-[#7A7064] mb-5">Share your feedback on spices you've ordered</p>
-                    <Btn onClick={() => navigate("shop")}>Browse Spices</Btn>
+                  <div className="space-y-4">
+                    <div className="flex justify-between items-center bg-white rounded-2xl border border-[#1A1714]/8 p-4">
+                      <div>
+                        <h3 className="font-semibold text-[#1A1714]">My Product Reviews</h3>
+                        <p className="text-xs text-[#7A7064]">Share your experience with products you purchased.</p>
+                      </div>
+                      <Btn size="sm" icon={Plus} onClick={handleOpenWriteReview}>Write Review</Btn>
+                    </div>
+
+                    {userReviews.length > 0 ? (
+                      <div className="grid grid-cols-1 gap-4">
+                        {userReviews.map((row: any) => {
+                          const rev = row.review || row;
+                          const prod = row.product;
+                          return (
+                            <div key={rev.id} className="bg-white rounded-2xl border border-[#1A1714]/8 p-5 relative text-left">
+                              <div className="flex justify-between items-start mb-2">
+                                <div>
+                                  <p className="font-bold text-[#1A1714] text-sm">{prod?.name || rev.title || "Product Review"}</p>
+                                  <div className="flex items-center gap-1 my-1 text-amber-500 text-xs">
+                                    {"★".repeat(rev.rating || 5)}
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${rev.status === "approved" ? "bg-green-100 text-green-800" : "bg-stone-100 text-stone-600"}`}>
+                                    {rev.status || "pending"}
+                                  </span>
+                                  <button onClick={() => handleOpenEditReview(row)} className="p-1 text-[#7A7064] hover:text-[#1A1714]"><Settings className="w-3.5 h-3.5" /></button>
+                                  <button onClick={() => handleDeleteReview(rev.id)} className="p-1 text-red-500 hover:text-red-700"><Trash2 className="w-3.5 h-3.5" /></button>
+                                </div>
+                              </div>
+                              {rev.title && <p className="text-xs font-semibold text-[#1A1714] mb-1">{rev.title}</p>}
+                              <p className="text-xs text-[#7A7064] leading-relaxed">{rev.comment}</p>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="bg-white rounded-2xl border border-[#1A1714]/8 p-12 text-center">
+                        <Star className="w-12 h-12 text-[#7A7064] mx-auto mb-3" />
+                        <p className="font-semibold text-[#1A1714] mb-1">No Reviews Written Yet</p>
+                        <p className="text-sm text-[#7A7064] mb-5">Share your feedback on spices you've ordered</p>
+                        <Btn onClick={handleOpenWriteReview}>Write First Review</Btn>
+                      </div>
+                    )}
+
+                    {/* Write/Edit Review Modal */}
+                    <AnimatePresence>
+                      {reviewModalOpen && (
+                        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+                          <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="relative bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4">
+                            <div className="flex justify-between items-center border-b pb-3">
+                              <h3 className="font-bold text-lg font-serif text-[#1A1714]">{editingReview ? "Edit Review" : "Write a Review"}</h3>
+                              <button onClick={() => setReviewModalOpen(false)} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-stone-100"><X className="w-4 h-4" /></button>
+                            </div>
+                            <div className="space-y-3 text-xs text-left">
+                              {!editingReview && (
+                                <div>
+                                  <label className="text-[10px] font-semibold text-[#7A7064] uppercase block mb-1">Select Product</label>
+                                  <select value={reviewForm.productId} onChange={e => setReviewForm({ ...reviewForm, productId: Number(e.target.value) })} className="w-full bg-[#FAF8F3] border border-[#1A1714]/12 rounded-xl px-3 py-2 text-xs outline-none cursor-pointer">
+                                    {products.map((p: any) => (
+                                      <option key={p.id} value={p.id}>{p.name}</option>
+                                    ))}
+                                  </select>
+                                </div>
+                              )}
+                              <div>
+                                <label className="text-[10px] font-semibold text-[#7A7064] uppercase block mb-1">Rating</label>
+                                <div className="flex gap-2">
+                                  {[1, 2, 3, 4, 5].map(star => (
+                                    <button key={star} type="button" onClick={() => setReviewForm({ ...reviewForm, rating: star })} className={`p-2 rounded-xl border ${reviewForm.rating >= star ? "bg-amber-50 border-amber-300 text-amber-500" : "bg-[#FAF8F3] border-gray-200 text-gray-400"}`}>
+                                      ★ {star}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                              <div>
+                                <label className="text-[10px] font-semibold text-[#7A7064] uppercase block mb-1">Review Title</label>
+                                <input value={reviewForm.title} onChange={e => setReviewForm({ ...reviewForm, title: e.target.value })} placeholder="e.g. Excellent aroma & flavor" className="w-full bg-[#FAF8F3] border border-[#1A1714]/12 rounded-xl px-3 py-2 text-xs outline-none" />
+                              </div>
+                              <div>
+                                <label className="text-[10px] font-semibold text-[#7A7064] uppercase block mb-1">Comment</label>
+                                <textarea rows={3} value={reviewForm.comment} onChange={e => setReviewForm({ ...reviewForm, comment: e.target.value })} placeholder="Tell us what you liked about this spice..." className="w-full bg-[#FAF8F3] border border-[#1A1714]/12 rounded-xl px-3 py-2 text-xs outline-none resize-none" />
+                              </div>
+                            </div>
+                            <div className="flex gap-3 pt-2">
+                              <button onClick={() => setReviewModalOpen(false)} className="flex-1 py-2 text-xs font-semibold border border-[#1A1714]/12 rounded-xl hover:bg-[#FAF8F5]">Cancel</button>
+                              <Btn onClick={handleSaveReview} className="flex-1">{editingReview ? "Update Review" : "Submit Review"}</Btn>
+                            </div>
+                          </motion.div>
+                        </div>
+                      )}
+                    </AnimatePresence>
                   </div>
                 )}
 
                 {tab === "addresses" && (
                   <div className="space-y-4">
+                    <div className="flex justify-between items-center bg-white rounded-2xl border border-[#1A1714]/8 p-4">
+                      <div>
+                        <h3 className="font-semibold text-[#1A1714]">Saved Addresses</h3>
+                        <p className="text-xs text-[#7A7064]">Manage your shipping & delivery locations.</p>
+                      </div>
+                      <Btn size="sm" icon={Plus} onClick={handleOpenAddAddress}>Add Address</Btn>
+                    </div>
+
                     {userAddresses.length > 0 ? (
-                      userAddresses.map((addr: any, idx: number) => (
-                        <div key={idx} className="bg-white rounded-2xl border-2 border-[#2A4A3C] p-5 relative">
-                          {idx === 0 && <div className="absolute top-4 right-4"><Badge color="green">Default</Badge></div>}
-                          <p className="font-semibold text-[#1A1714] mb-1">{addr.name}</p>
-                          <p className="text-sm text-[#7A7064]">{addr.line1}</p>
-                          <p className="text-sm text-[#7A7064]">{addr.city}, {addr.state} {addr.pin}</p>
-                          <p className="text-sm text-[#7A7064]">{addr.phone}</p>
-                        </div>
-                      ))
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {userAddresses.map((addr: any) => (
+                          <div key={addr.id} className={`bg-white rounded-2xl border-2 p-5 relative text-left ${addr.isDefault ? "border-[#2A4A3C]" : "border-[#1A1714]/8"}`}>
+                            {addr.isDefault && <div className="absolute top-4 right-4"><Badge color="green">Default</Badge></div>}
+                            <p className="font-bold text-[#1A1714] text-sm mb-1">{addr.label || 'Address'}</p>
+                            <p className="text-xs text-[#7A7064] leading-relaxed">{addr.line1}{addr.line2 ? `, ${addr.line2}` : ''}</p>
+                            <p className="text-xs text-[#7A7064]">{addr.city}, {addr.state} - {addr.postalCode || addr.pin}</p>
+                            <p className="text-xs text-[#7A7064] mb-3">{addr.country || 'India'}</p>
+                            <div className="flex gap-2 border-t border-[#1A1714]/6 pt-2">
+                              <button onClick={() => handleOpenEditAddress(addr)} className="text-xs text-[#2A4A3C] font-semibold hover:underline">Edit</button>
+                              <span className="text-xs text-stone-300">•</span>
+                              <button onClick={() => handleDeleteAddress(addr.id)} className="text-xs text-red-500 font-semibold hover:underline">Delete</button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     ) : (
                       <div className="bg-white rounded-2xl border border-[#1A1714]/8 p-12 text-center">
                         <MapPin className="w-12 h-12 text-[#7A7064] mx-auto mb-3" />
                         <h3 className="font-semibold text-[#1A1714] text-base mb-1">No Saved Addresses</h3>
                         <p className="text-xs text-[#7A7064] mb-6">Add your shipping details for faster checkout.</p>
+                        <Btn onClick={handleOpenAddAddress}>Add First Address</Btn>
                       </div>
                     )}
+
+                    {/* Add / Edit Address Modal */}
+                    <AnimatePresence>
+                      {addressModalOpen && (
+                        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+                          <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="relative bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4">
+                            <div className="flex justify-between items-center border-b pb-3">
+                              <h3 className="font-bold text-lg font-serif text-[#1A1714]">{editingAddress ? "Edit Address" : "Add New Address"}</h3>
+                              <button onClick={() => setAddressModalOpen(false)} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-stone-100"><X className="w-4 h-4" /></button>
+                            </div>
+                            <div className="space-y-3 text-xs text-left">
+                              <div>
+                                <label className="text-[10px] font-semibold text-[#7A7064] uppercase block mb-1">Address Label</label>
+                                <input value={addressForm.label} onChange={e => setAddressForm({ ...addressForm, label: e.target.value })} placeholder="e.g. Home, Office, Warehouse" className="w-full bg-[#FAF8F3] border border-[#1A1714]/12 rounded-xl px-3 py-2 text-xs outline-none" />
+                              </div>
+                              <div>
+                                <label className="text-[10px] font-semibold text-[#7A7064] uppercase block mb-1">Address Line 1 *</label>
+                                <input value={addressForm.line1} onChange={e => setAddressForm({ ...addressForm, line1: e.target.value })} placeholder="Flat, House no., Building, Street" className="w-full bg-[#FAF8F3] border border-[#1A1714]/12 rounded-xl px-3 py-2 text-xs outline-none" />
+                              </div>
+                              <div>
+                                <label className="text-[10px] font-semibold text-[#7A7064] uppercase block mb-1">Address Line 2</label>
+                                <input value={addressForm.line2} onChange={e => setAddressForm({ ...addressForm, line2: e.target.value })} placeholder="Area, Colony, Sector, Landmark" className="w-full bg-[#FAF8F3] border border-[#1A1714]/12 rounded-xl px-3 py-2 text-xs outline-none" />
+                              </div>
+                              <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                  <label className="text-[10px] font-semibold text-[#7A7064] uppercase block mb-1">City *</label>
+                                  <input value={addressForm.city} onChange={e => setAddressForm({ ...addressForm, city: e.target.value })} placeholder="City" className="w-full bg-[#FAF8F3] border border-[#1A1714]/12 rounded-xl px-3 py-2 text-xs outline-none" />
+                                </div>
+                                <div>
+                                  <label className="text-[10px] font-semibold text-[#7A7064] uppercase block mb-1">State *</label>
+                                  <input value={addressForm.state} onChange={e => setAddressForm({ ...addressForm, state: e.target.value })} placeholder="State" className="w-full bg-[#FAF8F3] border border-[#1A1714]/12 rounded-xl px-3 py-2 text-xs outline-none" />
+                                </div>
+                              </div>
+                              <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                  <label className="text-[10px] font-semibold text-[#7A7064] uppercase block mb-1">Postal Code (PIN) *</label>
+                                  <input value={addressForm.postalCode} onChange={e => setAddressForm({ ...addressForm, postalCode: e.target.value })} placeholder="6-digit PIN" className="w-full bg-[#FAF8F3] border border-[#1A1714]/12 rounded-xl px-3 py-2 text-xs outline-none" />
+                                </div>
+                                <div>
+                                  <label className="text-[10px] font-semibold text-[#7A7064] uppercase block mb-1">Country</label>
+                                  <input value={addressForm.country} onChange={e => setAddressForm({ ...addressForm, country: e.target.value })} placeholder="Country" className="w-full bg-[#FAF8F3] border border-[#1A1714]/12 rounded-xl px-3 py-2 text-xs outline-none" />
+                                </div>
+                              </div>
+                              <label className="flex items-center gap-2 cursor-pointer pt-1">
+                                <input type="checkbox" checked={addressForm.isDefault} onChange={e => setAddressForm({ ...addressForm, isDefault: e.target.checked })} className="rounded text-[#2A4A3C]" />
+                                <span className="text-xs text-[#1A1714]">Set as default shipping address</span>
+                              </label>
+                            </div>
+                            <div className="flex gap-3 pt-2">
+                              <button onClick={() => setAddressModalOpen(false)} className="flex-1 py-2 text-xs font-semibold border border-[#1A1714]/12 rounded-xl hover:bg-[#FAF8F5]">Cancel</button>
+                              <Btn onClick={handleSaveAddress} className="flex-1">{editingAddress ? "Save Address" : "Add Address"}</Btn>
+                            </div>
+                          </motion.div>
+                        </div>
+                      )}
+                    </AnimatePresence>
                   </div>
                 )}
+
 
                 {tab === "settings" && (
                   <div className="bg-white rounded-2xl border border-[#1A1714]/8 p-6 space-y-6">

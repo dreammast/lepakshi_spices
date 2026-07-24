@@ -1799,7 +1799,17 @@ function OrdersPage() {
                   <div className="bg-[#FAF8F5] p-4 rounded-xl border border-[#2C2416]/8">
                     <p className="text-[10px] font-bold text-[#8B7355] uppercase tracking-widest mb-2">Customer Profile</p>
                     <p className="text-sm font-semibold text-[#2C2416]">{drawerTarget.customer}</p>
-                    <p className="text-xs text-[#8B7355] mt-1">Delivery Address: {drawerTarget.location}</p>
+                    {drawerTarget.customerEmail && <p className="text-xs text-[#8B7355]">{drawerTarget.customerEmail}</p>}
+                    {drawerTarget.customerPhone && <p className="text-xs text-[#8B7355]">Phone: {drawerTarget.customerPhone}</p>}
+                    <p className="text-xs text-[#8B7355] mt-1.5 pt-1.5 border-t border-[#2C2416]/6">
+                      <span className="font-semibold text-[#2C2416]">Shipping Address:</span>{" "}
+                      {drawerTarget.shippingAddress ? (
+                        `${drawerTarget.shippingAddress.line1}${drawerTarget.shippingAddress.line2 ? ', ' + drawerTarget.shippingAddress.line2 : ''}, ${drawerTarget.shippingAddress.city}, ${drawerTarget.shippingAddress.state} - ${drawerTarget.shippingAddress.postalCode}`
+                      ) : (
+                        drawerTarget.location || "Not specified"
+                      )}
+                    </p>
+
                   </div>
 
                   <div>
@@ -2253,18 +2263,33 @@ function CustomersPage() {
                       <div className="flex justify-between"><span className="text-[#8B7355]">Email:</span><span className="font-semibold">{drawer.email}</span></div>
                       <div className="flex justify-between"><span className="text-[#8B7355]">Location:</span><span className="font-semibold">{drawer.location}</span></div>
                     </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="p-3 rounded-xl border bg-[#FAF8F5]/60">
-                        <p className="font-bold text-[#8B7355] mb-1 text-[10px] uppercase">Billing Address</p>
-                        <p className="text-[11px] leading-relaxed text-[#2C2416]">102 Spice Towers,<br />{drawer.location}</p>
-                      </div>
-                      <div className="p-3 rounded-xl border bg-[#FAF8F5]/60">
-                        <p className="font-bold text-[#8B7355] mb-1 text-[10px] uppercase">Shipping Address</p>
-                        <p className="text-[11px] leading-relaxed text-[#2C2416]">102 Spice Towers,<br />{drawer.location}</p>
-                      </div>
+                    <div className="space-y-3">
+                      <p className="font-bold text-[#2C2416] text-sm">Saved Addresses</p>
+                      {customerDetails?.addresses && customerDetails.addresses.length > 0 ? (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          {customerDetails.addresses.map((addr: any) => (
+                            <div key={addr.id} className="p-3 rounded-xl border bg-[#FAF8F5]/60 relative">
+                              <p className="font-bold text-[#8B7355] mb-1 text-[10px] uppercase flex justify-between">
+                                <span>{addr.label || 'Address'}</span>
+                                {addr.isDefault && <span className="text-green-700">Default</span>}
+                              </p>
+                              <p className="text-[11px] leading-relaxed text-[#2C2416]">
+                                {addr.line1}{addr.line2 ? `, ${addr.line2}` : ''}<br />
+                                {addr.city}, {addr.state} - {addr.postalCode}<br />
+                                {addr.country}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="p-4 rounded-xl border bg-[#FAF8F5]/60 text-center text-[#8B7355]">
+                          No addresses saved for this customer yet.
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
+
 
                 {/* Tab: Orders */}
                 {drawerTab === "orders" && (
@@ -2449,61 +2474,102 @@ function SettingsPage() {
     { id: "branding", label: "Branding", icon: Palette },
   ];
 
-  const [coupons, setCoupons] = useState<any[]>(() => {
-    try {
-      const stored = localStorage.getItem("spiceora_coupons");
-      return stored ? JSON.parse(stored) : [];
-    } catch {
-      return [];
-    }
-  });
-
+  const [coupons, setCoupons] = useState<any[]>([]);
   const [couponForm, setCouponForm] = useState({ code: "", discountType: "percentage", value: 10, minPurchase: 500, active: true });
   const [isAddCouponOpen, setIsAddCouponOpen] = useState(false);
 
+  const [alertBanner, setAlertBanner] = useState({ enabled: false, text: "" });
+  const [modalOffer, setModalOffer] = useState({ enabled: false, title: "", description: "" });
+  const [campaignIds, setCampaignIds] = useState<Record<string, number>>({});
+
+  const loadPromotionsData = async () => {
+    try {
+      const [cList, campList] = await Promise.all([couponsApi.list(), campaignsApi.list()]);
+      if (Array.isArray(cList)) {
+        setCoupons(cList.map(c => ({
+          id: c.id,
+          code: c.code,
+          discountType: c.discountType,
+          value: Number(c.discountValue),
+          minPurchase: Number(c.minPurchaseAmount || 0),
+          active: c.isActive
+        })));
+      }
+      if (Array.isArray(campList)) {
+        const alert = campList.find((item: any) => item.placement === "alert_banner");
+        const popup = campList.find((item: any) => item.placement === "popup_modal");
+        if (alert) setAlertBanner({ enabled: alert.isActive, text: alert.message || "" });
+        if (popup) setModalOffer({ enabled: popup.isActive, title: popup.title || "", description: popup.message || "" });
+        setCampaignIds({ ...(alert ? { alert: alert.id } : {}), ...(popup ? { popup: popup.id } : {}) });
+      }
+    } catch (err: any) {
+      console.warn("Unable to load promotions from API:", err);
+    }
+  };
+
   useEffect(() => {
-    localStorage.setItem("spiceora_coupons", JSON.stringify(coupons));
-  }, [coupons]);
+    loadPromotionsData();
+  }, []);
 
-  const [alertBanner, setAlertBanner] = useState(() => {
+  const saveAlert = async () => {
     try {
-      const stored = localStorage.getItem("spiceora_campaign_alert");
-      return stored ? JSON.parse(stored) : { enabled: false, text: "" };
-    } catch {
-      return { enabled: false, text: "" };
+      const body = { placement: "alert_banner", message: alertBanner.text, isActive: alertBanner.enabled };
+      if (campaignIds.alert) {
+        await campaignsApi.update(campaignIds.alert, body);
+      } else {
+        const created = await campaignsApi.create(body);
+        setCampaignIds(ids => ({ ...ids, alert: created.id }));
+      }
+      toast.success("Header alert settings saved successfully");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to save header alert");
     }
-  });
+  };
 
-  const [modalOffer, setModalOffer] = useState(() => {
+  const savePopup = async () => {
     try {
-      const stored = localStorage.getItem("spiceora_campaign_popup");
-      return stored ? JSON.parse(stored) : { enabled: false, title: "", description: "" };
-    } catch {
-      return { enabled: false, title: "", description: "" };
+      const body = { placement: "popup_modal", title: modalOffer.title, message: modalOffer.description, isActive: modalOffer.enabled };
+      if (campaignIds.popup) {
+        await campaignsApi.update(campaignIds.popup, body);
+      } else {
+        const created = await campaignsApi.create(body);
+        setCampaignIds(ids => ({ ...ids, popup: created.id }));
+      }
+      toast.success("Modal popup settings saved successfully");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to save modal popup");
     }
-  });
-
-  const saveAlert = () => {
-    localStorage.setItem("spiceora_campaign_alert", JSON.stringify(alertBanner));
-    toast.success("Header alert settings saved successfully");
   };
 
-  const savePopup = () => {
-    localStorage.setItem("spiceora_campaign_popup", JSON.stringify(modalOffer));
-    toast.success("Modal popup settings saved successfully");
+  const handleToggleCoupon = async (code: string) => {
+    const existing = coupons.find(c => c.code === code);
+    if (!existing) return;
+    try {
+      if (existing.id) {
+        await couponsApi.update(existing.id, { isActive: !existing.active });
+      }
+      setCoupons(prev => prev.map(c => c.code === code ? { ...c, active: !c.active } : c));
+      toast.success("Coupon status updated");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to update coupon status");
+    }
   };
 
-  const handleToggleCoupon = (code: string) => {
-    setCoupons(prev => prev.map(c => c.code === code ? { ...c, active: !c.active } : c));
-    toast.success("Coupon status updated");
+  const handleDeleteCoupon = async (code: string) => {
+    const existing = coupons.find(c => c.code === code);
+    if (!existing) return;
+    try {
+      if (existing.id) {
+        await couponsApi.remove(existing.id);
+      }
+      setCoupons(prev => prev.filter(c => c.code !== code));
+      toast.success("Coupon deleted");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to delete coupon");
+    }
   };
 
-  const handleDeleteCoupon = (code: string) => {
-    setCoupons(prev => prev.filter(c => c.code !== code));
-    toast.success("Coupon deleted");
-  };
-
-  const handleCreateCoupon = () => {
+  const handleCreateCoupon = async () => {
     if (!couponForm.code.trim()) {
       toast.error("Please enter a coupon code");
       return;
@@ -2513,11 +2579,23 @@ function SettingsPage() {
       toast.error("Coupon code already exists");
       return;
     }
-    setCoupons(prev => [...prev, { ...couponForm, code: cleanCode }]);
-    setIsAddCouponOpen(false);
-    setCouponForm({ code: "", discountType: "percentage", value: 10, minPurchase: 500, active: true });
-    toast.success("New coupon created successfully!");
+    try {
+      const created = await couponsApi.create({
+        code: cleanCode,
+        discountType: couponForm.discountType,
+        discountValue: couponForm.value,
+        minPurchaseAmount: couponForm.minPurchase,
+        isActive: couponForm.active
+      });
+      setCoupons(prev => [...prev, { id: created.id || created, code: cleanCode, discountType: couponForm.discountType, value: couponForm.value, minPurchase: couponForm.minPurchase, active: couponForm.active }]);
+      setIsAddCouponOpen(false);
+      setCouponForm({ code: "", discountType: "percentage", value: 10, minPurchase: 500, active: true });
+      toast.success("New coupon created successfully!");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to create coupon");
+    }
   };
+
 
   const handleSave = async () => {
     localStorage.setItem("spiceora_contact_settings", JSON.stringify(contacts));
@@ -6671,9 +6749,97 @@ function WebsiteCMSPage() {
     try { const s = localStorage.getItem("spiceora_homepage_cms"); return s ? JSON.parse(s) : { headline: "", subheadline: "", heroBanner: "", ctaButton: "", ctaUrl: "", bannerActive: false }; } catch { return { headline: "", subheadline: "", heroBanner: "", ctaButton: "", ctaUrl: "", bannerActive: false }; }
   });
 
-  const [recipes, setRecipes] = useState<any[]>(() => {
-    try { const s = localStorage.getItem("spiceora_recipes"); return s ? JSON.parse(s) : []; } catch { return []; }
+  const [recipes, setRecipes] = useState<any[]>([]);
+  const [recipeModalOpen, setRecipeModalOpen] = useState(false);
+  const [editingRecipe, setEditingRecipe] = useState<any | null>(null);
+  const [recipeForm, setRecipeForm] = useState({
+    title: "",
+    slug: "",
+    description: "",
+    imageUrl: "",
+    prepMinutes: 15,
+    cookMinutes: 30,
+    servings: 4,
+    difficulty: "medium",
+    status: "published"
   });
+
+  const loadRecipesFromApi = async () => {
+    try {
+      const data = await recipesApi.list();
+      if (Array.isArray(data)) setRecipes(data);
+    } catch (err: any) {
+      console.warn("Unable to load recipes from API:", err);
+    }
+  };
+
+  useEffect(() => {
+    loadRecipesFromApi();
+  }, []);
+
+  const handleOpenAddRecipe = () => {
+    setEditingRecipe(null);
+    setRecipeForm({
+      title: "",
+      slug: "",
+      description: "",
+      imageUrl: "",
+      prepMinutes: 15,
+      cookMinutes: 30,
+      servings: 4,
+      difficulty: "medium",
+      status: "published"
+    });
+    setRecipeModalOpen(true);
+  };
+
+  const handleOpenEditRecipe = (r: any) => {
+    setEditingRecipe(r);
+    setRecipeForm({
+      title: r.title || "",
+      slug: r.slug || "",
+      description: r.description || "",
+      imageUrl: r.imageUrl || "",
+      prepMinutes: r.prepMinutes || 15,
+      cookMinutes: r.cookMinutes || 30,
+      servings: r.servings || 4,
+      difficulty: r.difficulty || "medium",
+      status: r.status || "published"
+    });
+    setRecipeModalOpen(true);
+  };
+
+  const handleSaveRecipe = async () => {
+    if (!recipeForm.title.trim()) {
+      toast.error("Please enter a recipe title");
+      return;
+    }
+    const slug = recipeForm.slug.trim() || recipeForm.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    const body = { ...recipeForm, slug };
+    try {
+      if (editingRecipe) {
+        await recipesApi.update(editingRecipe.id, body);
+        toast.success("Recipe updated successfully");
+      } else {
+        await recipesApi.create(body);
+        toast.success("Recipe created successfully");
+      }
+      setRecipeModalOpen(false);
+      loadRecipesFromApi();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to save recipe");
+    }
+  };
+
+  const handleDeleteRecipe = async (id: number) => {
+    try {
+      await recipesApi.remove(id);
+      setRecipes(prev => prev.filter(r => r.id !== id));
+      toast.success("Recipe deleted");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to delete recipe");
+    }
+  };
 
   const [testimonials, setTestimonials] = useState<any[]>(() => {
     try { const s = localStorage.getItem("spiceora_testimonials"); return s ? JSON.parse(s) : []; } catch { return []; }
@@ -6690,11 +6856,6 @@ function WebsiteCMSPage() {
     setTestimonials(prev => prev.map(t => t.id === id ? { ...t, status: t.status === "approved" ? "hidden" : "approved" } : t));
     localStorage.setItem("spiceora_testimonials", JSON.stringify(testimonials));
     toast.success("Testimonial status updated");
-  };
-
-  const toggleRecipeFeatured = (id: string) => {
-    setRecipes(prev => prev.map(r => r.id === id ? { ...r, featured: !r.featured } : r));
-    toast.success("Recipe featured status updated");
   };
 
   const TABS = [
@@ -6757,11 +6918,15 @@ function WebsiteCMSPage() {
       {/* RECIPES TAB */}
       {activeTab === "recipes" && (
         <div className="space-y-4">
+          <div className="flex justify-between items-center">
+            <p className="text-xs text-[#8B7355]">Manage culinary recipes displayed in the storefront learning hub.</p>
+            <Btn icon={Plus} size="sm" onClick={handleOpenAddRecipe}>Add Recipe</Btn>
+          </div>
           <Card className="overflow-hidden">
             <table className="w-full text-xs">
               <thead>
                 <tr className="bg-[#FAF8F5] border-b border-[#2C2416]/8">
-                  {["Recipe Title", "Category", "Difficulty", "Prep Time", "Featured on Homepage", "Actions"].map(h => (
+                  {["Recipe Title", "Difficulty", "Prep / Cook", "Servings", "Status", "Actions"].map(h => (
                     <th key={h} className="px-5 py-4 text-left font-semibold text-[#8B7355]">{h}</th>
                   ))}
                 </tr>
@@ -6770,27 +6935,104 @@ function WebsiteCMSPage() {
                 {recipes.map(r => (
                   <tr key={r.id} className="hover:bg-[#FAF8F5]/50 transition-colors">
                     <td className="px-5 py-4 font-semibold text-[#2C2416]">{r.title}</td>
-                    <td className="px-5 py-4 text-[#8B7355]">{r.category}</td>
-                    <td className="px-5 py-4">{r.difficulty}</td>
-                    <td className="px-5 py-4">{r.prepTime}</td>
+                    <td className="px-5 py-4 capitalize text-[#8B7355]">{r.difficulty || "medium"}</td>
+                    <td className="px-5 py-4">{r.prepMinutes || 0}m / {r.cookMinutes || 0}m</td>
+                    <td className="px-5 py-4">{r.servings || 4} servings</td>
                     <td className="px-5 py-4">
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${r.featured ? "bg-green-100 text-green-800" : "bg-stone-100 text-stone-600"}`}>
-                        {r.featured ? "Featured" : "Hidden"}
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${r.status === "published" ? "bg-green-100 text-green-800" : "bg-stone-100 text-stone-600"}`}>
+                        {r.status || "published"}
                       </span>
                     </td>
                     <td className="px-5 py-4">
-                      <button onClick={() => toggleRecipeFeatured(r.id)}
-                        className="px-2.5 py-1 rounded-lg bg-[#FAF8F5] border border-[#2C2416]/10 text-[10px] font-semibold hover:bg-stone-100">
-                        {r.featured ? "Unfeature" : "Feature"}
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button onClick={() => handleOpenEditRecipe(r)}
+                          className="p-1.5 text-[#8B7355] hover:bg-stone-100 rounded-lg transition-colors">
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </button>
+                        <button onClick={() => handleDeleteRecipe(r.id)}
+                          className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
+                {recipes.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="py-12 text-center text-[#8B7355]">
+                      No recipes created yet. Click "Add Recipe" above.
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </Card>
+
+          {/* Add / Edit Recipe Modal */}
+          <AnimatePresence>
+            {recipeModalOpen && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: "rgba(26,23,20,0.5)", backdropFilter: "blur(4px)" }}>
+                <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="relative bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+                  <div className="flex justify-between items-center border-b pb-3">
+                    <h3 className="font-bold text-lg font-serif text-[#2C2416]">{editingRecipe ? "Edit Recipe" : "Add New Recipe"}</h3>
+                    <button onClick={() => setRecipeModalOpen(false)} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-stone-100"><X className="w-4 h-4" /></button>
+                  </div>
+                  <div className="space-y-3 text-xs">
+                    <div>
+                      <label className="text-[10px] font-semibold text-[#8B7355] uppercase block mb-1">Recipe Title</label>
+                      <input value={recipeForm.title} onChange={e => setRecipeForm({ ...recipeForm, title: e.target.value })} placeholder="e.g. Authentic Chettinad Chicken Curry" className="w-full bg-[#FAF8F5] border border-[#2C2416]/10 rounded-xl px-3 py-2 outline-none text-[#2C2416]" />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-semibold text-[#8B7355] uppercase block mb-1">Description</label>
+                      <textarea rows={3} value={recipeForm.description} onChange={e => setRecipeForm({ ...recipeForm, description: e.target.value })} placeholder="Brief summary of the dish..." className="w-full bg-[#FAF8F5] border border-[#2C2416]/10 rounded-xl px-3 py-2 outline-none resize-none text-[#2C2416]" />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-semibold text-[#8B7355] uppercase block mb-1">Image URL</label>
+                      <input value={recipeForm.imageUrl} onChange={e => setRecipeForm({ ...recipeForm, imageUrl: e.target.value })} placeholder="https://..." className="w-full bg-[#FAF8F5] border border-[#2C2416]/10 rounded-xl px-3 py-2 outline-none text-[#2C2416]" />
+                    </div>
+                    <div className="grid grid-cols-3 gap-3">
+                      <div>
+                        <label className="text-[10px] font-semibold text-[#8B7355] uppercase block mb-1">Prep Time (mins)</label>
+                        <input type="number" value={recipeForm.prepMinutes} onChange={e => setRecipeForm({ ...recipeForm, prepMinutes: Number(e.target.value) })} className="w-full bg-[#FAF8F5] border border-[#2C2416]/10 rounded-xl px-3 py-2 outline-none text-[#2C2416]" />
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-semibold text-[#8B7355] uppercase block mb-1">Cook Time (mins)</label>
+                        <input type="number" value={recipeForm.cookMinutes} onChange={e => setRecipeForm({ ...recipeForm, cookMinutes: Number(e.target.value) })} className="w-full bg-[#FAF8F5] border border-[#2C2416]/10 rounded-xl px-3 py-2 outline-none text-[#2C2416]" />
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-semibold text-[#8B7355] uppercase block mb-1">Servings</label>
+                        <input type="number" value={recipeForm.servings} onChange={e => setRecipeForm({ ...recipeForm, servings: Number(e.target.value) })} className="w-full bg-[#FAF8F5] border border-[#2C2416]/10 rounded-xl px-3 py-2 outline-none text-[#2C2416]" />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-[10px] font-semibold text-[#8B7355] uppercase block mb-1">Difficulty</label>
+                        <select value={recipeForm.difficulty} onChange={e => setRecipeForm({ ...recipeForm, difficulty: e.target.value })} className="w-full bg-[#FAF8F5] border border-[#2C2416]/10 rounded-xl px-3 py-2 outline-none text-[#2C2416]">
+                          <option value="easy">Easy</option>
+                          <option value="medium">Medium</option>
+                          <option value="hard">Hard</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-semibold text-[#8B7355] uppercase block mb-1">Status</label>
+                        <select value={recipeForm.status} onChange={e => setRecipeForm({ ...recipeForm, status: e.target.value })} className="w-full bg-[#FAF8F5] border border-[#2C2416]/10 rounded-xl px-3 py-2 outline-none text-[#2C2416]">
+                          <option value="published">Published</option>
+                          <option value="draft">Draft</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex gap-3 pt-2">
+                    <button onClick={() => setRecipeModalOpen(false)} className="flex-1 py-2 text-xs font-semibold border border-[#2C2416]/10 rounded-xl hover:bg-[#FAF8F5]">Cancel</button>
+                    <Btn onClick={handleSaveRecipe} className="flex-1">{editingRecipe ? "Save Changes" : "Create Recipe"}</Btn>
+                  </div>
+                </motion.div>
+              </div>
+            )}
+          </AnimatePresence>
         </div>
       )}
+
 
       {/* TESTIMONIALS TAB */}
       {activeTab === "testimonials" && (

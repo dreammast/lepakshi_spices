@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { asyncHandler } from '../middleware/async-handler.js';
-import { listProductReviewsController, listApprovedReviewsController, listAllReviewsController, createReviewController, updateReviewStatusController, deleteReviewController } from '../controllers/review.controller.js';
+import { listProductReviewsController, listApprovedReviewsController, listAllReviewsController, createReviewController, updateReviewStatusController, deleteReviewController, listMyReviewsController, updateMyReviewController, deleteMyReviewController } from '../controllers/review.controller.js';
 import { authenticate } from '../middleware/auth.middleware.js';
 
 // Public + customer routes (mounted at /products/:id/reviews)
@@ -10,6 +10,9 @@ productReviewRouter.post('/', authenticate, asyncHandler(createReviewController)
 
 const publicReviewRouter = Router();
 publicReviewRouter.get('/', asyncHandler(listApprovedReviewsController));
+publicReviewRouter.get('/my', authenticate, asyncHandler(listMyReviewsController));
+publicReviewRouter.put('/:id', authenticate, asyncHandler(updateMyReviewController));
+publicReviewRouter.delete('/:id', authenticate, asyncHandler(deleteMyReviewController));
 
 // Admin routes (mounted at /admin/reviews)
 const adminReviewRouter = Router();
@@ -18,3 +21,4 @@ adminReviewRouter.put('/:id/status', asyncHandler(updateReviewStatusController))
 adminReviewRouter.delete('/:id', asyncHandler(deleteReviewController));
 
 export { productReviewRouter, publicReviewRouter, adminReviewRouter };
+

@@ -65,6 +65,28 @@ export async function updateReviewStatus(id: number, status: 'pending' | 'approv
   return findReviewById(id);
 }
 
+export async function findReviewsByCustomerId(customerId: number) {
+  return db
+    .select({ review: reviews, product: products })
+    .from(reviews)
+    .leftJoin(products, eq(reviews.productId, products.id))
+    .where(eq(reviews.customerId, customerId))
+    .orderBy(desc(reviews.createdAt));
+}
+
+export async function updateReviewByCustomer(id: number, customerId: number, data: { rating?: number; title?: string; comment?: string; displayName?: string }) {
+  await db
+    .update(reviews)
+    .set({ ...data, status: 'pending', updatedAt: new Date() })
+    .where(and(eq(reviews.id, id), eq(reviews.customerId, customerId)));
+  return findReviewById(id);
+}
+
+export async function deleteReviewByIdAndCustomer(id: number, customerId: number) {
+  return db.delete(reviews).where(and(eq(reviews.id, id), eq(reviews.customerId, customerId)));
+}
+
 export async function deleteReviewRecord(id: number) {
   return db.delete(reviews).where(eq(reviews.id, id));
 }
+

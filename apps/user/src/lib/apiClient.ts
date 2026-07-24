@@ -80,8 +80,12 @@ export const recipesApi = {
 export const reviewsApi = {
   listApproved: () => api.get<any[]>('/reviews'),
   listForProduct: (productId: number) => api.get<any[]>(`/products/${productId}/reviews`),
-  createForProduct: (productId: number, body: unknown) => api.post<any>(`/products/${productId}/reviews`, body)
+  createForProduct: (productId: number, body: unknown) => api.post<any>(`/products/${productId}/reviews`, body),
+  myReviews: () => api.get<any[]>('/reviews/my'),
+  updateMyReview: (id: number, body: unknown) => api.put<any>(`/reviews/${id}`, body),
+  deleteMyReview: (id: number) => api.delete<any>(`/reviews/${id}`)
 };
+
 
 export const campaignsApi = {
   active: () => api.get<any[]>('/campaigns/active')

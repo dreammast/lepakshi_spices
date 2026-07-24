@@ -51,3 +51,21 @@ export async function updateCustomerRoleController(req: AuthenticatedRequest, re
     sendSuccess(res, { id, role }, 'Role updated');
   } catch (e) { next(e); }
 }
+
+export async function updateCustomerProfileController(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+  try {
+    const id = Number(req.params.id);
+    const { firstName, lastName, phone, email } = req.body;
+    const updates: Record<string, any> = { updatedAt: new Date() };
+    if (firstName !== undefined) updates.firstName = firstName;
+    if (lastName !== undefined) updates.lastName = lastName;
+    if (phone !== undefined) updates.phone = phone;
+    if (email !== undefined) updates.email = email;
+
+    await db.update(customerProfiles).set(updates).where(eq(customerProfiles.id, id));
+    const [updated] = await db.select().from(customerProfiles).where(eq(customerProfiles.id, id));
+    const { passwordHash: _, ...safe } = updated;
+    sendSuccess(res, safe, 'Customer profile updated');
+  } catch (e) { next(e); }
+}
+

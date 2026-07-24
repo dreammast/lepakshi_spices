@@ -1,6 +1,7 @@
 import type { Request, Response, NextFunction } from 'express';
 import { listCoupons, createCoupon, updateCoupon, deleteCoupon, validateCoupon } from '../services/coupon.service.js';
 import { sendSuccess, sendCreated } from '../utils/response.util.js';
+import type { AuthenticatedRequest } from '../middleware/auth.middleware.js';
 
 export async function listCouponsController(_req: Request, res: Response, next: NextFunction) {
   try { sendSuccess(res, await listCoupons()); } catch (e) { next(e); }
@@ -18,6 +19,11 @@ export async function deleteCouponController(req: Request, res: Response, next: 
   try { await deleteCoupon(Number(req.params.id)); sendSuccess(res, { deleted: true }); } catch (e) { next(e); }
 }
 
-export async function validateCouponController(req: Request, res: Response, next: NextFunction) {
-  try { const result = await validateCoupon(req.body.code, Number(req.body.cartTotal)); sendSuccess(res, result); } catch (e) { next(e); }
+export async function validateCouponController(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+  try {
+    const customerId = req.user?.sub || req.body.customerId;
+    const result = await validateCoupon(req.body.code, Number(req.body.cartTotal), customerId);
+    sendSuccess(res, result);
+  } catch (e) { next(e); }
 }
+
