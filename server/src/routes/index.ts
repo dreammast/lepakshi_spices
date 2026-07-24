@@ -19,6 +19,8 @@ import { wholesaleAdminRouter, wholesalePublicRouter } from './wholesale.route.j
 import packagingRoute from './packaging.route.js';
 import adminCustomerRoute from './admin-customer.route.js';
 import auditRoute from './audit.route.js';
+import { getDashboardStatsController } from '../controllers/dashboard.controller.js';
+import { asyncHandler } from '../middleware/async-handler.js';
 
 const router = Router();
 router.use('/health', healthRoute);
@@ -49,6 +51,7 @@ router.use('/wholesale-inquiries', wholesalePublicRouter);
 router.use('/', packagingRoute);
 router.use('/admin/customers', adminCustomerRoute);
 router.use('/admin/audit-logs', auditRoute);
+router.get('/admin/dashboard/stats', asyncHandler(getDashboardStatsController));
 
 router.use('/entities', genericRoute);
 

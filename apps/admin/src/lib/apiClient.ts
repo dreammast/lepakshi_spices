@@ -145,3 +145,7 @@ export const ordersApi = {
   updateStatus: (id: number, status: string) =>
     api.put<any>(`/admin/orders/${id}/status`, { status })
 };
+
+export const dashboardApi = {
+  getStats: () => api.get<any>('/admin/dashboard/stats'),
+};

@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { toast, Toaster } from "sonner";
 import {
   LayoutDashboard, Package, ShoppingBag, Users, BarChart3,
-  Settings, Bell, Search, Plus, Eye, Edit2, Trash2,
+  Settings, Bell, Search, Plus, PlusCircle, Eye, Edit2, Trash2,
   Download, Leaf, Flame, Star, Clock, CheckCircle,
   Truck, LogOut, ChevronLeft, ChevronRight, Grid3X3, List,
   X, TrendingUp, TrendingDown, ShieldCheck, DollarSign,
@@ -20,7 +20,7 @@ import {
   PieChart, Pie, Cell,
 } from "recharts";
 import { SmartPricingAssistant } from "./components/SmartPricingAssistant";
-import { categoriesApi, customersApi, ordersApi, couponsApi, campaignsApi, recipesApi, reviewsApi, wholesaleApi, productsApi } from "../lib/apiClient";
+import { categoriesApi, customersApi, ordersApi, couponsApi, campaignsApi, recipesApi, reviewsApi, wholesaleApi, productsApi, dashboardApi } from "../lib/apiClient";
 
 // ─── Brand Tokens ─────────────────────────────────────────────
 const C = {
@@ -331,9 +331,10 @@ function ImageDropzone({ value, onChange }: { value: string; onChange: (url: str
   );
 }
 
-function Btn({ children, variant = "primary", onClick, icon: Icon, size = "md", disabled = false, loading = false }: {
+function Btn({ children, variant = "primary", onClick, icon: Icon, size = "md", disabled = false, loading = false, className = "" }: {
   children?: React.ReactNode; variant?: "primary" | "secondary" | "ghost" | "danger";
-  onClick?: () => void; icon?: React.ElementType; size?: "sm" | "md"; disabled?: boolean; loading?: boolean;
+  onClick?: (e?: any) => void | Promise<any>; icon?: React.ElementType; size?: "sm" | "md"; disabled?: boolean; loading?: boolean;
+  className?: string;
 }) {
   const st = { primary: { bg: C.green, text: "#fff", hover: C.greenDark }, secondary: { bg: C.greenFaint, text: C.green, hover: "rgba(45,80,22,0.13)" }, ghost: { bg: "transparent", text: C.muted, hover: C.greenFaint }, danger: { bg: "#FDECEA", text: C.error, hover: "#FAD6D6" } }[variant];
   const [hov, setHov] = useState(false);
@@ -341,7 +342,7 @@ function Btn({ children, variant = "primary", onClick, icon: Icon, size = "md", 
   return (
     <motion.button onClick={onClick} disabled={disabled || loading} whileTap={{ scale: 0.96 }} transition={{ duration: 0.1 }}
       onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
-      className={`${pad} rounded-xl font-medium flex items-center gap-1.5 transition-colors duration-150 shrink-0`}
+      className={`${pad} rounded-xl font-medium flex items-center gap-1.5 transition-colors duration-150 shrink-0 ${className}`}
       style={{ backgroundColor: hov ? st.hover : st.bg, color: st.text, opacity: disabled ? 0.5 : 1, cursor: disabled || loading ? "not-allowed" : "pointer" }}>
       {loading ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : Icon && <Icon className="w-3.5 h-3.5" />}
       {children}
@@ -541,51 +542,123 @@ function Header({ page, offset, notifs, bellOpen, onBell, toggleDarkMode, darkMo
 }
 
 // ─── Dashboard ────────────────────────────────────────────────
+// Helper: dispatch a refresh event from anywhere in the app
+function fireDashboardRefresh() {
+  window.dispatchEvent(new CustomEvent("dashboardRefresh"));
+}
+
+const CAT_COLORS = [C.orange, C.yellow, C.green, "#7A5C3A", "#5C3D8F", "#2B7FE2"];
+
 function DashboardPage({ navigateTo }: { navigateTo: (p: string) => void }) {
   const [metric, setMetric] = useState<"revenue" | "orders">("revenue");
-  const [products, setProducts] = useState<any[]>([]);
-  const [orders, setOrders] = useState<any[]>([]);
-  const [inquiries, setInquiries] = useState<any[]>([]);
+  const [stats, setStats] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+
+  const fetchStats = async () => {
+    try {
+      const data = await dashboardApi.getStats();
+      setStats(data);
+      setLastUpdated(new Date());
+    } catch (err) {
+      console.warn("Dashboard stats fetch failed:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    Promise.all([productsApi.list(), ordersApi.adminList(), wholesaleApi.listInquiries()])
-      .then(([productRows, orderRows, inquiryRows]) => {
-        setProducts(productRows || []);
-        setOrders(orderRows || []);
-        setInquiries((inquiryRows || []).map((inquiry: any) => ({
-          ...inquiry,
-          businessName: inquiry.businessName || inquiry.companyName || "Unknown business",
-          contactPerson: inquiry.contactPerson || inquiry.contactName || "",
-        })));
-      })
-      .catch((error: any) => console.warn("Unable to load dashboard data", error));
+    fetchStats();
+
+    // Event-driven refresh: fires immediately whenever any admin action mutates data
+    const handler = () => fetchStats();
+    window.addEventListener("dashboardRefresh", handler);
+
+    // Polling fallback: refresh every 60 seconds
+    const interval = setInterval(fetchStats, 60_000);
+
+    return () => {
+      window.removeEventListener("dashboardRefresh", handler);
+      clearInterval(interval);
+    };
   }, []);
 
-  const today = new Date().toDateString();
-  const todayOrdersList = orders.filter((o: any) => new Date(o.placedAt || o.createdAt || o.date).toDateString() === today);
-  const todayRevenue = todayOrdersList.reduce((sum: number, order: any) => sum + Number(order.totalAmount ?? order.total ?? 0), 0);
-  const todayOrders = todayOrdersList.length;
-  const pendingOrdersCount = orders.filter((o: any) => o.status === "pending" || o.status === "processing").length || 0;
-  const activeLeadsCount = inquiries.filter((i: any) => i.status === "new" || i.status === "Pending").length || 0;
-  const lowStockCount = products.filter((p: any) => (p.variants || []).some((v: any) => Number(v.stock) <= Number(v.lowStockThreshold))).length;
+  // Derived KPIs from live data
+  const todayRevenue = stats?.todayRevenue ?? 0;
+  const todayOrders = stats?.todayOrders ?? 0;
+  const pendingOrdersCount = stats?.pendingOrders ?? 0;
+  const activeLeadsCount = stats?.activeWholesaleLeads ?? 0;
+  const lowStockCount = stats?.lowStockProducts ?? 0;
+  const totalCustomers = stats?.totalCustomers ?? 0;
+  const totalProducts = stats?.totalProducts ?? 0;
+  const activeCoupons = stats?.activeCoupons ?? 0;
+  const pendingReviews = stats?.pendingReviews ?? 0;
+  const publishedRecipes = stats?.publishedRecipes ?? 0;
 
-  const catSplit = [
-    { name: "Roots & Paste", value: 35, color: C.orange },
-    { name: "Seeds & Pods", value: 25, color: C.yellow },
-    { name: "Spice Blends", value: 40, color: C.green },
-  ];
+  const revenueChangePct = stats?.revenueChangePct ?? 0;
+  const ordersChangePct = stats?.ordersChangePct ?? 0;
+
+  const monthlyData: any[] = stats?.monthlyData ?? [];
+  const inquiries = stats?.recentOrders ?? [];
+
+  // Build category split from real data (with fallback colors)
+  const catSplit = (stats?.categoryData ?? []).map((d: any, i: number) => ({
+    ...d,
+    color: CAT_COLORS[i % CAT_COLORS.length],
+  }));
 
   const kpis = [
-    { label: "Today's Revenue", value: todayRevenue, prefix: "₹", delta: 12.8, icon: DollarSign, color: C.green },
-    { label: "Today's Orders", value: todayOrders, delta: 8.7, icon: ShoppingBag, color: C.orange },
-    { label: "Pending Orders", value: pendingOrdersCount, delta: -3.1, icon: Clock, color: C.yellow },
-    { label: "Wholesale Leads", value: activeLeadsCount, delta: 14.5, icon: ClipboardList, color: "#7A5C3A" },
+    { label: "Today's Revenue", value: todayRevenue, prefix: "₹", delta: revenueChangePct, icon: DollarSign, color: C.green },
+    { label: "Today's Orders", value: todayOrders, delta: ordersChangePct, icon: ShoppingBag, color: C.orange },
+    { label: "Pending Orders", value: pendingOrdersCount, delta: 0, icon: Clock, color: C.yellow },
+    { label: "Wholesale Leads", value: activeLeadsCount, delta: 0, icon: ClipboardList, color: "#7A5C3A" },
     { label: "Low Stock Items", value: lowStockCount, delta: 0, icon: AlertTriangle, color: C.error },
+  ];
+
+  const secondaryKpis = [
+    { label: "Customers", value: totalCustomers, icon: Users, color: C.green },
+    { label: "Products", value: totalProducts, icon: Package, color: C.orange },
+    { label: "Active Coupons", value: activeCoupons, icon: Tag, color: C.yellow },
+    { label: "Pending Reviews", value: pendingReviews, icon: Star, color: "#7A5C3A" },
+    { label: "Published Recipes", value: publishedRecipes, icon: BookOpen, color: C.green },
   ];
 
   const tip = { contentStyle: { backgroundColor: C.card, border: `1px solid ${C.border}`, borderRadius: 12, fontSize: 12, color: C.charcoal, boxShadow: "0 4px 20px rgba(26,58,10,0.12)" }, cursor: { fill: "rgba(45,80,22,0.04)" } };
 
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+          {[1,2,3,4,5].map(i => (
+            <div key={i} className="rounded-2xl bg-white border border-[#2C2416]/10 p-5 animate-pulse h-28" />
+          ))}
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div className="lg:col-span-2 rounded-2xl bg-white border border-[#2C2416]/10 h-64 animate-pulse" />
+          <div className="rounded-2xl bg-white border border-[#2C2416]/10 h-64 animate-pulse" />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
+      {/* Last-updated timestamp */}
+      {lastUpdated && (
+        <div className="flex items-center gap-2 text-[10px]" style={{ color: C.muted }}>
+          <RefreshCw className="w-3 h-3" />
+          Live data · last refreshed {lastUpdated.toLocaleTimeString()}
+          <button
+            onClick={fetchStats}
+            className="ml-1 px-2 py-0.5 rounded-lg text-[10px] font-semibold transition-colors"
+            style={{ backgroundColor: C.greenFaint, color: C.green }}
+          >
+            Refresh now
+          </button>
+        </div>
+      )}
+
+      {/* Primary KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         {kpis.map((s, i) => (
           <motion.div key={s.label} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}>
@@ -598,9 +671,27 @@ function DashboardPage({ navigateTo }: { navigateTo: (p: string) => void }) {
                 </span>
               </div>
               <p className="text-xl font-bold mb-1" style={{ color: C.charcoal, fontFamily: "'Bodoni Moda', serif" }}>
-                {s.prefix}{s.value}
+                <Counter to={typeof s.value === "number" ? s.value : 0} prefix={s.prefix} />
               </p>
               <p className="text-xs" style={{ color: C.muted }}>{s.label}</p>
+            </Card>
+          </motion.div>
+        ))}
+      </div>
+
+      {/* Secondary KPIs */}
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+        {secondaryKpis.map((s, i) => (
+          <motion.div key={s.label} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 + i * 0.04 }}>
+            <Card className="p-4 group hover:shadow-md transition-shadow flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+                style={{ backgroundColor: `${s.color}14`, color: s.color }}><s.icon className="w-4 h-4" /></div>
+              <div>
+                <p className="text-lg font-bold leading-none" style={{ color: C.charcoal, fontFamily: "'Bodoni Moda', serif" }}>
+                  <Counter to={s.value} />
+                </p>
+                <p className="text-[10px] mt-0.5" style={{ color: C.muted }}>{s.label}</p>
+              </div>
             </Card>
           </motion.div>
         ))}
@@ -612,7 +703,7 @@ function DashboardPage({ navigateTo }: { navigateTo: (p: string) => void }) {
             <div className="flex items-center justify-between mb-6">
               <div>
                 <h3 className="font-semibold text-base" style={{ color: C.charcoal, fontFamily: "'Bodoni Moda', serif" }}>Revenue Overview</h3>
-                <p className="text-xs mt-0.5" style={{ color: C.muted }}>Jan – Dec 2026</p>
+                <p className="text-xs mt-0.5" style={{ color: C.muted }}>Last 12 months · live from database</p>
               </div>
               <div className="flex gap-1.5 rounded-xl p-1 bg-[#F0EDE8]">
                 {(["revenue", "orders"] as const).map(m => (
@@ -622,22 +713,28 @@ function DashboardPage({ navigateTo }: { navigateTo: (p: string) => void }) {
                 ))}
               </div>
             </div>
-            <ResponsiveContainer width="100%" height={220}>
-              <AreaChart data={revenueData} margin={{ top: 4, right: 4, bottom: 0, left: -8 }}>
-                <defs>
-                  <linearGradient id="gr1" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor={C.green} stopOpacity={0.15} />
-                    <stop offset="100%" stopColor={C.green} stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke={C.border} vertical={false} />
-                <XAxis dataKey="month" tick={{ fontSize: 11, fill: C.muted }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 11, fill: C.muted }} axisLine={false} tickLine={false}
-                  tickFormatter={v => metric === "revenue" ? `₹${(v / 1000).toFixed(0)}k` : String(v)} />
-                <Tooltip {...tip} formatter={(v: number) => metric === "revenue" ? [`₹${v.toLocaleString()}`, "Revenue"] : [v.toLocaleString(), "Orders"]} />
-                <Area type="monotone" dataKey={metric} stroke={C.green} strokeWidth={2} fill="url(#gr1)" dot={false} activeDot={{ r: 4, fill: C.green, stroke: "#fff", strokeWidth: 2 }} />
-              </AreaChart>
-            </ResponsiveContainer>
+            {monthlyData.length === 0 ? (
+              <div className="h-[220px] flex items-center justify-center text-xs" style={{ color: C.muted }}>
+                No order data yet — place orders to see the chart populate.
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={220}>
+                <AreaChart data={monthlyData} margin={{ top: 4, right: 4, bottom: 0, left: -8 }}>
+                  <defs>
+                    <linearGradient id="gr1" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor={C.green} stopOpacity={0.15} />
+                      <stop offset="100%" stopColor={C.green} stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke={C.border} vertical={false} />
+                  <XAxis dataKey="month" tick={{ fontSize: 11, fill: C.muted }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 11, fill: C.muted }} axisLine={false} tickLine={false}
+                    tickFormatter={v => metric === "revenue" ? `₹${(v / 1000).toFixed(0)}k` : String(v)} />
+                  <Tooltip {...tip} formatter={(v: number) => metric === "revenue" ? [`₹${v.toLocaleString()}`, "Revenue"] : [v.toLocaleString(), "Orders"]} />
+                  <Area type="monotone" dataKey={metric} stroke={C.green} strokeWidth={2} fill="url(#gr1)" dot={false} activeDot={{ r: 4, fill: C.green, stroke: "#fff", strokeWidth: 2 }} />
+                </AreaChart>
+              </ResponsiveContainer>
+            )}
           </Card>
         </motion.div>
 
@@ -647,9 +744,9 @@ function DashboardPage({ navigateTo }: { navigateTo: (p: string) => void }) {
             <div className="grid grid-cols-2 gap-3 flex-1 items-center">
               {[
                 { label: "New Product", action: () => navigateTo("products"), bg: C.greenFaint, color: C.green, icon: Plus },
-                { label: "Add Recipe", action: () => navigateTo("recipes"), bg: C.orangeFaint, color: C.orange, icon: BookOpen },
-                { label: "Add Coupon", action: () => navigateTo("coupons"), bg: C.yellowFaint, color: C.yellow, icon: Tag },
-                { label: "Homepage CMS", action: () => navigateTo("homepage"), bg: "rgba(45,80,22,0.06)", color: "#7A5C3A", icon: Globe },
+                { label: "Add Recipe", action: () => navigateTo("website"), bg: C.orangeFaint, color: C.orange, icon: BookOpen },
+                { label: "Add Coupon", action: () => navigateTo("settings"), bg: C.yellowFaint, color: C.yellow, icon: Tag },
+                { label: "Homepage CMS", action: () => navigateTo("website"), bg: "rgba(45,80,22,0.06)", color: "#7A5C3A", icon: Globe },
               ].map(action => (
                 <button key={action.label} onClick={action.action} className="p-4 rounded-2xl flex flex-col items-center justify-center gap-2.5 border border-[#2C2416]/10 hover:shadow transition-all group">
                   <div className="w-10 h-10 rounded-xl flex items-center justify-center transition-transform group-hover:scale-110" style={{ backgroundColor: action.bg, color: action.color }}>
@@ -664,58 +761,71 @@ function DashboardPage({ navigateTo }: { navigateTo: (p: string) => void }) {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* Recent orders (live from DB) */}
         <motion.div className="lg:col-span-2" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}>
           <Card>
             <div className="flex items-center justify-between px-6 py-4 border-b border-[#2C2416]/10">
-              <h3 className="font-semibold text-base" style={{ color: C.charcoal, fontFamily: "'Bodoni Moda', serif" }}>Recent wholesale Leads</h3>
-              <Btn variant="ghost" size="sm" onClick={() => navigateTo("wholesale")}>View all →</Btn>
+              <h3 className="font-semibold text-base" style={{ color: C.charcoal, fontFamily: "'Bodoni Moda', serif" }}>Recent Orders</h3>
+              <Btn variant="ghost" size="sm" onClick={() => navigateTo("orders")}>View all →</Btn>
             </div>
             <div className="divide-y divide-[#2C2416]/8">
-              {inquiries.slice(0, 4).map((lead: any, idx: number) => (
-                <div key={idx} className="px-6 py-4 flex items-center justify-between hover:bg-[#FAF8F5] transition-colors">
+              {inquiries.slice(0, 5).map((order: any) => (
+                <div key={order.id} className="px-6 py-4 flex items-center justify-between hover:bg-[#FAF8F5] transition-colors">
                   <div className="flex items-center gap-3">
-                    <Av name={lead.businessName} size={36} />
+                    <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: C.greenFaint, color: C.green }}>
+                      <ShoppingBag className="w-4 h-4" />
+                    </div>
                     <div>
-                      <p className="text-sm font-semibold text-[#2C2416]">{lead.businessName}</p>
-                      <p className="text-xs text-[#8B7355]">{lead.contactPerson} · {lead.email}</p>
+                      <p className="text-sm font-semibold text-[#2C2416]">{order.orderNumber}</p>
+                      <p className="text-xs text-[#8B7355]">₹{Number(order.total).toLocaleString("en-IN")} · {order.placedAt ? new Date(order.placedAt).toLocaleDateString() : ""}</p>
                     </div>
                   </div>
-                  <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-amber-50 text-amber-700 capitalize">{lead.status}</span>
+                  <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-amber-50 text-amber-700 capitalize">{order.status}</span>
                 </div>
               ))}
               {inquiries.length === 0 && (
-                <div className="p-6 text-center text-xs text-[#8B7355]">No recent wholesale inquiries.</div>
+                <div className="p-6 text-center text-xs text-[#8B7355]">No orders placed yet.</div>
               )}
             </div>
           </Card>
         </motion.div>
 
+        {/* Category split from real product counts */}
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
           <Card className="p-6">
             <h3 className="font-semibold text-base mb-4" style={{ color: C.charcoal, fontFamily: "'Bodoni Moda', serif" }}>Category Split</h3>
-            <ResponsiveContainer width="100%" height={150}>
-              <PieChart>
-                <Pie data={catSplit} cx="50%" cy="50%" innerRadius={40} outerRadius={65} dataKey="value" strokeWidth={0} paddingAngle={2}>
-                  {catSplit.map((entry, i) => <Cell key={i} fill={entry.color} />)}
-                </Pie>
-                <Tooltip contentStyle={{ backgroundColor: C.card, border: `1px solid ${C.border}`, borderRadius: 10, fontSize: 12 }} formatter={(v: number) => [`${v}%`, ""]} />
-              </PieChart>
-            </ResponsiveContainer>
-            <div className="space-y-2 mt-2">
-              {catSplit.map(d => (
-                <div key={d.name} className="flex items-center gap-2.5">
-                  <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: d.color }} />
-                  <p className="text-xs flex-1 truncate" style={{ color: C.charcoal }}>{d.name}</p>
-                  <p className="text-xs font-semibold" style={{ color: C.muted }}>{d.value}%</p>
+            {catSplit.length === 0 ? (
+              <div className="h-[150px] flex items-center justify-center text-xs" style={{ color: C.muted }}>
+                No products cataloged yet.
+              </div>
+            ) : (
+              <>
+                <ResponsiveContainer width="100%" height={150}>
+                  <PieChart>
+                    <Pie data={catSplit} cx="50%" cy="50%" innerRadius={40} outerRadius={65} dataKey="value" strokeWidth={0} paddingAngle={2}>
+                      {catSplit.map((entry: any, i: number) => <Cell key={i} fill={entry.color} />)}
+                    </Pie>
+                    <Tooltip contentStyle={{ backgroundColor: C.card, border: `1px solid ${C.border}`, borderRadius: 10, fontSize: 12 }} formatter={(v: number) => [`${v}%`, ""]} />
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="space-y-2 mt-2">
+                  {catSplit.map((d: any) => (
+                    <div key={d.name} className="flex items-center gap-2.5">
+                      <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: d.color }} />
+                      <p className="text-xs flex-1 truncate" style={{ color: C.charcoal }}>{d.name}</p>
+                      <p className="text-xs font-semibold" style={{ color: C.muted }}>{d.value}%</p>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+              </>
+            )}
           </Card>
         </motion.div>
       </div>
     </div>
   );
 }
+
 
 function blankProduct() {
   return {
@@ -870,6 +980,7 @@ function ProductsPage() {
       }
       setCatModalOpen(false);
       loadDbData();
+      fireDashboardRefresh();
     } catch (err: any) {
       toast.error(err?.message || "Failed to save category");
     }
@@ -885,6 +996,7 @@ function ProductsPage() {
         }
         toast.success("Category removed");
         loadDbData();
+        fireDashboardRefresh();
       } catch (err: any) {
         toast.error(err?.message || "Failed to delete category");
       }
@@ -907,7 +1019,7 @@ function ProductsPage() {
   useEffect(() => {
     if (wizardStep === 4) {
       const calculatedBasePrice = Math.round(cogs / (1 - margin / 100));
-      setForm(f => ({
+      setForm((f: any) => ({
         ...f,
         price: calculatedBasePrice,
         prices: {
@@ -971,6 +1083,7 @@ function ProductsPage() {
       }
       setWizardOpen(false);
       loadDbData();
+      fireDashboardRefresh();
     } catch (err: any) {
       console.error("Failed to save product to API:", err);
       toast.error(err?.message || "Failed to save product");
@@ -992,6 +1105,7 @@ function ProductsPage() {
       }
       setProducts(prev => prev.filter(p => String(p.id) !== String(id)));
       loadDbData();
+      fireDashboardRefresh();
     }
   };
 
@@ -1007,6 +1121,7 @@ function ProductsPage() {
     }));
     setInventoryChanges({});
     toast.success("Inventory stock levels updated");
+    fireDashboardRefresh();
   };
 
   // Review Actions
@@ -1014,6 +1129,7 @@ function ProductsPage() {
     try {
       await reviewsApi.updateStatus(Number(id), newStatus === "hidden" ? "rejected" : newStatus);
       await loadDbData();
+      fireDashboardRefresh();
       toast.success(`Review marked as ${newStatus}`);
     } catch (error: any) {
       toast.error(error.message || "Unable to update review");
@@ -1499,6 +1615,7 @@ function OrdersPage() {
         setDrawerTarget((prev: any) => ({ ...prev, status: nextStatus }));
       }
       toast.success(`Order ${orderId} updated to ${nextStatus}`);
+      fireDashboardRefresh();
     } catch (error: any) { toast.error(error.message || "Unable to update order"); }
     finally { setUpdating(false); }
   };
@@ -2153,7 +2270,7 @@ function CustomersPage() {
                 {drawerTab === "orders" && (
                   <div className="space-y-3 text-xs">
                     <p className="font-bold text-sm text-[#2C2416]">Order History & Invoices</p>
-                    {customerOrders.length > 0 ? customerOrders.map(o => (
+                    {customerOrders.length > 0 ? customerOrders.map((o: any) => (
                       <div key={o.id} className="p-3 border rounded-xl flex justify-between items-center bg-[#FAF8F5]/30">
                         <div>
                           <p className="font-semibold text-[#2C2416]">{o.orderNumber || `#${o.id}`}</p>
@@ -3184,6 +3301,7 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
       setActiveInquiry({ ...activeInquiry, ...fields });
     }
     toast.success("Inquiry updated successfully");
+    fireDashboardRefresh();
   };
 
   const handleAddNote = () => {
@@ -6134,11 +6252,12 @@ function RecipesCMSPage() {
       else await recipesApi.create(payload);
       setActiveRecipe(null); setIsAddOpen(false); loadRecipes();
       toast.success(activeRecipe ? "Recipe updated successfully" : "New recipe published");
+      fireDashboardRefresh();
     } catch (error: any) { toast.error(error.message || "Unable to save recipe"); }
   };
 
   const handleDelete = async (id: string) => {
-    try { await recipesApi.remove(Number(id)); loadRecipes(); toast.success("Recipe deleted"); }
+    try { await recipesApi.remove(Number(id)); loadRecipes(); toast.success("Recipe deleted"); fireDashboardRefresh(); }
     catch (error: any) { toast.error(error.message || "Unable to delete recipe"); }
   };
 
@@ -6147,6 +6266,7 @@ function RecipesCMSPage() {
       await recipesApi.update(Number(recipe.id), { status });
       loadRecipes();
       toast.success(status === "published" ? "Recipe published" : "Recipe unpublished");
+      fireDashboardRefresh();
     } catch (error: any) { toast.error(error.message || "Unable to update recipe"); }
   };
 
@@ -6347,6 +6467,7 @@ function CouponsPage() {
     await couponsApi.update(coupon.id, { isActive: !coupon.active });
     await loadCoupons();
     toast.success("Coupon status updated");
+    fireDashboardRefresh();
   };
 
   const handleSave = async () => {
@@ -6359,6 +6480,7 @@ function CouponsPage() {
     await loadCoupons();
     setIsAddOpen(false);
     toast.success("Promo code registered successfully");
+    fireDashboardRefresh();
   };
 
   const handleDelete = async (code: string) => {
@@ -6366,6 +6488,7 @@ function CouponsPage() {
     if (coupon) await couponsApi.remove(coupon.id);
     await loadCoupons();
     toast.success("Coupon removed");
+    fireDashboardRefresh();
   };
 
   return (
@@ -6479,6 +6602,7 @@ function CampaignsPage() {
     if (campaignIds.alert) await campaignsApi.update(campaignIds.alert, body);
     else { const created = await campaignsApi.create(body); setCampaignIds(ids => ({ ...ids, alert: created.id })); }
     toast.success("Alert announcement banner settings saved");
+    fireDashboardRefresh();
   };
 
   const savePopup = async () => {
@@ -6486,6 +6610,7 @@ function CampaignsPage() {
     if (campaignIds.popup) await campaignsApi.update(campaignIds.popup, body);
     else { const created = await campaignsApi.create(body); setCampaignIds(ids => ({ ...ids, popup: created.id })); }
     toast.success("Announcements modal popup campaign saved");
+    fireDashboardRefresh();
   };
 
   return (
