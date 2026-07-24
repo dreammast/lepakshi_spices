@@ -78,6 +78,7 @@ export const recipesApi = {
 };
 
 export const reviewsApi = {
+  listApproved: () => api.get<any[]>('/reviews'),
   listForProduct: (productId: number) => api.get<any[]>(`/products/${productId}/reviews`),
   createForProduct: (productId: number, body: unknown) => api.post<any>(`/products/${productId}/reviews`, body)
 };

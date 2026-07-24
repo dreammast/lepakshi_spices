@@ -784,6 +784,18 @@ function ProductsPage() {
           localStorage.setItem("spiceora_categories", JSON.stringify(dataC));
         }
       }
+      const reviewRows = await reviewsApi.adminList();
+      setReviews((reviewRows || []).map((row: any) => ({
+        id: String(row.review.id),
+        rating: row.review.rating,
+        comment: row.review.comment || "",
+        title: row.review.title || "",
+        status: row.review.status,
+        approved: row.review.status === "approved",
+        createdAt: row.review.createdAt,
+        customer: row.review.displayName || `${row.customer?.firstName || ""} ${row.customer?.lastName || ""}`.trim() || row.customer?.email || "Customer",
+        product: row.product?.name || "Product"
+      })));
     } catch (err) {
       console.warn("API connect error in Admin, using local state fallback:", err);
     }
@@ -936,47 +948,33 @@ function ProductsPage() {
       toast.error("Product name is required");
       return;
     }
+
+    const payload = {
+      name: form.name,
+      categoryName: form.category,
+      price: form.price,
+      prices: form.prices,
+      stock: form.stock,
+      lowStockThreshold: form.lowStockThreshold,
+      sku: form.sku,
+      description: form.description,
+      imageUrl: form.imageUrl || form.image
+    };
+
     try {
       if (editTarget && !isNaN(Number(editTarget.id))) {
-        await fetch(`http://localhost:4000/api/products/${editTarget.id}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name: form.name,
-            categoryName: form.category,
-            price: form.price,
-            prices: form.prices,
-            stock: form.stock,
-            lowStockThreshold: form.lowStockThreshold,
-            sku: form.sku,
-            description: form.description,
-            imageUrl: form.imageUrl || form.image
-          })
-        });
+        await productsApi.update(Number(editTarget.id), payload);
         toast.success("Product updated in database");
       } else {
-        await fetch("http://localhost:4000/api/products", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name: form.name,
-            categoryName: form.category,
-            price: form.price,
-            prices: form.prices,
-            stock: form.stock,
-            lowStockThreshold: form.lowStockThreshold,
-            sku: form.sku,
-            description: form.description,
-            imageUrl: form.imageUrl || form.image
-          })
-        });
+        await productsApi.create(payload);
         toast.success("Product created in database");
       }
-    } catch (err) {
+      setWizardOpen(false);
+      loadDbData();
+    } catch (err: any) {
       console.error("Failed to save product to API:", err);
+      toast.error(err?.message || "Failed to save product");
     }
-    setWizardOpen(false);
-    loadDbData();
   };
 
   const handleDeleteProduct = async (id: string | number) => {
@@ -1012,9 +1010,14 @@ function ProductsPage() {
   };
 
   // Review Actions
-  const handleReviewStatus = (id: string, newStatus: "approved" | "rejected" | "hidden") => {
-    setReviews(prev => prev.map(r => r.id === id ? { ...r, status: newStatus, approved: newStatus === "approved" } : r));
-    toast.success(`Review marked as ${newStatus}`);
+  const handleReviewStatus = async (id: string, newStatus: "approved" | "rejected" | "hidden") => {
+    try {
+      await reviewsApi.updateStatus(Number(id), newStatus === "hidden" ? "rejected" : newStatus);
+      await loadDbData();
+      toast.success(`Review marked as ${newStatus}`);
+    } catch (error: any) {
+      toast.error(error.message || "Unable to update review");
+    }
   };
 
   return (
@@ -2010,6 +2013,7 @@ function CustomersPage() {
   }, [drawer?.rawId]);
 
   const customerOrders = customerDetails?.orders || [];
+  const purchasedProducts = customerOrders.flatMap((order: any) => order.items || []);
   const customerReviews: any[] = [];
 
   const filtered = customers.filter(c => (c.name || '').toLowerCase().includes(query.toLowerCase()) || (c.email || '').toLowerCase().includes(query.toLowerCase()));
@@ -2152,11 +2156,11 @@ function CustomersPage() {
                     {customerOrders.length > 0 ? customerOrders.map(o => (
                       <div key={o.id} className="p-3 border rounded-xl flex justify-between items-center bg-[#FAF8F5]/30">
                         <div>
-                          <p className="font-semibold text-[#2C2416]">{o.id}</p>
-                          <p className="text-[10px] text-[#8B7355]">{o.date} · {o.items} items · {o.status}</p>
+                          <p className="font-semibold text-[#2C2416]">{o.orderNumber || `#${o.id}`}</p>
+                          <p className="text-[10px] text-[#8B7355]">{o.placedAt ? new Date(o.placedAt).toLocaleDateString() : "—"} · {(o.items || []).length} items · {o.status}</p>
                         </div>
                         <div className="flex items-center gap-3">
-                          <span className="font-bold text-[#2D5016]">₹{o.total}</span>
+                          <span className="font-bold text-[#2D5016]">₹{Number(o.totalAmount ?? o.total ?? 0).toLocaleString('en-IN')}</span>
                           <button onClick={() => toast.success(`Invoice ${o.id} downloaded`)} className="p-1 rounded bg-[#2D5016]/10 text-[#2D5016] hover:bg-[#2D5016]/20">
                             <Download className="w-3.5 h-3.5" />
                           </button>
@@ -2174,12 +2178,12 @@ function CustomersPage() {
                     <div>
                       <p className="font-bold text-sm text-[#2C2416] mb-2">Purchased Products</p>
                       <div className="p-3 border rounded-xl space-y-2 bg-[#FAF8F5]/40">
-                        {[{ name: "Chilli Powder", qty: 3, last: "18/07/2026" }, { name: "Garam Masala", qty: 1, last: "15/07/2026" }].map((item, i) => (
-                          <div key={i} className="flex justify-between items-center py-1 border-b border-stone-100 last:border-0">
-                            <span className="font-semibold text-[#2C2416]">{item.name}</span>
-                            <span className="text-[#8B7355]">{item.qty} units · Last: {item.last}</span>
+                        {purchasedProducts.length ? purchasedProducts.map((item: any) => (
+                          <div key={`${item.orderId}-${item.id}`} className="flex justify-between items-center py-1 border-b border-stone-100 last:border-0">
+                            <span className="font-semibold text-[#2C2416]">{item.product?.name || "Product"}</span>
+                            <span className="text-[#8B7355]">{item.quantity} units</span>
                           </div>
-                        ))}
+                        )) : <p className="text-[#8B7355] italic">No products ordered yet.</p>}
                       </div>
                     </div>
                     <div>
@@ -6101,18 +6105,19 @@ function RecipesCMSPage() {
 
   const [activeRecipe, setActiveRecipe] = useState<any | null>(null);
   const [isAddOpen, setIsAddOpen] = useState(false);
-  const [form, setForm] = useState({ id: "", title: "", time: "", difficulty: "Easy", ingredients: "", steps: "" });
+  const [form, setForm] = useState({ id: "", title: "", time: "", difficulty: "Easy", ingredients: "", steps: "", status: "draft" });
 
   const loadRecipes = () => recipesApi.list().then(setRecipes).catch((error: any) => toast.error(error.message || "Unable to load recipes"));
   useEffect(() => { loadRecipes(); }, []);
 
   const handleEdit = (recipe: any) => {
-    setForm({ ...recipe });
+    const [ingredients = "", steps = ""] = (recipe.description || "").split("\n\n");
+    setForm({ id: String(recipe.id), title: recipe.title || "", time: String(recipe.cookMinutes || ""), difficulty: `${recipe.difficulty || "easy"}`.replace(/^./, c => c.toUpperCase()), ingredients, steps, status: recipe.status || "draft" });
     setActiveRecipe(recipe);
   };
 
   const handleAdd = () => {
-    setForm({ id: `R00${recipes.length + 1}`, title: "", time: "30 mins", difficulty: "Easy", ingredients: "", steps: "" });
+    setForm({ id: "", title: "", time: "30", difficulty: "Easy", ingredients: "", steps: "", status: "draft" });
     setIsAddOpen(true);
   };
 
@@ -6122,7 +6127,7 @@ function RecipesCMSPage() {
       description: `${form.ingredients || ""}\n\n${form.steps || ""}`,
       cookMinutes: Number.parseInt(form.time, 10) || undefined,
       difficulty: form.difficulty.toLowerCase(),
-      status: "published"
+      status: form.status
     };
     try {
       if (activeRecipe) await recipesApi.update(Number(activeRecipe.id), payload);
@@ -6135,6 +6140,14 @@ function RecipesCMSPage() {
   const handleDelete = async (id: string) => {
     try { await recipesApi.remove(Number(id)); loadRecipes(); toast.success("Recipe deleted"); }
     catch (error: any) { toast.error(error.message || "Unable to delete recipe"); }
+  };
+
+  const setPublication = async (recipe: any, status: "published" | "draft") => {
+    try {
+      await recipesApi.update(Number(recipe.id), { status });
+      loadRecipes();
+      toast.success(status === "published" ? "Recipe published" : "Recipe unpublished");
+    } catch (error: any) { toast.error(error.message || "Unable to update recipe"); }
   };
 
   return (
@@ -6154,13 +6167,14 @@ function RecipesCMSPage() {
               <div className="flex items-center justify-between mb-3 border-b border-[#2C2416]/6 pb-2">
                 <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-stone-100 text-stone-600 font-bold uppercase">{recipe.id}</span>
                 <div className="flex gap-2">
+                  <button onClick={() => setPublication(recipe, recipe.status === "published" ? "draft" : "published")} className="px-2 text-[10px] font-semibold rounded-lg bg-[#2D5016]/10 text-[#2D5016] hover:bg-[#2D5016]/20">{recipe.status === "published" ? "Unpublish" : "Publish"}</button>
                   <button onClick={() => handleEdit(recipe)} className="p-1.5 text-[#8B7355] hover:bg-[#2C2416]/10 rounded-lg transition-colors"><Edit2 className="w-3.5 h-3.5" /></button>
                   <button onClick={() => handleDelete(recipe.id)} className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
                 </div>
               </div>
               <h3 className="font-semibold text-lg text-[#2C2416] mb-1">{recipe.title}</h3>
-              <p className="text-xs text-[#8B7355] font-semibold mb-2">Duration: {recipe.time} | Difficulty: {recipe.difficulty}</p>
-              <p className="text-xs text-[#2C2416] font-medium mt-1">Ingredients: {recipe.ingredients}</p>
+              <p className="text-xs text-[#8B7355] font-semibold mb-2">{recipe.status} · Duration: {recipe.cookMinutes || "—"} mins | Difficulty: {recipe.difficulty || "—"}</p>
+              <p className="text-xs text-[#2C2416] font-medium mt-1">{recipe.description || "No description yet."}</p>
             </div>
           </Card>
         ))}
@@ -6191,6 +6205,12 @@ function RecipesCMSPage() {
                       <option value="Hard">Hard</option>
                     </select>
                   </div>
+                </div>
+                <div>
+                  <label className="text-[10px] font-semibold text-[#8B7355] uppercase block mb-1">Publication</label>
+                  <select value={form.status} onChange={e => setForm({ ...form, status: e.target.value })} className="w-full bg-[#FAF8F5] border border-[#2C2416]/10 rounded-xl px-3 py-2 text-xs outline-none">
+                    <option value="draft">Draft</option><option value="published">Published</option>
+                  </select>
                 </div>
                 <div>
                   <label className="text-[10px] font-semibold text-[#8B7355] uppercase block mb-1">Ingredients (Comma Separated)</label>

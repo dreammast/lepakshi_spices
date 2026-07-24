@@ -1,5 +1,5 @@
 import type { Request, Response, NextFunction } from 'express';
-import { listProductReviews, listAllReviews, createReview, setReviewStatus, deleteReview } from '../services/review.service.js';
+import { listProductReviews, listApprovedReviews, listAllReviews, createReview, setReviewStatus, deleteReview } from '../services/review.service.js';
 import { sendSuccess, sendCreated } from '../utils/response.util.js';
 import type { AuthenticatedRequest } from '../middleware/auth.middleware.js';
 import { AppError } from '../utils/app-error.js';
@@ -10,6 +10,10 @@ export async function listProductReviewsController(req: Request, res: Response, 
 
 export async function listAllReviewsController(_req: Request, res: Response, next: NextFunction) {
   try { sendSuccess(res, await listAllReviews()); } catch (e) { next(e); }
+}
+
+export async function listApprovedReviewsController(_req: Request, res: Response, next: NextFunction) {
+  try { sendSuccess(res, await listApprovedReviews()); } catch (e) { next(e); }
 }
 
 export async function createReviewController(req: AuthenticatedRequest, res: Response, next: NextFunction) {

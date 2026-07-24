@@ -5,6 +5,7 @@ import { customerProfiles, orders, addresses } from '../db/schema.js';
 import { sendSuccess } from '../utils/response.util.js';
 import type { AuthenticatedRequest } from '../middleware/auth.middleware.js';
 import { AppError } from '../utils/app-error.js';
+import { findOrdersByCustomerId } from '../repositories/order.repository.js';
 
 export async function listCustomersController(_req: AuthenticatedRequest, res: Response, next: NextFunction) {
   try {
@@ -28,7 +29,7 @@ export async function getCustomerController(req: AuthenticatedRequest, res: Resp
     const [customer] = await db.select().from(customerProfiles).where(eq(customerProfiles.id, id));
     if (!customer) throw new AppError(404, 'Customer not found');
 
-    const customerOrders = await db.select().from(orders).where(eq(orders.customerId, id)).orderBy(desc(orders.placedAt));
+    const customerOrders = (await findOrdersByCustomerId(id)).filter((order): order is NonNullable<typeof order> => order !== null);
     const customerAddresses = await db.select().from(addresses).where(eq(addresses.customerId, id));
     const { passwordHash: _, ...safe } = customer;
 

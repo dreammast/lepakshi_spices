@@ -20,6 +20,16 @@ export async function findAllReviews() {
     .orderBy(desc(reviews.createdAt));
 }
 
+export async function findApprovedReviews() {
+  return db
+    .select({ review: reviews, product: products, customer: customerProfiles })
+    .from(reviews)
+    .leftJoin(products, eq(reviews.productId, products.id))
+    .leftJoin(customerProfiles, eq(reviews.customerId, customerProfiles.id))
+    .where(eq(reviews.status, 'approved'))
+    .orderBy(desc(reviews.approvedAt));
+}
+
 export async function findReviewById(id: number) {
   const [review] = await db.select().from(reviews).where(eq(reviews.id, id));
   return review ?? null;

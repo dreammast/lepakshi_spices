@@ -8,7 +8,7 @@ import {
   Instagram, Facebook, Twitter, Youtube, Mail, Globe, Zap, CheckCircle,
   AlertCircle, BookOpen, Tag, Clock, HelpCircle, FileText, Phone
 } from "lucide-react";
-import { campaignsApi, cartApi, ordersApi, productsApi, categoriesApi, recipesApi, settingsApi, wholesaleInquiryApi } from "../lib/apiClient";
+import { campaignsApi, cartApi, ordersApi, productsApi, categoriesApi, recipesApi, reviewsApi, settingsApi, wholesaleInquiryApi } from "../lib/apiClient";
 
 // ─── DATA & LIVE API INTEGRATION ──────────────────────────────────────────────────
 
@@ -1341,11 +1341,12 @@ function ProductPage({ product }: { product: any }) {
     if (user) setReviewName(user.name);
   }, [user]);
 
-  function handleReviewSubmit(e: React.FormEvent) {
+  async function handleReviewSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!reviewName.trim() || !reviewText.trim() || !reviewTitle.trim()) return;
     setReviewLoading(true);
-    setTimeout(() => {
+    try {
+      await reviewsApi.createForProduct(product.id, { rating: reviewRating, title: reviewTitle, displayName: reviewName, comment: reviewText });
       setReviewLoading(false);
       setReviewSuccess(true);
       setTimeout(() => {
@@ -1354,7 +1355,9 @@ function ProductPage({ product }: { product: any }) {
         setReviewTitle("");
         setReviewText("");
       }, 2000);
-    }, 1500);
+    } catch {
+      setReviewLoading(false);
+    }
   }
 
   const images = [product.image, product.image, product.image];
@@ -1745,7 +1748,7 @@ function ProductPage({ product }: { product: any }) {
 // ─── CART PAGE ─────────────────────────────────────────────────────────────────
 
 function CartPage() {
-  const { navigate, cart, updateCartItem, removeFromCart, addToCart, discount, setDiscount, couponCode: coupon, setCouponCode: setCoupon } = useApp();
+  const { navigate, cart, orders, updateCartItem, removeFromCart, addToCart, discount, setDiscount, couponCode: coupon, setCouponCode: setCoupon } = useApp();
   const [couponStatus, setCouponStatus] = useState<"idle" | "loading" | "valid" | "invalid">("idle");
   const [removed, setRemoved] = useState<CartItem[]>([]);
 
@@ -1753,36 +1756,31 @@ function CartPage() {
   const shipping = subtotal > 499 ? 0 : 49;
   const total = subtotal - discount + shipping;
 
-  function applyCoupon() {
-    if (!coupon.trim()) {
+  async function applyCoupon(code = coupon) {
+    if (!code.trim()) {
       setCouponStatus("invalid");
       setTimeout(() => setCouponStatus("idle"), 2000);
       return;
     }
 
     setCouponStatus("loading");
-    setTimeout(() => {
-      try {
-        const stored = localStorage.getItem("spiceora_coupons");
-        const coupons = stored ? JSON.parse(stored) : [];
-        const matched = coupons.find((c: any) => c.active && c.code?.toUpperCase() === coupon.toUpperCase());
-
-        if (matched) {
-          const discountAmount = matched.discountType === "percentage"
-            ? subtotal * (matched.value / 100)
-            : matched.value;
-          setDiscount(discountAmount);
-          setCouponStatus("valid");
-        } else {
-          setCouponStatus("invalid");
-          setTimeout(() => setCouponStatus("idle"), 2000);
-        }
-      } catch {
-        setCouponStatus("invalid");
-        setTimeout(() => setCouponStatus("idle"), 2000);
-      }
-    }, 1000);
+    try {
+      const result = await couponsApi.validate(code.trim(), subtotal);
+      setCoupon(code.trim().toUpperCase());
+      setDiscount(Number(result.discount));
+      setCouponStatus("valid");
+    } catch {
+      setDiscount(0);
+      setCouponStatus("invalid");
+      setTimeout(() => setCouponStatus("idle"), 2000);
+    }
   }
+
+  useEffect(() => {
+    if (!subtotal || coupon) return;
+    const eligibleCode = orders.length === 0 ? "WELCOME50" : "SPICE50";
+    applyCoupon(eligibleCode);
+  }, [subtotal, orders.length]);
 
   function handleRemove(item: CartItem) {
     setRemoved(prev => [...prev, { ...item }]);
@@ -1897,7 +1895,7 @@ function CartPage() {
                 <AnimatePresence>
                   {couponStatus === "valid" && (
                     <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-xs text-[#2A4A3C] mt-1.5 flex items-center gap-1">
-                      <CheckCircle className="w-3.5 h-3.5" /> 20% discount applied!
+                      <CheckCircle className="w-3.5 h-3.5" /> {coupon} applied: ₹{discount.toFixed(2)} saved.
                     </motion.p>
                   )}
                   {couponStatus === "invalid" && (
@@ -4282,8 +4280,9 @@ export default function App() {
   useEffect(() => {
     const fetchApiData = async () => {
       try {
-        const [dataP, dataC, dataR, homepageCms] = await Promise.all([
+        const [dataP, dataC, dataR, dataReviews, homepageCms] = await Promise.all([
           productsApi.list(), categoriesApi.list(), recipesApi.list(),
+          reviewsApi.listApproved(),
           settingsApi.get("homepage_cms").catch(() => null)
         ]);
         setProducts(dataP || []);
@@ -4297,6 +4296,14 @@ export default function App() {
               }))
             ]);
         setRecipes(dataR || []);
+        setTestimonials((dataReviews || []).map((row: any) => ({
+          id: row.review.id,
+          name: row.review.displayName || `${row.customer?.firstName || ""} ${row.customer?.lastName || ""}`.trim() || "Verified customer",
+          text: row.review.comment || "",
+          rating: row.review.rating,
+          product: row.product?.name || "Spiceora product",
+          role: "Verified customer"
+        })));
         if (homepageCms?.value) setCmsSettings(homepageCms.value);
       } catch (err) {
         console.warn("User app API connection failed:", err);

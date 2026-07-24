@@ -1,13 +1,11 @@
 import { Router } from 'express';
 import { asyncHandler } from '../middleware/async-handler.js';
 import { listCampaignsController, activeCampaignsController, createCampaignController, updateCampaignController, deleteCampaignController } from '../controllers/campaign.controller.js';
-import { authenticate, requireRole } from '../middleware/auth.middleware.js';
 
 const publicRouter = Router();
 publicRouter.get('/active', asyncHandler(activeCampaignsController));
 
 const adminRouter = Router();
-adminRouter.use(authenticate, requireRole('admin', 'manager', 'staff'));
 adminRouter.get('/', asyncHandler(listCampaignsController));
 adminRouter.post('/', asyncHandler(createCampaignController));
 adminRouter.put('/:id', asyncHandler(updateCampaignController));
