@@ -9,16 +9,18 @@ export async function uploadImageController(req: Request, res: Response, next: N
     }
 
     const cloudinaryUrl = process.env.CLOUDINARY_URL;
+    if (!cloudinaryUrl) return res.status(503).json({ success: false, message: 'Cloudinary is not configured' });
 
     if (cloudinaryUrl) {
       try {
-        const cloudName = cloudinaryUrl.split('@')[1] || 'demo';
+        const cloudName = cloudinaryUrl.split('@')[1];
+        if (!cloudName) return res.status(503).json({ success: false, message: 'Cloudinary configuration is invalid' });
         const uploadRes = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             file: image,
-            upload_preset: 'unsigned_preset'
+            upload_preset: process.env.CLOUDINARY_UPLOAD_PRESET || 'unsigned_preset'
           })
         });
 
@@ -33,8 +35,7 @@ export async function uploadImageController(req: Request, res: Response, next: N
       }
     }
 
-    // If data URL or base64 string, return it directly
-    return res.status(201).json({ success: true, data: { url: image, message: 'Image processed successfully' } });
+    return res.status(502).json({ success: false, message: 'Cloudinary upload failed' });
   } catch (error) {
     next(error);
   }

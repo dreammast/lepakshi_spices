@@ -22,13 +22,13 @@ export async function getCategoryController(req: Request, res: Response, next: N
 
 export async function createCategoryController(req: Request, res: Response, next: NextFunction) {
   try {
-    const { name, slug, description } = req.body;
+    const { name, slug, description, imageUrl } = req.body;
     const insertedId = await createCategory({
       name,
       slug: slug || name.toLowerCase().replace(/\s+/g, '-'),
-      description
+      description, imageUrl
     });
-    sendCreated(res, { id: insertedId, name, slug });
+    sendCreated(res, { id: insertedId, name, slug, imageUrl });
   } catch (error) {
     next(error);
   }

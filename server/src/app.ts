@@ -8,12 +8,14 @@ import router from './routes/index.js';
 import { requestLogger } from './middleware/logger.middleware.js';
 import { notFoundHandler, errorHandler } from './middleware/error.middleware.js';
 import { swaggerSpec } from './utils/swagger.js';
+import { adminActivity } from './middleware/admin-activity.middleware.js';
 
 const app = express();
 app.use(requestLogger);
 app.use(helmet());
 app.use(cors());
 app.use(express.json());
+app.use(adminActivity);
 app.use('/api', router);
 app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 app.use(notFoundHandler);

@@ -29,6 +29,8 @@ const envSchema = z.object({
   DB_NAME: z.string().default('lepakshispices'),
   DB_SSL_CA_PATH: z.string().optional(),
   JWT_SECRET: z.string().min(10),
+  ADMIN_USERNAME: z.string().default('admin'),
+  ADMIN_PASSWORD: z.string().min(1).default('change-me'),
   CLOUDINARY_URL: z.string().optional(),
   RAZORPAY_KEY_ID: z.string().optional(),
   RAZORPAY_KEY_SECRET: z.string().optional()

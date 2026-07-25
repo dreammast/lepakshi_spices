@@ -1,4 +1,4 @@
-import { eq, desc, and, gte, lte } from 'drizzle-orm';
+import { eq, desc, and, gte, lte, inArray } from 'drizzle-orm';
 import { db } from '../config/database.js';
 import { coupons } from '../db/schema.js';
 
@@ -14,6 +14,11 @@ export async function findCouponById(id: number) {
 export async function findCouponByCode(code: string) {
   const [coupon] = await db.select().from(coupons).where(eq(coupons.code, code.toUpperCase()));
   return coupon ?? null;
+}
+
+export async function findCouponsByCodes(codes: string[]) {
+  if (!codes.length) return [];
+  return db.select().from(coupons).where(inArray(coupons.code, codes));
 }
 
 export async function createCouponRecord(data: {

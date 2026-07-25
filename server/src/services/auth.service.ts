@@ -5,6 +5,7 @@ import { customerProfiles } from '../db/schema.js';
 import { createCustomerProfile, findCustomerByEmail, findCustomerById } from '../repositories/auth.repository.js';
 import { signToken } from '../utils/jwt.util.js';
 import { AppError } from '../utils/app-error.js';
+import { env } from '../config/env.js';
 
 const SALT_ROUNDS = 10;
 
@@ -53,6 +54,13 @@ export async function authenticateCustomer(email: string, password: string) {
 
   const token = signToken({ sub: customer.id, email: customer.email, role: customer.role });
   return { user: sanitizeCustomer(customer), token };
+}
+
+export async function authenticateAdmin(username: string, password: string) {
+  if (username !== env.ADMIN_USERNAME || password !== env.ADMIN_PASSWORD) return null;
+  const user = { id: 0, email: username, firstName: 'Admin', lastName: '', role: 'admin' as const };
+  const token = signToken({ sub: 0, email: username, role: 'admin' });
+  return { user, token };
 }
 
 export async function getCustomerProfile(id: number) {

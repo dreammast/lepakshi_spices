@@ -16,130 +16,157 @@ export async function getDashboardStatsController(_req: AuthenticatedRequest, re
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const startOfYesterday = new Date(startOfToday.getTime() - 86400000);
 
-    // ── Core counts ─────────────────────────────────────────────
+    // ── Optimized Aggregates ─────────────────────────────────────
     const [
-      allOrders,
-      allProducts,
-      allCustomers,
-      allCoupons,
-      allRecipes,
-      allReviews,
-      allLeads,
+      { orderCount, totalRevenueVal },
+      { productCount },
+      { customerCount },
+      { couponCount, activeCouponCount },
+      { recipeCount, publishedRecipeCount },
+      { reviewCount, pendingReviewCount },
+      { leadCount, activeLeadCount },
       allCategories,
+      allProducts,
+      recentOrders,
     ] = await Promise.all([
-      db.select().from(orders),
-      db.select().from(products),
-      db.select({ id: customerProfiles.id }).from(customerProfiles).where(eq(customerProfiles.role, 'customer')),
-      db.select().from(coupons),
-      db.select({ id: recipes.id, status: recipes.status }).from(recipes),
-      db.select({ id: reviews.id, status: reviews.status }).from(reviews),
-      db.select({ id: wholesaleInquiries.id, status: wholesaleInquiries.status }).from(wholesaleInquiries),
+      db.select({ 
+        orderCount: count(), 
+        totalRevenueVal: sql<number>`sum(cast(${orders.totalAmount} as decimal(12,2)))` 
+      }).from(orders).then(res => res[0]),
+      db.select({ productCount: count() }).from(products).then(res => res[0]),
+      db.select({ customerCount: count() }).from(customerProfiles).where(eq(customerProfiles.role, 'customer')).then(res => res[0]),
+      db.select({ 
+        couponCount: count(),
+        activeCouponCount: sql<number>`sum(case when ${coupons.isActive} = 1 then 1 else 0 end)`
+      }).from(coupons).then(res => res[0]),
+      db.select({ 
+        recipeCount: count(),
+        publishedRecipeCount: sql<number>`sum(case when ${recipes.status} = 'published' then 1 else 0 end)`
+      }).from(recipes).then(res => res[0]),
+      db.select({ 
+        reviewCount: count(),
+        pendingReviewCount: sql<number>`sum(case when ${reviews.status} = 'pending' then 1 else 0 end)`
+      }).from(reviews).then(res => res[0]),
+      db.select({ 
+        leadCount: count(),
+        activeLeadCount: sql<number>`sum(case when ${wholesaleInquiries.status} in ('new', 'reviewing') then 1 else 0 end)`
+      }).from(wholesaleInquiries).then(res => res[0]),
       db.select({ id: categories.id, name: categories.name }).from(categories),
+      db.select({ id: products.id }).from(products),
+      db.select({
+        id: orders.id,
+        orderNumber: orders.orderNumber,
+        total: orders.totalAmount,
+        status: orders.status,
+        placedAt: orders.placedAt,
+      }).from(orders).orderBy(sql`${orders.placedAt} desc`).limit(5)
     ]);
 
     // ── Low stock: count products that have at least one variant below threshold ─
-    const allVariants = await db.select().from(productVariants);
-    const variantsByProduct = new Map<number, typeof allVariants>();
-    for (const v of allVariants) {
-      const arr = variantsByProduct.get(v.productId) ?? [];
-      arr.push(v);
-      variantsByProduct.set(v.productId, arr);
-    }
-    const lowStockProducts = allProducts.filter(p => {
-      const variants = variantsByProduct.get(p.id) ?? [];
-      return variants.length > 0 && variants.some(v => v.stock <= v.lowStockThreshold);
-    }).length;
+    const lowStockResult = await db.select({ count: sql<number>`count(distinct ${productVariants.productId})` })
+      .from(productVariants)
+      .where(sql`${productVariants.stock} <= ${productVariants.lowStockThreshold}`);
+    const lowStockProducts = Number(lowStockResult[0]?.count || 0);
 
-    // ── Today / Yesterday orders ─────────────────────────────────
-    const todayOrders = allOrders.filter(o => new Date(o.placedAt) >= startOfToday);
-    const yesterdayOrders = allOrders.filter(o => new Date(o.placedAt) >= startOfYesterday && new Date(o.placedAt) < startOfToday);
+    // ── Today / Yesterday / Pending ──────────────────────────────
+    const [
+      { todayCount, todayRev },
+      { yesterdayCount, yesterdayRev },
+      { pendingCount }
+    ] = await Promise.all([
+      db.select({ 
+        todayCount: count(), 
+        todayRev: sql<number>`sum(cast(${orders.totalAmount} as decimal(12,2)))` 
+      }).from(orders).where(gte(orders.placedAt, startOfToday)).then(res => res[0]),
+      db.select({ 
+        yesterdayCount: count(), 
+        yesterdayRev: sql<number>`sum(cast(${orders.totalAmount} as decimal(12,2)))` 
+      }).from(orders).where(and(gte(orders.placedAt, startOfYesterday), lt(orders.placedAt, startOfToday))).then(res => res[0]),
+      db.select({ pendingCount: count() }).from(orders).where(sql`${orders.status} in ('pending', 'processing')`).then(res => res[0])
+    ]);
 
-    const todayRevenue = todayOrders.reduce((s, o) => s + Number(o.totalAmount), 0);
-    const yesterdayRevenue = yesterdayOrders.reduce((s, o) => s + Number(o.totalAmount), 0);
+    const todayRevenue = Number(todayRev || 0);
+    const yesterdayRevenue = Number(yesterdayRev || 0);
+    const totalRevenue = Number(totalRevenueVal || 0);
+    const pendingOrders = Number(pendingCount || 0);
+    const activeLeads = Number(activeLeadCount || 0);
+    const activeCoupons = Number(activeCouponCount || 0);
+    const publishedRecipes = Number(publishedRecipeCount || 0);
+    const pendingReviews = Number(pendingReviewCount || 0);
 
-    const totalRevenue = allOrders.reduce((s, o) => s + Number(o.totalAmount), 0);
+    // ── Monthly Aggregates ──────────────────────────────────────
+    const twelveMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 11, 1);
+    // Use a single explicit aggregate query here. TiDB can execute the
+    // expression, but Drizzle's generated grouped aliases are rejected by
+    // some TiDB serverless versions.
+    const [monthlyStats] = await db.execute(sql`
+      SELECT MONTH(${orders.placedAt}) AS month,
+             YEAR(${orders.placedAt}) AS year,
+             SUM(${orders.totalAmount}) AS revenue,
+             COUNT(*) AS orderCount
+      FROM ${orders}
+      WHERE ${orders.placedAt} >= ${twelveMonthsAgo}
+      GROUP BY YEAR(${orders.placedAt}), MONTH(${orders.placedAt})
+    `) as unknown as [{ month: number; year: number; revenue: number; orderCount: number }[]];
 
-    const pendingOrders = allOrders.filter(o => o.status === 'pending' || o.status === 'processing').length;
-    const activeLeads = allLeads.filter(i => i.status === 'new' || i.status === 'reviewing').length;
-    const activeCoupons = allCoupons.filter(c => c.isActive).length;
-    const publishedRecipes = allRecipes.filter(r => r.status === 'published').length;
-    const pendingReviews = allReviews.filter(r => r.status === 'pending').length;
-
-    // ── Monthly revenue & orders (last 12 months) ────────────────
-    const monthlyData: { month: string; revenue: number; orders: number }[] = [];
+    const monthlyData = [];
     for (let i = 11; i >= 0; i--) {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const nextD = new Date(d.getFullYear(), d.getMonth() + 1, 1);
-      const monthOrders = allOrders.filter(o => {
-        const placed = new Date(o.placedAt);
-        return placed >= d && placed < nextD;
-      });
+      const m = d.getMonth() + 1;
+      const y = d.getFullYear();
+      const match = monthlyStats.find(s => s.month === m && s.year === y);
       monthlyData.push({
         month: MONTHS[d.getMonth()],
-        revenue: monthOrders.reduce((s, o) => s + Number(o.totalAmount), 0),
-        orders: monthOrders.length,
+        revenue: Number(match?.revenue || 0),
+        orders: Number(match?.orderCount || 0)
       });
     }
 
-    // ── Category split (product count per category) ───────────────
-    const catCountMap = new Map<string, number>();
-    for (const p of allProducts) {
-      const cat = allCategories.find(c => c.id === p.categoryId);
-      const name = cat?.name ?? 'Uncategorized';
-      catCountMap.set(name, (catCountMap.get(name) ?? 0) + 1);
-    }
-    const totalProductsForSplit = allProducts.length || 1;
-    const categoryData = Array.from(catCountMap.entries()).map(([name, count]) => ({
-      name,
-      value: Math.round((count / totalProductsForSplit) * 100),
-    }));
+    // ── Category split ───────────────────────────────────────────
+    const catStats = await db.select({
+      categoryId: products.categoryId,
+      count: count()
+    }).from(products).groupBy(products.categoryId);
+
+    const categoryData = catStats.map(s => {
+      const cat = allCategories.find(c => c.id === s.categoryId);
+      return {
+        name: cat?.name || 'Uncategorized',
+        value: Math.round((Number(s.count) / Number(productCount || 1)) * 100)
+      };
+    });
 
     // ── Revenue deltas ─────────────────────────────────────────────
     const revenueDelta = yesterdayRevenue > 0
       ? Math.round(((todayRevenue - yesterdayRevenue) / yesterdayRevenue) * 1000) / 10
       : 0;
-    const ordersCountDelta = yesterdayOrders.length > 0
-      ? Math.round(((todayOrders.length - yesterdayOrders.length) / yesterdayOrders.length) * 1000) / 10
+    const ordersCountDelta = Number(yesterdayCount || 0) > 0
+      ? Math.round(((Number(todayCount || 0) - Number(yesterdayCount || 0)) / Number(yesterdayCount || 0)) * 1000) / 10
       : 0;
 
-    // ── Recent orders (last 5) ────────────────────────────────────
-    const recentOrders = allOrders
-      .sort((a, b) => new Date(b.placedAt).getTime() - new Date(a.placedAt).getTime())
-      .slice(0, 5)
-      .map(o => ({
-        id: o.id,
-        orderNumber: o.orderNumber,
-        total: Number(o.totalAmount),
-        status: o.status,
-        placedAt: o.placedAt,
-      }));
-
     sendSuccess(res, {
-      // KPI stats
-      totalOrders: allOrders.length,
-      todayOrders: todayOrders.length,
+      totalOrders: Number(orderCount || 0),
+      todayOrders: Number(todayCount || 0),
       todayRevenue,
       yesterdayRevenue,
       totalRevenue,
       pendingOrders,
-      totalCustomers: allCustomers.length,
-      totalProducts: allProducts.length,
+      totalCustomers: Number(customerCount || 0),
+      totalProducts: Number(productCount || 0),
       lowStockProducts,
-      totalCoupons: allCoupons.length,
+      totalCoupons: Number(couponCount || 0),
       activeCoupons,
-      totalRecipes: allRecipes.length,
+      totalRecipes: Number(recipeCount || 0),
       publishedRecipes,
-      totalReviews: allReviews.length,
+      totalReviews: Number(reviewCount || 0),
       pendingReviews,
-      totalWholesaleLeads: allLeads.length,
+      totalWholesaleLeads: Number(leadCount || 0),
       activeWholesaleLeads: activeLeads,
-      // Deltas (%)
       revenueChangePct: revenueDelta,
       ordersChangePct: ordersCountDelta,
-      // Chart data
       monthlyData,
       categoryData,
-      recentOrders,
+      recentOrders: recentOrders.map(o => ({ ...o, total: Number(o.total) })),
     });
   } catch (error) {
     next(error);

@@ -356,7 +356,7 @@ export const wholesaleInquiries = mysqlTable('wholesale_inquiries', {
   source: varchar('source', { length: 80 }).notNull().default('storefront'),
   desiredDeliveryDate: datetime('desired_delivery_date'),
   message: text('message'),
-  status: mysqlEnum('status', ['new', 'reviewing', 'quoted', 'contacted', 'quotation_sent', 'negotiation', 'converted', 'completed', 'rejected', 'closed']).notNull().default('new'),
+  status: mysqlEnum('status', ['new', 'reviewing', 'quoted', 'contacted', 'quotation_sent', 'negotiation', 'approved', 'processing', 'converted', 'completed', 'rejected', 'cancelled', 'closed']).notNull().default('new'),
   createdAt: datetime('created_at').notNull(),
   updatedAt: datetime('updated_at').notNull()
 }, (table) => ({
@@ -424,10 +424,19 @@ export const auditLogs = mysqlTable('audit_logs', {
   id: serial('id').primaryKey(),
   actorCustomerId: int('actor_customer_id'),
   action: varchar('action', { length: 128 }).notNull(),
+  module: varchar('module', { length: 128 }),
   entityType: varchar('entity_type', { length: 128 }).notNull(),
   entityId: varchar('entity_id', { length: 64 }),
+  previousData: json('previous_data').$type<Record<string, unknown> | null>(),
+  updatedData: json('updated_data').$type<Record<string, unknown> | null>(),
+  ipAddress: varchar('ip_address', { length: 64 }),
+  browser: varchar('browser', { length: 255 }),
+  operatingSystem: varchar('operating_system', { length: 128 }),
+  requestId: varchar('request_id', { length: 64 }),
   details: json('details').$type<Record<string, unknown>>(),
   createdAt: datetime('created_at').notNull()
 }, (table) => ({
-  entityIdx: index('audit_logs_entity_idx').on(table.entityType, table.entityId)
+  entityIdx: index('audit_logs_entity_idx').on(table.entityType, table.entityId),
+  createdIdx: index('audit_logs_created_idx').on(table.createdAt),
+  actionIdx: index('audit_logs_action_idx').on(table.action)
 }));

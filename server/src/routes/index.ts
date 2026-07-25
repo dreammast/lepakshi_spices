@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { authenticate, requireRole } from '../middleware/auth.middleware.js';
 import healthRoute from './health.route.js';
 import categoriesRoute from './category.route.js';
 import productsRoute from './product.route.js';
@@ -21,6 +22,7 @@ import adminCustomerRoute from './admin-customer.route.js';
 import auditRoute from './audit.route.js';
 import { getDashboardStatsController } from '../controllers/dashboard.controller.js';
 import { asyncHandler } from '../middleware/async-handler.js';
+import locationRoute from './location.route.js';
 
 const router = Router();
 router.use('/health', healthRoute);
@@ -30,30 +32,31 @@ router.use('/products', productsRoute);
 router.use('/products/:id/reviews', productReviewRouter);
 router.use('/reviews', publicReviewRouter);
 router.use('/orders', ordersRoute);
-router.use('/admin/orders', adminOrdersRoute);
-router.use('/cart', cartRoute);
-router.use('/wishlist', wishlistRouter);
-router.use('/addresses', addressesRoute);
-router.use('/upload', uploadRoute);
+router.use('/admin/orders', authenticate, requireRole('admin', 'staff', 'manager'), adminOrdersRoute);
+router.use('/cart', authenticate, cartRoute);
+router.use('/wishlist', authenticate, wishlistRouter);
+router.use('/addresses', authenticate, addressesRoute);
+router.use('/location', locationRoute);
+router.use('/upload', authenticate, requireRole('admin', 'staff', 'manager'), uploadRoute);
 
 router.use('/collections', collectionRoute);
-router.use('/admin/coupons', couponAdminRouter);
+router.use('/admin/coupons', authenticate, requireRole('admin', 'staff', 'manager'), couponAdminRouter);
 router.use('/coupons', couponPublicRouter);
-router.use('/admin/campaigns', campaignAdminRouter);
+router.use('/admin/campaigns', authenticate, requireRole('admin', 'staff', 'manager'), campaignAdminRouter);
 router.use('/campaigns', campaignPublicRouter);
-router.use('/admin/recipes', recipeAdminRouter);
+router.use('/admin/recipes', authenticate, requireRole('admin', 'staff', 'manager'), recipeAdminRouter);
 router.use('/recipes', recipePublicRouter);
-router.use('/admin/reviews', adminReviewRouter);
-router.use('/admin/settings', settingsAdminRouter);
+router.use('/admin/reviews', authenticate, requireRole('admin', 'staff', 'manager'), adminReviewRouter);
+router.use('/admin/settings', authenticate, requireRole('admin', 'staff', 'manager'), settingsAdminRouter);
 router.use('/settings', settingsPublicRouter);
-router.use('/admin', wholesaleAdminRouter);
+router.use('/admin', authenticate, requireRole('admin', 'staff', 'manager'), wholesaleAdminRouter);
 router.use('/wholesale-inquiries', wholesalePublicRouter);
 router.use('/', packagingRoute);
-router.use('/admin/customers', adminCustomerRoute);
-router.use('/admin/audit-logs', auditRoute);
-router.get('/admin/dashboard/stats', asyncHandler(getDashboardStatsController));
+router.use('/admin/customers', authenticate, requireRole('admin', 'staff', 'manager'), adminCustomerRoute);
+router.use('/admin/audit-logs', authenticate, requireRole('admin', 'staff', 'manager'), auditRoute);
+router.get('/admin/dashboard/stats', authenticate, requireRole('admin', 'staff', 'manager'), asyncHandler(getDashboardStatsController));
 
-router.use('/entities', genericRoute);
+router.use('/entities', authenticate, requireRole('admin'), genericRoute);
 
 export default router;
 

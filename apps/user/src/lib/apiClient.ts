@@ -100,6 +100,7 @@ export const wholesaleInquiryApi = {
 };
 
 export const couponsApi = {
+  available: () => api.get<any[]>('/coupons/available'),
   validate: (code: string, cartTotal: number) => api.post<any>('/coupons/validate', { code, cartTotal })
 };
 
@@ -125,4 +126,8 @@ export const addressesApi = {
   create: (body: unknown) => api.post<any>('/addresses', body),
   update: (id: number, body: unknown) => api.put<any>(`/addresses/${id}`, body),
   remove: (id: number) => api.delete<any>(`/addresses/${id}`)
+};
+
+export const locationApi = {
+  reverse: (latitude: number, longitude: number) => api.get<{ street: string }>(`/location/reverse?lat=${latitude}&lon=${longitude}`)
 };

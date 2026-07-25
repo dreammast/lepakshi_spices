@@ -22,6 +22,20 @@
       "when": 1784815962726,
       "tag": "0002_add-api-tables",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "5",
+      "when": 1785080000000,
+      "tag": "0004_seed-welcome30",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "5",
+      "when": 1785081000000,
+      "tag": "0005_expand-wholesale-statuses",
+      "breakpoints": true
     }
   ]
 }

@@ -8,7 +8,7 @@ import {
   Instagram, Facebook, Twitter, Youtube, Mail, Globe, Zap, CheckCircle,
   AlertCircle, BookOpen, Tag, Clock, HelpCircle, FileText, Phone
 } from "lucide-react";
-import { campaignsApi, cartApi, ordersApi, productsApi, categoriesApi, recipesApi, reviewsApi, settingsApi, wholesaleInquiryApi, addressesApi } from "../lib/apiClient";
+import { campaignsApi, cartApi, ordersApi, productsApi, categoriesApi, recipesApi, reviewsApi, settingsApi, wholesaleInquiryApi, addressesApi, couponsApi, locationApi } from "../lib/apiClient";
 
 
 // ─── DATA & LIVE API INTEGRATION ──────────────────────────────────────────────────
@@ -871,6 +871,14 @@ function Process() {
 function Recipes() {
   const { navigate, recipes } = useApp();
   if (!recipes || recipes.length === 0) return null;
+  const openRecipe = (recipe: any) => {
+    const videoUrl = recipe.videoUrl || recipe.video;
+    if (videoUrl) {
+      window.open(videoUrl, "_blank", "noopener,noreferrer");
+      return;
+    }
+    navigate("recipe", recipe);
+  };
   return (
     <section id="recipes" className="py-20 lg:py-28 bg-[#FAF8F3]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -889,7 +897,7 @@ function Recipes() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
           {recipes.slice(0, 3).map((r: any, i: number) => (
             <Reveal key={r.id} delay={i * 80}>
-              <button onClick={() => navigate("recipe", r)} className="group text-left rounded-2xl overflow-hidden bg-white border border-[#1A1714]/6 hover:border-[#2A4A3C]/20 hover:shadow-lg transition-all duration-300 w-full cursor-pointer">
+            <button onClick={() => openRecipe(r)} className="group text-left rounded-2xl overflow-hidden bg-white border border-[#1A1714]/6 hover:border-[#2A4A3C]/20 hover:shadow-lg transition-all duration-300 w-full cursor-pointer">
                 <div className="relative overflow-hidden" style={{ aspectRatio: "3/2" }}>
                   <img src={r.image} alt={r.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
@@ -1750,8 +1758,12 @@ function ProductPage({ product }: { product: any }) {
 
 function CartPage() {
   const { navigate, cart, orders, updateCartItem, removeFromCart, addToCart, discount, setDiscount, couponCode: coupon, setCouponCode: setCoupon } = useApp();
+  const [availableCoupons, setAvailableCoupons] = useState<any[]>([]);
   const [couponStatus, setCouponStatus] = useState<"idle" | "loading" | "valid" | "invalid">("idle");
+  const [couponError, setCouponError] = useState("");
   const [removed, setRemoved] = useState<CartItem[]>([]);
+
+  useEffect(() => { couponsApi.available().then(setAvailableCoupons).catch(() => setAvailableCoupons([])); }, []);
 
   const subtotal = cart.reduce((s: number, i: CartItem) => s + i.price * i.quantity, 0);
   const shipping = subtotal > 499 ? 0 : 49;
@@ -1759,20 +1771,23 @@ function CartPage() {
 
   async function applyCoupon(code = coupon) {
     if (!code.trim()) {
+      setCouponError("Enter a promo code first.");
       setCouponStatus("invalid");
       setTimeout(() => setCouponStatus("idle"), 2000);
       return;
     }
 
     setCouponStatus("loading");
+    setCouponError("");
     try {
       const result = await couponsApi.validate(code.trim(), subtotal);
       setCoupon(code.trim().toUpperCase());
       setDiscount(Number(result.discount));
       setCouponStatus("valid");
-    } catch {
+    } catch (error: any) {
       setDiscount(0);
       setCouponStatus("invalid");
+      setCouponError(error?.message || "Unable to validate this promo code.");
       setTimeout(() => setCouponStatus("idle"), 2000);
     }
   }
@@ -1881,9 +1896,24 @@ function CartPage() {
                 </div>
               </div>
 
+              <div className="mb-5">
+                <Btn size="lg" onClick={() => navigate("checkout")} className="w-full">
+                  Proceed to Checkout <ArrowRight className="w-4 h-4" />
+                </Btn>
+              </div>
+
               {/* Coupon */}
               <div className="mb-5">
                 <p className="text-xs font-semibold text-[#7A7064] uppercase tracking-widest mb-2">Promo Code</p>
+                {availableCoupons.length > 0 && (
+                  <div className="mb-2 flex flex-wrap gap-2">
+                    {availableCoupons.map((available: any) => (
+                      <button key={available.code} onClick={() => { setCoupon(available.code); applyCoupon(available.code); }} className="rounded-lg bg-[#EEF4EE] px-2.5 py-1.5 text-xs font-semibold text-[#2A4A3C] hover:bg-[#DCEBDD]">
+                        Use {available.code}
+                      </button>
+                    ))}
+                  </div>
+                )}
                 <div className="flex gap-2">
                   <input value={coupon} onChange={e => setCoupon(e.target.value.toUpperCase())} placeholder="Enter code"
                     className={`flex-1 bg-[#FAF8F3] border rounded-xl px-3 py-2.5 text-sm outline-none transition-all ${couponStatus === "valid" ? "border-[#2A4A3C] text-[#2A4A3C]" : couponStatus === "invalid" ? "border-red-400" : "border-[#1A1714]/12 focus:border-[#2A4A3C]"}`} />
@@ -1897,15 +1927,12 @@ function CartPage() {
                   )}
                   {couponStatus === "invalid" && (
                     <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-xs text-red-500 mt-1.5 flex items-center gap-1">
-                      <AlertCircle className="w-3.5 h-3.5" /> Invalid coupon code
+                      <AlertCircle className="w-3.5 h-3.5" /> {couponError || "Invalid coupon code"}
                     </motion.p>
                   )}
                 </AnimatePresence>
               </div>
 
-              <Btn size="lg" onClick={() => navigate("checkout")} className="w-full">
-                Proceed to Checkout <ArrowRight className="w-4 h-4" />
-              </Btn>
               <p className="text-xs text-center text-[#7A7064] mt-3">
                 Enter a valid promo code to apply available discounts at checkout.
               </p>
@@ -1937,13 +1964,37 @@ function CheckoutPage() {
   const [cardName, setCardName] = useState("");
   const [upiId, setUpiId] = useState("");
   const [addr, setAddr] = useState({ name: "", phone: "", line1: "", city: "", state: "", pin: "" });
+  const [savedAddressId, setSavedAddressId] = useState<number | undefined>();
+  const [locatingCheckout, setLocatingCheckout] = useState(false);
   const [errors, setErrors] = useState<any>({});
   const [placedOrder, setPlacedOrder] = useState<any>(null);
+
+  useEffect(() => {
+    addressesApi.list().then((list: any[]) => {
+      const saved = list.find(a => a.isDefault) || list[0];
+      if (saved) {
+        setSavedAddressId(saved.id);
+        setAddr({ name: saved.label || "", phone: "", line1: saved.line1 || "", city: saved.city || "", state: saved.state || "", pin: saved.postalCode || "" });
+      }
+    }).catch(() => undefined);
+  }, []);
 
   const steps = ["Address", "Delivery", "Payment", "Review"];
   const subtotal = cart.reduce((s: number, i: CartItem) => s + i.price * i.quantity, 0);
   const delivFee = delivery === "free" ? 0 : (subtotal > 499 ? (delivery === "express" ? 49 : 0) : (delivery === "express" ? 99 : 49));
   const total = subtotal - discount + delivFee;
+
+  const useCheckoutLocation = () => {
+    if (!navigator.geolocation) { setErrors({ order: "Location services are not supported by this device" }); return; }
+    setLocatingCheckout(true);
+    navigator.geolocation.getCurrentPosition(async ({ coords }) => {
+      try {
+        const result = await locationApi.reverse(coords.latitude, coords.longitude);
+        setAddr(prev => ({ ...prev, line1: result.street }));
+      } catch (error: any) { setErrors({ line1: error.message || "Unable to detect your current location" }); }
+      finally { setLocatingCheckout(false); }
+    }, () => { setLocatingCheckout(false); setErrors({ line1: "Location permission was denied or unavailable" }); }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 });
+  };
 
   useEffect(() => {
     if (step === 4) {
@@ -2017,7 +2068,11 @@ function CheckoutPage() {
           price: item.price
         }));
         if (items.some(item => !item.productVariantId)) throw new Error("A selected product pack is unavailable. Refresh the cart and try again.");
-        const order = await ordersApi.create({ items, couponCode: couponCode || undefined, discountAmount: discount });
+        let shippingAddressId = savedAddressId;
+        const addressPayload = { label: addr.name || "Delivery", line1: addr.line1, city: addr.city, state: addr.state, postalCode: addr.pin, country: "India", isDefault: true };
+        if (shippingAddressId) await addressesApi.update(shippingAddressId, addressPayload);
+        else { const saved = await addressesApi.create(addressPayload); shippingAddressId = saved.id; }
+        const order = await ordersApi.create({ items, shippingAddressId, couponCode: couponCode || undefined, discountAmount: discount });
         setPlacedOrder(order);
         await cartApi.clear();
         clearCart();
@@ -2083,6 +2138,9 @@ function CheckoutPage() {
                 {step === 0 && (
                   <motion.div key="addr" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
                     <h3 className="font-semibold text-[#1A1714] text-lg mb-5">Delivery Address</h3>
+                    <button type="button" onClick={useCheckoutLocation} disabled={locatingCheckout} className="mb-4 flex items-center gap-2 rounded-xl border border-[#2A4A3C]/20 px-3 py-2 text-xs font-semibold text-[#2A4A3C] disabled:opacity-50">
+                      <MapPin className="w-4 h-4" /> {locatingCheckout ? "Detecting location..." : "Use Current Location"}
+                    </button>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       {[
                         { k: "name", l: "Full Name", ph: "Ananya Krishnan", full: true },
@@ -2286,6 +2344,20 @@ function ProfilePage() {
     country: "India",
     isDefault: false
   });
+  const [locatingAddress, setLocatingAddress] = useState(false);
+
+  const handleUseCurrentLocation = () => {
+    if (!navigator.geolocation) { toast.error("Location services are not supported by this device"); return; }
+    setLocatingAddress(true);
+    navigator.geolocation.getCurrentPosition(async ({ coords }) => {
+      try {
+        const result = await locationApi.reverse(coords.latitude, coords.longitude);
+        setAddressForm(prev => ({ ...prev, line1: result.street }));
+        toast.success("Current street address detected. Please review it before saving.");
+      } catch (error: any) { toast.error(error.message || "Unable to convert your location to an address"); }
+      finally { setLocatingAddress(false); }
+    }, error => { setLocatingAddress(false); toast.error(error.code === 1 ? "Location permission was denied" : "Unable to detect your current location"); }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 });
+  };
 
   const loadUserAddresses = async () => {
     if (!user?.token) return;
@@ -2793,7 +2865,10 @@ function ProfilePage() {
                                 <input value={addressForm.label} onChange={e => setAddressForm({ ...addressForm, label: e.target.value })} placeholder="e.g. Home, Office, Warehouse" className="w-full bg-[#FAF8F3] border border-[#1A1714]/12 rounded-xl px-3 py-2 text-xs outline-none" />
                               </div>
                               <div>
-                                <label className="text-[10px] font-semibold text-[#7A7064] uppercase block mb-1">Address Line 1 *</label>
+                              <label className="text-[10px] font-semibold text-[#7A7064] uppercase block mb-1">Address Line 1 *</label>
+                              <button type="button" onClick={handleUseCurrentLocation} disabled={locatingAddress} className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-[#2A4A3C] disabled:opacity-50">
+                                <MapPin className="w-3.5 h-3.5" /> {locatingAddress ? "Detecting location..." : "Use Current Location"}
+                              </button>
                                 <input value={addressForm.line1} onChange={e => setAddressForm({ ...addressForm, line1: e.target.value })} placeholder="Flat, House no., Building, Street" className="w-full bg-[#FAF8F3] border border-[#1A1714]/12 rounded-xl px-3 py-2 text-xs outline-none" />
                               </div>
                               <div>
@@ -3289,7 +3364,11 @@ function RecipesPage() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {filtered.map((r, i) => (
             <Reveal key={r.id} delay={i * 80}>
-              <button onClick={() => navigate("recipe", r)}
+              <button onClick={() => {
+                const videoUrl = r.videoUrl || r.video;
+                if (videoUrl) window.open(videoUrl, "_blank", "noopener,noreferrer");
+                else navigate("recipe", r);
+              }}
                 className="group text-left rounded-2xl overflow-hidden bg-white border border-[#1A1714]/6 hover:border-[#2A4A3C]/20 hover:shadow-lg transition-all duration-300 w-full cursor-pointer">
                 <div className="relative overflow-hidden" style={{ aspectRatio: "3/2" }}>
                   <img src={r.image} alt={r.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
@@ -4594,10 +4673,18 @@ export default function App() {
                 id: c.slug || String(c.id),
                 name: c.name,
                 count: 0,
-                description: c.description || ""
+                description: c.description || "",
+                image: c.imageUrl || ""
               }))
             ]);
-        setRecipes(dataR || []);
+        setRecipes((dataR || []).map((recipe: any) => ({
+          ...recipe,
+          image: recipe.image || recipe.imageUrl || "",
+          time: recipe.time || `${(Number(recipe.prepMinutes) || 0) + (Number(recipe.cookMinutes) || 0)} min`,
+          prepTime: recipe.prepTime || recipe.prepMinutes || 0,
+          ingredients: Array.isArray(recipe.ingredients) ? recipe.ingredients : [],
+          spices: Array.isArray(recipe.spices) ? recipe.spices : []
+        })));
         setTestimonials((dataReviews || []).map((row: any) => ({
           id: row.review.id,
           name: row.review.displayName || `${row.customer?.firstName || ""} ${row.customer?.lastName || ""}`.trim() || "Verified customer",

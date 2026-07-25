@@ -35,8 +35,12 @@ export async function createWholesaleInquiryRecord(data: {
 }
 
 export async function updateWholesaleInquiryStatus(id: number, status: string) {
+  const allowed = ['new', 'reviewing', 'quoted', 'contacted', 'quotation_sent', 'negotiation', 'approved', 'processing', 'converted', 'completed', 'rejected', 'cancelled', 'closed'];
+  if (!allowed.includes(status)) throw new Error(`Unsupported wholesale status: ${status}`);
   await db.update(wholesaleInquiries).set({ status: status as any, updatedAt: new Date() }).where(eq(wholesaleInquiries.id, id));
-  return findWholesaleInquiryById(id);
+  const updated = await findWholesaleInquiryById(id);
+  if (!updated) throw new Error('Wholesale inquiry not found');
+  return updated;
 }
 
 export async function findAllQuotations() {

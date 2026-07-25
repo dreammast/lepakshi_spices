@@ -1,5 +1,5 @@
 import type { Request, Response, NextFunction } from 'express';
-import { listCoupons, createCoupon, updateCoupon, deleteCoupon, validateCoupon } from '../services/coupon.service.js';
+import { listCoupons, listAvailableCoupons, createCoupon, updateCoupon, deleteCoupon, validateCoupon } from '../services/coupon.service.js';
 import { sendSuccess, sendCreated } from '../utils/response.util.js';
 import type { AuthenticatedRequest } from '../middleware/auth.middleware.js';
 
@@ -24,6 +24,13 @@ export async function validateCouponController(req: AuthenticatedRequest, res: R
     const customerId = req.user?.sub || req.body.customerId;
     const result = await validateCoupon(req.body.code, Number(req.body.cartTotal), customerId);
     sendSuccess(res, result);
+  } catch (e) { next(e); }
+}
+
+export async function listAvailableCouponsController(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+  try {
+    if (!req.user) throw new Error('Authentication required');
+    sendSuccess(res, await listAvailableCoupons(req.user.sub));
   } catch (e) { next(e); }
 }
 

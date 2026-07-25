@@ -9,6 +9,10 @@ export async function listAuditLogsController(req: Request, res: Response, next:
       actorId: req.query.actorId ? Number(req.query.actorId) : undefined,
       from: req.query.from as string | undefined,
       to: req.query.to as string | undefined
+      ,action: req.query.action as string | undefined
+      ,search: req.query.search as string | undefined
+      ,page: req.query.page ? Number(req.query.page) : 1
+      ,pageSize: req.query.pageSize ? Number(req.query.pageSize) : 25
     };
     sendSuccess(res, await listAuditLogs(filters));
   } catch (e) { next(e); }
