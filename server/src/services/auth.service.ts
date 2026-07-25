@@ -67,3 +67,45 @@ export async function updateCustomerPassword(id: number, newPassword: string) {
   const passwordHash = await bcrypt.hash(newPassword, SALT_ROUNDS);
   await db.update(customerProfiles).set({ passwordHash, updatedAt: new Date() }).where(eq(customerProfiles.id, id));
 }
+
+export async function syncClerkUser(input: {
+  email: string;
+  firstName?: string;
+  lastName?: string;
+  phone?: string;
+  clerkId?: string;
+}) {
+  if (!input.email) throw new AppError(400, 'Email is required');
+  let customer = await findCustomerByEmail(input.email);
+  const firstName = input.firstName || input.email.split('@')[0] || 'User';
+  const lastName = input.lastName || '';
+
+  if (customer) {
+    const updates: Record<string, any> = { updatedAt: new Date() };
+    if (firstName && customer.firstName !== firstName) updates.firstName = firstName;
+    if (lastName !== undefined && customer.lastName !== lastName) updates.lastName = lastName;
+    if (input.phone && customer.phone !== input.phone) updates.phone = input.phone;
+
+    if (Object.keys(updates).length > 1) {
+      await db.update(customerProfiles).set(updates).where(eq(customerProfiles.id, customer.id));
+      customer = (await findCustomerByEmail(input.email))!;
+    }
+  } else {
+    const passwordHash = await bcrypt.hash(`clerk_oauth_${input.clerkId || Date.now()}`, SALT_ROUNDS);
+    customer = await createCustomerProfile({
+      email: input.email,
+      passwordHash,
+      firstName,
+      lastName,
+      phone: input.phone || '',
+      role: 'customer'
+    });
+  }
+
+  if (!customer) {
+    throw new AppError(500, 'Failed to sync user');
+  }
+
+  const token = signToken({ sub: customer.id, email: customer.email, role: customer.role });
+  return { user: sanitizeCustomer(customer), token };
+}

@@ -1,5 +1,5 @@
 import type { NextFunction, Request, Response } from 'express';
-import { registerCustomer, authenticateCustomer, getCustomerProfile } from '../services/auth.service.js';
+import { registerCustomer, authenticateCustomer, getCustomerProfile, syncClerkUser } from '../services/auth.service.js';
 import { sendCreated, sendSuccess } from '../utils/response.util.js';
 import type { AuthenticatedRequest } from '../middleware/auth.middleware.js';
 
@@ -32,6 +32,15 @@ export async function meController(req: AuthenticatedRequest, res: Response, nex
     }
     const user = await getCustomerProfile(req.user.sub);
     sendSuccess(res, user);
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function syncClerkController(req: Request, res: Response, next: NextFunction) {
+  try {
+    const result = await syncClerkUser(req.body);
+    sendSuccess(res, result, 'User synced successfully');
   } catch (error) {
     next(error);
   }

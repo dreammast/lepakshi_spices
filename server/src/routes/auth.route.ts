@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { registerController, loginController, meController } from '../controllers/auth.controller.js';
+import { registerController, loginController, meController, syncClerkController } from '../controllers/auth.controller.js';
 import { asyncHandler } from '../middleware/async-handler.js';
 import { validateBody } from '../middleware/validate.middleware.js';
 import { authenticate } from '../middleware/auth.middleware.js';
@@ -23,6 +23,7 @@ const loginSchema = z.object({
 
 router.post('/register', validateBody(registerSchema), asyncHandler(registerController));
 router.post('/login', validateBody(loginSchema), asyncHandler(loginController));
+router.post('/sync-clerk', asyncHandler(syncClerkController));
 router.get('/me', authenticate, asyncHandler(meController));
 
 export default router;

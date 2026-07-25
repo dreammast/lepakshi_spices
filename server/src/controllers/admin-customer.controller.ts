@@ -9,7 +9,7 @@ import { findOrdersByCustomerId } from '../repositories/order.repository.js';
 
 export async function listCustomersController(_req: AuthenticatedRequest, res: Response, next: NextFunction) {
   try {
-    const customers = await db.select().from(customerProfiles).where(eq(customerProfiles.role, 'customer')).orderBy(desc(customerProfiles.createdAt));
+    const customers = await db.select().from(customerProfiles).orderBy(desc(customerProfiles.createdAt));
 
     const enriched = await Promise.all(customers.map(async c => {
       const customerOrders = await db.select().from(orders).where(eq(orders.customerId, c.id));

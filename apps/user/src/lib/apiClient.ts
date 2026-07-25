@@ -54,6 +54,8 @@ export const authApi = {
     api.post<{ user: any; token: string }>('/auth/login', { email, password }),
   register: (body: { email: string; password: string; firstName: string; lastName?: string; phone?: string }) =>
     api.post<{ user: any; token: string }>('/auth/register', body),
+  syncClerk: (body: { email: string; firstName?: string; lastName?: string; phone?: string; clerkId?: string }) =>
+    api.post<{ user: any; token: string }>('/auth/sync-clerk', body),
   me: () => api.get<any>('/auth/me')
 };
 
