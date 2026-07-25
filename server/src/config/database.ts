@@ -13,7 +13,8 @@ function getSslConfig() {
     resolve(process.cwd(), '../server/certs/tidb-ca.pem'),
   ];
 
-  for (const path of candidates) {
+  for (const candidate of candidates) {
+    const path = candidate && resolve(candidate);
     if (path && existsSync(path)) {
       try {
         return {
@@ -24,7 +25,9 @@ function getSslConfig() {
     }
   }
 
-  // Fallback: TiDB Cloud requires SSL/TLS transport even if CA file path is omitted
+  // TiDB Cloud still requires TLS when the CA file is unavailable. Keep the
+  // server bootable and surface certificate verification as a clear warning.
+  console.warn('DB SSL CA file was not found; using TLS without CA verification. Set DB_SSL_CA_PATH to server/certs/tidb-ca.pem for production.');
   return {
     minVersion: 'TLSv1.2',
     rejectUnauthorized: false

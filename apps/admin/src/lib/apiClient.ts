@@ -8,6 +8,8 @@ export type ApiResponse<T> = {
 
 function getAuthToken(): string | null {
   try {
+    const adminRaw = localStorage.getItem('spiceora_admin');
+    if (adminRaw) return JSON.parse(adminRaw).token || null;
     const raw = localStorage.getItem('spiceora_user') || sessionStorage.getItem('spiceora_user');
     if (!raw) return null;
     const parsed = JSON.parse(raw);
@@ -50,11 +52,14 @@ export const api = {
 };
 
 export const authApi = {
+  adminLogin: (username: string, password: string) =>
+    api.post<{ user: any; token: string }>('/auth/admin/login', { username, password }),
   login: (email: string, password: string) =>
     api.post<{ user: any; token: string }>('/auth/login', { email, password }),
   register: (body: { email: string; password: string; firstName: string; lastName?: string }) =>
     api.post<{ user: any; token: string }>('/auth/register', body),
   me: () => api.get<any>('/auth/me')
+  ,adminLogout: () => api.post<null>('/auth/admin/logout')
 };
 
 export const productsApi = {

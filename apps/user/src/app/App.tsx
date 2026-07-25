@@ -9,8 +9,7 @@ import {
   Instagram, Facebook, Twitter, Youtube, Mail, Globe, Zap, CheckCircle,
   AlertCircle, BookOpen, Tag, Clock, HelpCircle, FileText, Phone
 } from "lucide-react";
-import { toast } from "sonner";
-import { campaignsApi, cartApi, ordersApi, productsApi, categoriesApi, recipesApi, reviewsApi, settingsApi, wholesaleInquiryApi, addressesApi, couponsApi, authApi } from "../lib/apiClient";
+import { campaignsApi, cartApi, ordersApi, productsApi, categoriesApi, recipesApi, reviewsApi, settingsApi, wholesaleInquiryApi, addressesApi } from "../lib/apiClient";
 
 
 // ─── DATA & LIVE API INTEGRATION ──────────────────────────────────────────────────
@@ -55,14 +54,14 @@ type Page = "home" | "shop" | "product" | "cart" | "checkout" | "profile" | "rec
 function getWeightOptions(product: Product) {
   const retail = product.variants?.length
     ? product.variants
-        .filter(variant => (variant.stock ?? 1) > 0)
-        .sort((a, b) => (a.weightGrams ?? 0) - (b.weightGrams ?? 0))
-        .map(variant => ({
-          id: variant.id,
-          label: variant.label || (variant.weightGrams ? `${variant.weightGrams}g` : "Standard pack"),
-          price: Number(variant.price),
-          isWholesale: false
-        }))
+      .filter(variant => (variant.stock ?? 1) > 0)
+      .sort((a, b) => (a.weightGrams ?? 0) - (b.weightGrams ?? 0))
+      .map(variant => ({
+        id: variant.id,
+        label: variant.label || (variant.weightGrams ? `${variant.weightGrams}g` : "Standard pack"),
+        price: Number(variant.price),
+        isWholesale: false
+      }))
     : [];
   const wholesale = (product.packaging || []).map(pack => ({
     id: pack.id,
@@ -885,6 +884,14 @@ function Process() {
 function Recipes() {
   const { navigate, recipes } = useApp();
   if (!recipes || recipes.length === 0) return null;
+  const openRecipe = (recipe: any) => {
+    const videoUrl = recipe.videoUrl || recipe.video;
+    if (videoUrl) {
+      window.open(videoUrl, "_blank", "noopener,noreferrer");
+      return;
+    }
+    navigate("recipe", recipe);
+  };
   return (
     <section id="recipes" className="py-20 lg:py-28 bg-[#FAF8F3]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -902,7 +909,7 @@ function Recipes() {
         </Reveal>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
           {recipes.slice(0, 3).map((r: any, i: number) => (
-            <Reveal key={r.id || i} delay={i * 80}>
+            <Reveal key={r.id} delay={i * 80}>
               <button onClick={() => navigate("recipe", r)} className="group text-left rounded-2xl overflow-hidden bg-white border border-[#1A1714]/6 hover:border-[#2A4A3C]/20 hover:shadow-lg transition-all duration-300 w-full cursor-pointer">
                 <div className="relative overflow-hidden" style={{ aspectRatio: "3/2" }}>
                   <img src={r.image || r.imageUrl || "https://images.unsplash.com/photo-1596040033229-a9821ebd058d?w=800&fit=crop"} alt={r.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
@@ -1548,7 +1555,7 @@ function ProductPage({ product }: { product: any }) {
                 <Heart className={`w-4 h-4 ${isWished ? "fill-red-500" : ""}`} />
                 {isWished ? "Wishlisted" : "Add to Wishlist"}
               </button>
-              <button onClick={() => navigator.share?.({ title: product.name, url: window.location.href }).catch(() => {})}
+              <button onClick={() => navigator.share?.({ title: product.name, url: window.location.href }).catch(() => { })}
                 className="w-12 h-12 rounded-xl border-2 border-[#1A1714]/15 flex items-center justify-center text-[#7A7064] hover:border-[#2A4A3C] hover:text-[#2A4A3C] transition-all">
                 <Share2 className="w-4 h-4" />
               </button>
@@ -1764,8 +1771,12 @@ function ProductPage({ product }: { product: any }) {
 
 function CartPage() {
   const { navigate, cart, orders, updateCartItem, removeFromCart, addToCart, discount, setDiscount, couponCode: coupon, setCouponCode: setCoupon } = useApp();
+  const [availableCoupons, setAvailableCoupons] = useState<any[]>([]);
   const [couponStatus, setCouponStatus] = useState<"idle" | "loading" | "valid" | "invalid">("idle");
+  const [couponError, setCouponError] = useState("");
   const [removed, setRemoved] = useState<CartItem[]>([]);
+
+  useEffect(() => { couponsApi.available().then(setAvailableCoupons).catch(() => setAvailableCoupons([])); }, []);
 
   const subtotal = cart.reduce((s: number, i: CartItem) => s + i.price * i.quantity, 0);
   const shipping = subtotal > 499 ? 0 : 49;
@@ -1773,20 +1784,23 @@ function CartPage() {
 
   async function applyCoupon(code = coupon) {
     if (!code.trim()) {
+      setCouponError("Enter a promo code first.");
       setCouponStatus("invalid");
       setTimeout(() => setCouponStatus("idle"), 2000);
       return;
     }
 
     setCouponStatus("loading");
+    setCouponError("");
     try {
       const result = await couponsApi.validate(code.trim(), subtotal);
       setCoupon(code.trim().toUpperCase());
       setDiscount(Number(result.discount));
       setCouponStatus("valid");
-    } catch {
+    } catch (error: any) {
       setDiscount(0);
       setCouponStatus("invalid");
+      setCouponError(error?.message || "Unable to validate this promo code.");
       setTimeout(() => setCouponStatus("idle"), 2000);
     }
   }
@@ -1895,9 +1909,24 @@ function CartPage() {
                 </div>
               </div>
 
+              <div className="mb-5">
+                <Btn size="lg" onClick={() => navigate("checkout")} className="w-full">
+                  Proceed to Checkout <ArrowRight className="w-4 h-4" />
+                </Btn>
+              </div>
+
               {/* Coupon */}
               <div className="mb-5">
                 <p className="text-xs font-semibold text-[#7A7064] uppercase tracking-widest mb-2">Promo Code</p>
+                {availableCoupons.length > 0 && (
+                  <div className="mb-2 flex flex-wrap gap-2">
+                    {availableCoupons.map((available: any) => (
+                      <button key={available.code} onClick={() => { setCoupon(available.code); applyCoupon(available.code); }} className="rounded-lg bg-[#EEF4EE] px-2.5 py-1.5 text-xs font-semibold text-[#2A4A3C] hover:bg-[#DCEBDD]">
+                        Use {available.code}
+                      </button>
+                    ))}
+                  </div>
+                )}
                 <div className="flex gap-2">
                   <input value={coupon} onChange={e => setCoupon(e.target.value.toUpperCase())} placeholder="Enter code"
                     className={`flex-1 bg-[#FAF8F3] border rounded-xl px-3 py-2.5 text-sm outline-none transition-all ${couponStatus === "valid" ? "border-[#2A4A3C] text-[#2A4A3C]" : couponStatus === "invalid" ? "border-red-400" : "border-[#1A1714]/12 focus:border-[#2A4A3C]"}`} />
@@ -1911,15 +1940,12 @@ function CartPage() {
                   )}
                   {couponStatus === "invalid" && (
                     <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-xs text-red-500 mt-1.5 flex items-center gap-1">
-                      <AlertCircle className="w-3.5 h-3.5" /> Invalid coupon code
+                      <AlertCircle className="w-3.5 h-3.5" /> {couponError || "Invalid coupon code"}
                     </motion.p>
                   )}
                 </AnimatePresence>
               </div>
 
-              <Btn size="lg" onClick={() => navigate("checkout")} className="w-full">
-                Proceed to Checkout <ArrowRight className="w-4 h-4" />
-              </Btn>
               <p className="text-xs text-center text-[#7A7064] mt-3">
                 Enter a valid promo code to apply available discounts at checkout.
               </p>
@@ -1951,13 +1977,37 @@ function CheckoutPage() {
   const [cardName, setCardName] = useState("");
   const [upiId, setUpiId] = useState("");
   const [addr, setAddr] = useState({ name: "", phone: "", line1: "", city: "", state: "", pin: "" });
+  const [savedAddressId, setSavedAddressId] = useState<number | undefined>();
+  const [locatingCheckout, setLocatingCheckout] = useState(false);
   const [errors, setErrors] = useState<any>({});
   const [placedOrder, setPlacedOrder] = useState<any>(null);
+
+  useEffect(() => {
+    addressesApi.list().then((list: any[]) => {
+      const saved = list.find(a => a.isDefault) || list[0];
+      if (saved) {
+        setSavedAddressId(saved.id);
+        setAddr({ name: saved.label || "", phone: "", line1: saved.line1 || "", city: saved.city || "", state: saved.state || "", pin: saved.postalCode || "" });
+      }
+    }).catch(() => undefined);
+  }, []);
 
   const steps = ["Address", "Delivery", "Payment", "Review"];
   const subtotal = cart.reduce((s: number, i: CartItem) => s + i.price * i.quantity, 0);
   const delivFee = delivery === "free" ? 0 : (subtotal > 499 ? (delivery === "express" ? 49 : 0) : (delivery === "express" ? 99 : 49));
   const total = subtotal - discount + delivFee;
+
+  const useCheckoutLocation = () => {
+    if (!navigator.geolocation) { setErrors({ order: "Location services are not supported by this device" }); return; }
+    setLocatingCheckout(true);
+    navigator.geolocation.getCurrentPosition(async ({ coords }) => {
+      try {
+        const result = await locationApi.reverse(coords.latitude, coords.longitude);
+        setAddr(prev => ({ ...prev, line1: result.street }));
+      } catch (error: any) { setErrors({ line1: error.message || "Unable to detect your current location" }); }
+      finally { setLocatingCheckout(false); }
+    }, () => { setLocatingCheckout(false); setErrors({ line1: "Location permission was denied or unavailable" }); }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 });
+  };
 
   useEffect(() => {
     if (step === 4) {
@@ -2030,39 +2080,10 @@ function CheckoutPage() {
           quantity: item.quantity,
           price: item.price
         }));
-
-        let newOrder: any = null;
-        try {
-          newOrder = await ordersApi.create({ items, couponCode: couponCode || undefined, discountAmount: discount });
-        } catch (apiErr) {
-          console.warn("Backend order creation endpoint bypassed, creating local order confirmation:", apiErr);
-          const orderId = Math.floor(100000 + Math.random() * 900000);
-          newOrder = {
-            id: orderId,
-            orderNumber: `ORD-${orderId}`,
-            total: total.toFixed(2),
-            items: cart.map(i => `${i.product.name} (${i.selectedWeight}) × ${i.quantity}`),
-            status: "Processing",
-            date: new Date().toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
-          };
-        }
-
-        if (!newOrder || !newOrder.id) {
-          const orderId = Math.floor(100000 + Math.random() * 900000);
-          newOrder = {
-            id: orderId,
-            orderNumber: `ORD-${orderId}`,
-            total: total.toFixed(2),
-            items: cart.map(i => `${i.product.name} (${i.selectedWeight}) × ${i.quantity}`),
-            status: "Processing",
-            date: new Date().toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
-          };
-        }
-
-        setPlacedOrder(newOrder);
-        setOrders((prev: any[]) => [newOrder, ...prev]);
-
-        try { await cartApi.clear(); } catch (e) {}
+        if (items.some(item => !item.productVariantId)) throw new Error("A selected product pack is unavailable. Refresh the cart and try again.");
+        const order = await ordersApi.create({ items, couponCode: couponCode || undefined, discountAmount: discount });
+        setPlacedOrder(order);
+        await cartApi.clear();
         clearCart();
         setStep(4);
       } catch (error: any) {
@@ -2162,6 +2183,9 @@ function CheckoutPage() {
                 {step === 0 && (
                   <motion.div key="addr" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
                     <h3 className="font-semibold text-[#1A1714] text-lg mb-5">Delivery Address</h3>
+                    <button type="button" onClick={useCheckoutLocation} disabled={locatingCheckout} className="mb-4 flex items-center gap-2 rounded-xl border border-[#2A4A3C]/20 px-3 py-2 text-xs font-semibold text-[#2A4A3C] disabled:opacity-50">
+                      <MapPin className="w-4 h-4" /> {locatingCheckout ? "Detecting location..." : "Use Current Location"}
+                    </button>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       {[
                         { k: "name", l: "Full Name", ph: "Ananya Krishnan", full: true },
@@ -2370,6 +2394,20 @@ function ProfilePage() {
     country: "India",
     isDefault: false
   });
+  const [locatingAddress, setLocatingAddress] = useState(false);
+
+  const handleUseCurrentLocation = () => {
+    if (!navigator.geolocation) { toast.error("Location services are not supported by this device"); return; }
+    setLocatingAddress(true);
+    navigator.geolocation.getCurrentPosition(async ({ coords }) => {
+      try {
+        const result = await locationApi.reverse(coords.latitude, coords.longitude);
+        setAddressForm(prev => ({ ...prev, line1: result.street }));
+        toast.success("Current street address detected. Please review it before saving.");
+      } catch (error: any) { toast.error(error.message || "Unable to convert your location to an address"); }
+      finally { setLocatingAddress(false); }
+    }, error => { setLocatingAddress(false); toast.error(error.code === 1 ? "Location permission was denied" : "Unable to detect your current location"); }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 });
+  };
 
   const loadUserAddresses = async () => {
     if (!user?.token) return;
@@ -2660,7 +2698,7 @@ function ProfilePage() {
                           </div>
                           <Badge color="orange">Processing</Badge>
                         </div>
-                        
+
                         <div className="relative pl-8 space-y-8 before:absolute before:left-3 before:top-2 before:bottom-2 before:w-0.5 before:bg-[#EEE9E0]">
                           {[
                             { title: "Order Placed", desc: "Your payment was processed and order confirmed.", date: "Just now", done: true },
@@ -2878,6 +2916,9 @@ function ProfilePage() {
                               </div>
                               <div>
                                 <label className="text-[10px] font-semibold text-[#7A7064] uppercase block mb-1">Address Line 1 *</label>
+                                <button type="button" onClick={handleUseCurrentLocation} disabled={locatingAddress} className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-[#2A4A3C] disabled:opacity-50">
+                                  <MapPin className="w-3.5 h-3.5" /> {locatingAddress ? "Detecting location..." : "Use Current Location"}
+                                </button>
                                 <input value={addressForm.line1} onChange={e => setAddressForm({ ...addressForm, line1: e.target.value })} placeholder="Flat, House no., Building, Street" className="w-full bg-[#FAF8F3] border border-[#1A1714]/12 rounded-xl px-3 py-2 text-xs outline-none" />
                               </div>
                               <div>
@@ -3378,8 +3419,8 @@ function RecipesPage() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {filtered.map((r: any, i: number) => (
-            <Reveal key={r.id || i} delay={i * 80}>
+          {filtered.map((r, i) => (
+            <Reveal key={r.id} delay={i * 80}>
               <button onClick={() => navigate("recipe", r)}
                 className="group text-left rounded-2xl overflow-hidden bg-white border border-[#1A1714]/6 hover:border-[#2A4A3C]/20 hover:shadow-lg transition-all duration-300 w-full cursor-pointer">
                 <div className="relative overflow-hidden" style={{ aspectRatio: "3/2" }}>
@@ -3465,7 +3506,7 @@ function RecipeDetailPage({ recipe }: { recipe: any }) {
             </div>
             <h1 className="text-3xl lg:text-4xl font-bold text-[#1A1714] mb-3" style={{ fontFamily: "'Bodoni Moda', serif" }}>{recipe?.title}</h1>
             <p className="text-[#7A7064] leading-relaxed mb-6">{recipe?.description}</p>
-            
+
             <div className="flex gap-4 border-y border-[#1A1714]/8 py-4 mb-6">
               <div className="flex-1 text-center border-r border-[#1A1714]/8">
                 <span className="text-xs text-[#7A7064] block">Time</span>
@@ -3582,7 +3623,7 @@ function FounderPage() {
               <p className="text-sm text-[#7A7064] leading-relaxed mb-6 whitespace-pre-line">
                 {cmsSettings?.about?.founderStory || `"In 2018, I spent six months traveling across India's micro-climates. I met fourth-generation farmers cultivating green cardamom in Cardamom Hills, true Ceylon cinnamon bark-peelers in Sri Lanka, and farmers picking saffron threads under cold Kashmir skies.\n\nI was shocked to discover that while the finest A-grade exports left our shores for Michelin-starred kitchens globally, local households were consumed with dust-heavy, chemical-packed commercial spices. We started Spiceora to restore direct access to single-origin purity."`}
               </p>
-              
+
               <div className="grid grid-cols-2 gap-4">
                 <div className="p-4 bg-white rounded-2xl border border-[#1A1714]/6 shadow-sm">
                   <span className="text-2xl font-bold text-[#2A4A3C] block">47</span>
@@ -3600,7 +3641,7 @@ function FounderPage() {
         {/* Interactive Timeline */}
         <div className="bg-white rounded-3xl border border-[#1A1714]/8 p-6 sm:p-8 mb-16 shadow-sm">
           <h3 className="text-2xl font-bold text-[#1A1714] text-center mb-8" style={{ fontFamily: "'Bodoni Moda', serif" }}>Company Milestones</h3>
-          
+
           <div className="flex border-b border-[#1A1714]/8 overflow-x-auto gap-2 justify-center mb-8 pb-3">
             {timeline.map(t => (
               <button
@@ -3808,7 +3849,7 @@ function BundleBuilderPage() {
           <div className="lg:col-span-4 sticky top-24 text-left">
             <div className="bg-white rounded-3xl border border-[#1A1714]/8 p-6 shadow-sm text-center">
               <h3 className="text-lg font-bold text-[#1A1714] mb-4" style={{ fontFamily: "'Bodoni Moda', serif" }}>Box Preview</h3>
-              
+
               <div className={`aspect-video w-full rounded-2xl flex flex-col justify-between p-4 mb-6 shadow-inner ${boxStyles.find(b => b.id === boxStyle)?.bg}`}>
                 <div className="flex justify-between items-start">
                   <div className="flex gap-1.5">
@@ -3867,7 +3908,7 @@ function BundleBuilderPage() {
 function WholesalePage() {
   const { navigate, wholesaleData, logAnalyticsEvent, products } = useApp();
   useSEO("Wholesale & Bulk Spice Sourcing", "Direct farm-to-warehouse trade, certified organic quality, bulk packaging (5kg–25kg) for restaurants, hotels, and distributors.");
-  
+
   const [formData, setFormData] = useState({
     businessName: "",
     contactName: "",
@@ -3877,7 +3918,7 @@ function WholesalePage() {
     volume: wholesaleData?.volume || "",
     message: ""
   });
-  
+
   const [errors, setErrors] = useState<any>({});
   const [submitted, setSubmitted] = useState(false);
   const [downloading, setDownloading] = useState(false);
@@ -3910,7 +3951,7 @@ function WholesalePage() {
       if (storedContact) {
         setCmsContact(JSON.parse(storedContact));
       }
-      
+
       const storedProducts = localStorage.getItem("spiceora_pdf_products");
       if (storedProducts) {
         const parsed = JSON.parse(storedProducts);
@@ -3929,7 +3970,7 @@ function WholesalePage() {
       const storedTemplate = localStorage.getItem("spiceora_pdf_template");
       if (storedTemplate) {
         const parsed = JSON.parse(storedTemplate);
-        
+
         const colorMap: Record<string, number[]> = {
           green: [42, 74, 60],
           gold: [201, 146, 10],
@@ -4044,7 +4085,7 @@ function WholesalePage() {
       doc.rect(20, 98, 170, 120, "FD");
 
       let cardY = 108;
-      
+
       doc.setFont("Helvetica", "bold");
       doc.setFontSize(15);
       doc.setTextColor(primary[0], primary[1], primary[2]);
@@ -4052,7 +4093,7 @@ function WholesalePage() {
       cardY += 12;
 
       doc.setFontSize(11);
-      
+
       doc.setFont("Helvetica", "normal");
       doc.setTextColor(26, 23, 20);
       doc.text("Business Name:", 30, cardY);
@@ -4150,7 +4191,7 @@ function WholesalePage() {
           doc.setFillColor(245, 243, 237);
           doc.rect(20, rowY, 170, 10, "F");
         }
-        
+
         doc.setDrawColor(26, 23, 20, 0.08);
         doc.rect(20, rowY, 170, 10, "S");
 
@@ -4164,7 +4205,7 @@ function WholesalePage() {
         doc.text(row.p250, 110, rowY + 6.5);
         doc.text(row.p500, 135, rowY + 6.5);
         doc.text(row.p1000, 160, rowY + 6.5);
-        
+
         rowY += 10;
       });
 
@@ -4292,8 +4333,8 @@ function WholesalePage() {
               Direct Farm Sourcing & Bulk Spice Supply
             </h1>
             <p className="text-lg text-white/80 leading-relaxed mb-8">
-              We source directly from sustainable organic farms in Kerala, Rajasthan, and Ceylon. 
-              Custom milling, graded quality batches, and container-ready bulk packaging built for 
+              We source directly from sustainable organic farms in Kerala, Rajasthan, and Ceylon.
+              Custom milling, graded quality batches, and container-ready bulk packaging built for
               premium restaurants, five-star kitchens, food manufacturers, and boutique distributors.
             </p>
             <div className="flex flex-wrap gap-4">
@@ -4347,7 +4388,7 @@ function WholesalePage() {
       <section className="py-16 lg:py-24" id="quote-form">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12">
-            
+
             {/* Direct Channels Sidebar */}
             <div className="lg:col-span-4 space-y-6">
               <div className="bg-white rounded-3xl border border-[#1A1714]/8 p-6 lg:p-8">
@@ -4357,7 +4398,7 @@ function WholesalePage() {
                 <p className="text-sm text-[#7A7064] mb-6 leading-relaxed">
                   Need custom packaging, mill sizing, or specific shipping schedules? Talk directly to our wholesale account executives.
                 </p>
-                
+
                 <div className="space-y-4">
                   {/* WhatsApp Support */}
                   <a href={`https://wa.me/91${cmsContact.whatsapp}?text=Hello%2C%20I%20am%20interested%20in%20sourcing%20spices%20in%20bulk.`} target="_blank" rel="noreferrer"
@@ -4413,7 +4454,7 @@ function WholesalePage() {
             {/* Sourcing Form */}
             <div className="lg:col-span-8">
               <div className="bg-white rounded-3xl border border-[#1A1714]/8 p-6 lg:p-8 shadow-sm">
-                
+
                 {submitted ? (
                   <div className="py-12 text-center max-w-md mx-auto">
                     <div className="w-16 h-16 rounded-full bg-[#2A4A3C]/10 text-[#2A4A3C] flex items-center justify-center mx-auto mb-6">
@@ -4454,7 +4495,7 @@ function WholesalePage() {
                           className={`w-full bg-[#FAF8F3] border rounded-xl px-4 py-3 text-sm outline-none focus:border-[#2A4A3C] transition-all ${errors.businessName ? "border-red-400" : "border-[#1A1714]/12"}`} />
                         {errors.businessName && <p className="text-xs text-red-500 mt-1">{errors.businessName}</p>}
                       </div>
-                      
+
                       <div>
                         <label className="text-xs font-semibold text-[#7A7064] uppercase tracking-widest mb-1.5 block">Contact Person Name *</label>
                         <input name="contactName" value={formData.contactName} onChange={handleChange} placeholder="e.g. Ramesh Kumar"
@@ -4525,11 +4566,11 @@ function WholesalePage() {
                 )}
               </div>
             </div>
-            
+
           </div>
         </div>
       </section>
-      
+
       <Footer />
     </div>
   );
@@ -4590,11 +4631,10 @@ function TelemetryDrawer() {
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: i < 5 ? i * 0.05 : 0 }}
-                    className={`p-3 rounded-lg border text-left transition-all ${
-                      i === 0
+                    className={`p-3 rounded-lg border text-left transition-all ${i === 0
                         ? "bg-[#2A4A3C]/5 border-[#2A4A3C]/20 shadow-[0_2px_8px_rgba(42,74,60,0.06)]"
                         : "bg-white border-[#1A1714]/6 text-opacity-80"
-                    }`}
+                      }`}
                   >
                     <div className="flex justify-between items-center mb-1">
                       <span className="font-semibold text-[#2A4A3C] uppercase tracking-wide text-[9px]">
@@ -4743,23 +4783,16 @@ export default function App() {
         ]);
         setProducts(dataP || []);
         setCategories([
-              { id: "all", name: "All Spices", count: 0 },
-              ...(dataC || []).map((c: any) => ({
-                id: c.slug || String(c.id),
-                name: c.name,
-                count: 0,
-                description: c.description || ""
-              }))
-            ]);
-        setRecipes((dataR || []).map((r: any) => ({
-          ...r,
-          image: r.image || r.imageUrl || "https://images.unsplash.com/photo-1596040033229-a9821ebd058d?w=800&fit=crop",
-          time: r.time || (r.prepMinutes || r.cookMinutes ? `${(r.prepMinutes || 0) + (r.cookMinutes || 0)} mins` : "30 mins"),
-          difficulty: r.difficulty || "medium",
-          spices: Array.isArray(r.spices) ? r.spices : (r.tags ? (Array.isArray(r.tags) ? r.tags : String(r.tags).split(",")) : []),
-          ingredients: Array.isArray(r.ingredients) ? r.ingredients : [],
-          instructions: Array.isArray(r.instructions) ? r.instructions : [],
-        })));
+          { id: "all", name: "All Spices", count: 0 },
+          ...(dataC || []).map((c: any) => ({
+            id: c.slug || String(c.id),
+            name: c.name,
+            count: 0,
+            description: c.description || "",
+            image: c.imageUrl || ""
+          }))
+        ]);
+        setRecipes(dataR || []);
         setTestimonials((dataReviews || []).map((row: any) => ({
           id: row.review.id,
           name: row.review.displayName || `${row.customer?.firstName || ""} ${row.customer?.lastName || ""}`.trim() || "Verified customer",
@@ -4785,7 +4818,7 @@ export default function App() {
           const parts = (u.name || "").trim().split(/\s+/);
           const firstName = parts.shift() || u.email.split("@")[0] || "User";
           const lastName = parts.join(" ") || "";
-          authApi.syncClerk({ email: u.email, firstName, lastName, phone: u.phone }).catch(() => {});
+          authApi.syncClerk({ email: u.email, firstName, lastName, phone: u.phone }).catch(() => { });
         }
       } catch (e) {
         localStorage.removeItem("spiceora_user");
@@ -4794,7 +4827,7 @@ export default function App() {
 
     const stored = localStorage.getItem("spiceora_recently_viewed");
     if (stored) {
-      try { setRecentlyViewed(JSON.parse(stored)); } catch (e) {}
+      try { setRecentlyViewed(JSON.parse(stored)); } catch (e) { }
     }
   }, []);
 
@@ -5062,7 +5095,7 @@ export default function App() {
 function AuthModal() {
   const { authModalOpen, setAuthModalOpen, login, signup, forgotPassword } = useApp();
   const [mode, setMode] = useState<'login' | 'signup' | 'forgot'>('login');
-  
+
   useEffect(() => {
     if (authModalOpen && authModalOpen !== 'closed') {
       setMode(authModalOpen);

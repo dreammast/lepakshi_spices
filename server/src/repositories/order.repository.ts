@@ -1,4 +1,4 @@
-import { desc, eq } from 'drizzle-orm';
+import { desc, eq, and, gte, sql } from 'drizzle-orm';
 import { db } from '../config/database.js';
 import { orderItems, orders, productVariants, products, customerProfiles, addresses } from '../db/schema.js';
 
@@ -20,7 +20,15 @@ export async function createOrderRecord(input: CreateOrderInput) {
   const discount = Number(input.discountAmount || 0);
   const now = new Date();
 
-  const [orderRes] = await db.insert(orders).values({
+  const orderId = await db.transaction(async (tx) => {
+  for (const item of input.items) {
+    const result: any = await tx.update(productVariants)
+      .set({ stock: sql`${productVariants.stock} - ${item.quantity}`, updatedAt: now })
+      .where(and(eq(productVariants.id, item.productVariantId), gte(productVariants.stock, item.quantity)));
+    if (!result.affectedRows) throw new Error(`Insufficient stock for product variant ${item.productVariantId}`);
+  }
+
+  const [orderRes] = await tx.insert(orders).values({
     orderNumber: generateOrderNumber(),
     customerId: input.customerId,
     subtotalAmount: String(totalAmount),
@@ -36,10 +44,8 @@ export async function createOrderRecord(input: CreateOrderInput) {
     updatedAt: now
   });
 
-  const orderId = orderRes.insertId;
-
   if (input.items.length > 0) {
-    await db.insert(orderItems).values(
+    await tx.insert(orderItems).values(
       input.items.map(item => ({
         orderId,
         productVariantId: item.productVariantId,
@@ -48,7 +54,8 @@ export async function createOrderRecord(input: CreateOrderInput) {
       }))
     );
   }
-
+  return orderRes.insertId;
+  });
   return findOrderById(orderId);
 }
 

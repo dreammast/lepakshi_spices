@@ -20,6 +20,7 @@ const loginSchema = z.object({
   email: z.string().email(),
   password: z.string().min(1)
 });
+const adminLoginSchema = z.object({ username: z.string().min(1), password: z.string().min(1) });
 
 router.post('/register', validateBody(registerSchema), asyncHandler(registerController));
 router.post('/login', validateBody(loginSchema), asyncHandler(loginController));

@@ -20,7 +20,7 @@ import {
   PieChart, Pie, Cell,
 } from "recharts";
 import { SmartPricingAssistant } from "./components/SmartPricingAssistant";
-import { categoriesApi, customersApi, ordersApi, couponsApi, campaignsApi, recipesApi, reviewsApi, wholesaleApi, productsApi, dashboardApi } from "../lib/apiClient";
+import { authApi, auditApi, categoriesApi, customersApi, ordersApi, couponsApi, campaignsApi, recipesApi, reviewsApi, wholesaleApi, productsApi, dashboardApi } from "../lib/apiClient";
 
 // ─── Brand Tokens ─────────────────────────────────────────────
 const C = {
@@ -248,18 +248,20 @@ function ImageDropzone({ value, onChange }: { value: string; onChange: (url: str
       reader.onload = async (e) => {
         const base64 = e.target?.result as string;
         try {
+          const stored = localStorage.getItem("spiceora_admin");
+          const token = stored ? JSON.parse(stored).token : null;
           const res = await fetch("http://localhost:4000/api/upload", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
             body: JSON.stringify({ image: base64, filename: file.name })
           });
           const json = await res.json();
-          const url = json.data?.url || json.url || base64;
+          if (!res.ok || !json.data?.url || !json.data.url.includes("res.cloudinary.com")) throw new Error(json.message || "Cloudinary upload failed");
+          const url = json.data.url;
           onChange(url);
           toast.success("Image uploaded to Cloudinary!");
         } catch (err) {
-          onChange(base64);
-          toast.success("Image loaded successfully!");
+          toast.error(err instanceof Error ? err.message : "Cloudinary upload failed");
         }
         setUploading(false);
       };
@@ -366,8 +368,8 @@ const NAV_GROUPS = [
   }
 ];
 
-function Sidebar({ page, setPage, collapsed, setCollapsed }: {
-  page: string; setPage: (p: string) => void; collapsed: boolean; setCollapsed: (v: boolean) => void;
+function Sidebar({ page, setPage, collapsed, setCollapsed, onLogout }: {
+  page: string; setPage: (p: string) => void; collapsed: boolean; setCollapsed: (v: boolean) => void; onLogout: () => void;
 }) {
   return (
     <motion.aside animate={{ width: collapsed ? 72 : 256 }} transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
@@ -442,7 +444,7 @@ function Sidebar({ page, setPage, collapsed, setCollapsed }: {
             )}
           </AnimatePresence>
           {!collapsed && (
-            <button onClick={() => toast("Signed out", { description: "You have been logged out." })}
+            <button onClick={onLogout}
               className="w-6 h-6 rounded-lg flex items-center justify-center shrink-0 transition-colors duration-150"
               style={{ color: "rgba(255,255,255,0.35)" }}
               onMouseEnter={e => (e.currentTarget.style.color = "rgba(255,255,255,0.8)")}
@@ -554,17 +556,25 @@ function DashboardPage({ navigateTo }: { navigateTo: (p: string) => void }) {
   const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const requestInFlight = useRef<Promise<void> | null>(null);
+  const cacheTimestamp = useRef(0);
 
   const fetchStats = async () => {
+    if (requestInFlight.current) return requestInFlight.current;
+    if (Date.now() - cacheTimestamp.current < 3000 && stats) return;
+    requestInFlight.current = (async () => {
     try {
       const data = await dashboardApi.getStats();
       setStats(data);
       setLastUpdated(new Date());
+      cacheTimestamp.current = Date.now();
     } catch (err) {
       console.warn("Dashboard stats fetch failed:", err);
     } finally {
       setLoading(false);
     }
+    })();
+    try { await requestInFlight.current; } finally { requestInFlight.current = null; }
   };
 
   useEffect(() => {
@@ -889,7 +899,8 @@ function ProductsPage() {
             id: String(c.id),
             name: c.name,
             count: 0,
-            description: c.description || ""
+            description: c.description || "",
+            imageUrl: c.imageUrl || ""
           })));
           localStorage.setItem("spiceora_categories", JSON.stringify(dataC));
         }
@@ -946,18 +957,18 @@ function ProductsPage() {
   // Category CRUD state
   const [catModalOpen, setCatModalOpen] = useState(false);
   const [editingCat, setEditingCat] = useState<any | null>(null);
-  const [catForm, setCatForm] = useState({ name: "", description: "" });
+  const [catForm, setCatForm] = useState({ name: "", description: "", imageUrl: "" });
 
   const handleStartAddCat = () => {
     setEditingCat(null);
-    setCatForm({ name: "", description: "" });
+    setCatForm({ name: "", description: "", imageUrl: "" });
     setCatModalOpen(true);
   };
 
   const handleStartEditCat = (cat: any, e: React.MouseEvent) => {
     e.stopPropagation();
     setEditingCat(cat);
-    setCatForm({ name: cat.name, description: cat.description || "" });
+    setCatForm({ name: cat.name, description: cat.description || "", imageUrl: cat.imageUrl || "" });
     setCatModalOpen(true);
   };
 
@@ -971,11 +982,11 @@ function ProductsPage() {
       if (editingCat) {
         const numId = Number(editingCat.id);
         if (!isNaN(numId)) {
-          await categoriesApi.update(numId, { name: catForm.name, slug, description: catForm.description });
+          await categoriesApi.update(numId, { name: catForm.name, slug, description: catForm.description, imageUrl: catForm.imageUrl });
         }
         toast.success("Category updated successfully");
       } else {
-        await categoriesApi.create({ name: catForm.name, slug, description: catForm.description });
+        await categoriesApi.create({ name: catForm.name, slug, description: catForm.description, imageUrl: catForm.imageUrl });
         toast.success("New category created successfully");
       }
       setCatModalOpen(false);
@@ -1111,17 +1122,14 @@ function ProductsPage() {
 
 
   // Inventory Save
-  const handleSaveInventory = () => {
-    setProducts(prev => prev.map(p => {
-      const change = inventoryChanges[p.id];
-      if (change) {
-        return { ...p, stock: change.stock, lowStockThreshold: change.lowStockThreshold };
-      }
-      return p;
-    }));
-    setInventoryChanges({});
-    toast.success("Inventory stock levels updated");
-    fireDashboardRefresh();
+  const handleSaveInventory = async () => {
+    try {
+      await Promise.all(Object.entries(inventoryChanges).map(([id, change]) => productsApi.update(Number(id), change)));
+      await loadDbData();
+      setInventoryChanges({});
+      toast.success("Inventory stock levels updated");
+      fireDashboardRefresh();
+    } catch (err: any) { toast.error(err.message || "Failed to update inventory"); }
   };
 
   // Review Actions
@@ -1547,6 +1555,7 @@ function ProductsPage() {
               <div className="space-y-4">
                 <Field label="Category Name" value={catForm.name} onChange={v => setCatForm({ ...catForm, name: v })} placeholder="e.g. Whole Seeds & Pods" />
                 <Field label="Category Description" value={catForm.description} onChange={v => setCatForm({ ...catForm, description: v })} as="textarea" placeholder="Describe spices grouped under this category..." />
+                <ImageDropzone value={catForm.imageUrl} onChange={url => setCatForm({ ...catForm, imageUrl: url })} />
               </div>
 
               <div className="flex justify-end gap-3 pt-3 border-t">
@@ -2549,7 +2558,7 @@ function SettingsPage() {
         await couponsApi.update(existing.id, { isActive: !existing.active });
       }
       setCoupons(prev => prev.map(c => c.code === code ? { ...c, active: !c.active } : c));
-      toast.success("Coupon status updated");
+      toast.success(`Coupon ${!existing.active ? "activated" : "deactivated"}`, { description: existing.code });
     } catch (err: any) {
       toast.error(err.message || "Failed to update coupon status");
     }
@@ -3029,11 +3038,6 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
 
   const saveInquiries = (updated: any[]) => {
     setInquiries(updated);
-    try {
-      localStorage.setItem("spiceora_wholesale_inquiries", JSON.stringify(updated));
-    } catch (e) {
-      console.error(e);
-    }
   };
 
   const addAuditLog = (action: string, details: string) => {
@@ -3059,9 +3063,12 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
     contacted:      { label: "Contacted",      bg: "#E8F2FE", text: "#1B5EAD", dot: "#2B7FE2" },
     quotation_sent: { label: "Quotation Sent", bg: "#EBF5E6", text: "#2D5016", dot: "#4A7A2A" },
     negotiation:    { label: "Negotiation",    bg: "#FFF4E5", text: "#B26A00", dot: "#ED8936" },
+    approved:       { label: "Approved",       bg: "#EBF5E6", text: "#2D5016", dot: "#4A7A2A" },
+    processing:     { label: "Processing",     bg: "#E8F2FE", text: "#1B5EAD", dot: "#2B7FE2" },
     converted:      { label: "Converted",      bg: "rgba(45,80,22,0.15)", text: "#1A3A0A", dot: "#2D5016" },
     completed:      { label: "Completed",      bg: "#EBF5E6", text: "#1A3A0A", dot: "#2D5016" },
     rejected:       { label: "Rejected",       bg: "#FDECEA", text: "#C94040", dot: "#C94040" },
+    cancelled:      { label: "Cancelled",      bg: "#FDECEA", text: "#C94040", dot: "#C94040" },
   };
 
   // ── Inline Quote Builder Helpers ───────────────────────────────
@@ -3336,7 +3343,7 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
     }
   };
 
-  const handleBulkAction = () => {
+  const handleBulkAction = async () => {
     if (selectedIds.length === 0) {
       toast.error("Please select one or more inquiries first.");
       return;
@@ -3344,7 +3351,8 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
 
     let updated = [...inquiries];
     if (bulkStatus) {
-      updated = updated.map(inq => selectedIds.includes(inq.id) ? { ...inq, status: bulkStatus } : inq);
+      await Promise.all(selectedIds.map(id => wholesaleApi.updateInquiryStatus(Number(id), bulkStatus)));
+      updated = inquiries.map(inq => selectedIds.includes(inq.id) ? { ...inq, status: bulkStatus } : inq);
       addAuditLog("Bulk Status Update", `Changed status of ${selectedIds.length} inquiries to ${bulkStatus}`);
       toast.success(`Updated ${selectedIds.length} statuses`);
       setBulkStatus("");
@@ -3357,6 +3365,7 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
     }
     
     saveInquiries(updated);
+    if (bulkStatus === "") refreshInquiries();
     setSelectedIds([]);
   };
 
@@ -3372,12 +3381,15 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
     setSelectedIds([]);
   };
 
-  const handleUpdateSingleInquiry = (id: string, fields: any) => {
-    const updated = inquiries.map(inq => inq.id === id ? { ...inq, ...fields } : inq);
+  const handleUpdateSingleInquiry = async (id: string, fields: any) => {
+    let serverInquiry = null;
+    if (fields.status) serverInquiry = await wholesaleApi.updateInquiryStatus(Number(id), fields.status);
+    const updated = inquiries.map(inq => inq.id === id ? { ...inq, ...(serverInquiry || {}), ...fields } : inq);
     saveInquiries(updated);
     if (activeInquiry && activeInquiry.id === id) {
       setActiveInquiry({ ...activeInquiry, ...fields });
     }
+    await refreshInquiries();
     toast.success("Inquiry updated successfully");
     fireDashboardRefresh();
   };
@@ -4010,7 +4022,9 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
                   <option value="new">New Inquiry</option>
                   <option value="contacted">Contacted Partner</option>
                   <option value="quotation_sent">Quotation Sent</option>
-                  <option value="negotiation">In Negotiation</option>
+              <option value="negotiation">In Negotiation</option>
+              <option value="approved">Approved</option>
+              <option value="processing">Processing</option>
                   <option value="converted">Converted</option>
                   <option value="completed">Completed</option>
                   <option value="rejected">Rejected</option>
@@ -5359,6 +5373,7 @@ function QuotationManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
               <option value="sent">Sent</option>
               <option value="accepted">Accepted</option>
               <option value="rejected">Rejected</option>
+              <option value="cancelled">Cancelled</option>
               <option value="expired">Expired</option>
             </select>
             <button onClick={handleApplyBulkStatus} className="px-3 py-1.5 rounded-lg bg-[#2D5016] text-white text-xs font-medium cursor-pointer">Apply Status</button>
@@ -5652,14 +5667,10 @@ function ProductCatalogCMSPage() {
   ];
 
   // Audit Logs database
-  const [auditLogs, setAuditLogs] = useState<any[]>(() => {
-    try {
-      const saved = localStorage.getItem("spiceora_audit_logs");
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  });
+  const [auditLogs, setAuditLogs] = useState<any[]>([]);
+  useEffect(() => {
+    auditApi.list({ page: "1", pageSize: "100" }).then(setAuditLogs).catch(() => setAuditLogs([]));
+  }, []);
 
   const triggerProfileSave = () => {
     localStorage.setItem("spiceora_catalog_settings", JSON.stringify(companyProfile));
@@ -6544,7 +6555,7 @@ function CouponsPage() {
     if (!coupon) return;
     await couponsApi.update(coupon.id, { isActive: !coupon.active });
     await loadCoupons();
-    toast.success("Coupon status updated");
+    toast.success(`Coupon ${!coupon.active ? "activated" : "deactivated"}`, { description: coupon.code });
     fireDashboardRefresh();
   };
 
@@ -7101,7 +7112,33 @@ function WebsiteCMSPage() {
   );
 }
 
+function AdminLogin({ onLogin }: { onLogin: () => void }) {
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault(); setLoading(true); setError("");
+    try {
+      const result = await authApi.adminLogin(username.trim(), password);
+      localStorage.setItem("spiceora_admin", JSON.stringify(result));
+      onLogin();
+    } catch (err) { setError(err instanceof Error ? err.message : "Unable to sign in"); }
+    finally { setLoading(false); }
+  };
+  return <div className="min-h-screen flex items-center justify-center p-6" style={{ backgroundColor: C.bg, fontFamily: "'DM Sans', sans-serif" }}>
+    <form onSubmit={submit} className="w-full max-w-sm rounded-3xl p-8 space-y-5" style={{ background: C.card, border: `1px solid ${C.border}`, boxShadow: "0 12px 40px rgba(44,36,22,0.10)" }}>
+      <div className="text-center"><div className="mx-auto mb-4 w-12 h-12 rounded-2xl flex items-center justify-center" style={{ background: C.green, color: "white" }}><ShieldCheck className="w-6 h-6" /></div><h1 className="text-2xl font-semibold" style={{ color: C.charcoal, fontFamily: "'Playfair Display', serif" }}>Admin sign in</h1><p className="text-sm mt-1" style={{ color: C.muted }}>Sign in to manage Lepakshi Spices</p></div>
+      <div className="space-y-3"><input required autoFocus value={username} onChange={e => setUsername(e.target.value)} placeholder="Username" className="w-full rounded-xl px-4 py-3 outline-none" style={{ background: "#F0EDE8", color: C.charcoal }} /><input required type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Password" className="w-full rounded-xl px-4 py-3 outline-none" style={{ background: "#F0EDE8", color: C.charcoal }} /></div>
+      {error && <p className="text-sm text-center" style={{ color: C.error }}>{error}</p>}
+      <button disabled={loading} className="w-full rounded-xl py-3 font-medium text-white disabled:opacity-60" style={{ background: C.green }}>{loading ? "Signing in…" : "Sign in"}</button>
+    </form>
+  </div>;
+}
+
 export default function App() {
+  const [authenticated, setAuthenticated] = useState(() => Boolean(localStorage.getItem("spiceora_admin")));
+  if (!authenticated) return <AdminLogin onLogin={() => setAuthenticated(true)} />;
   const [page, setPage] = useState("dashboard");
   const [collapsed, setCollapsed] = useState(false);
   const [bellOpen, setBellOpen] = useState(false);
@@ -7197,7 +7234,7 @@ export default function App() {
       <Toaster position="top-right" toastOptions={{
         style: { background: C.card, color: C.charcoal, border: `1px solid ${C.border}`, borderRadius: 14, fontFamily: "DM Sans, sans-serif", fontSize: 13, boxShadow: "0 8px 30px rgba(26,58,10,0.14)" },
       }} richColors />
-      <Sidebar page={page} setPage={navigate} collapsed={collapsed} setCollapsed={setCollapsed} />
+      <Sidebar page={page} setPage={navigate} collapsed={collapsed} setCollapsed={setCollapsed} onLogout={async () => { try { await authApi.adminLogout(); } catch {} localStorage.clear(); sessionStorage.clear(); setAuthenticated(false); }} />
       <div data-headernav>
         <Header page={page} offset={sideW} notifs={NOTIFS} bellOpen={bellOpen} onBell={() => setBellOpen(v => !v)} toggleDarkMode={toggleDarkMode} darkMode={darkMode} openCommandPalette={() => setCmdOpen(true)} />
       </div>

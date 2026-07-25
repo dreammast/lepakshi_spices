@@ -280,7 +280,8 @@ export async function updateProductRecord(id: number, data: {
 
   const existingVariants = await db.select().from(productVariants).where(eq(productVariants.productId, id));
   const existingPrices = Object.fromEntries(existingVariants.map(v => [v.weightGrams, Number(v.price)]));
-  const prices = buildPriceMap(basePrice ?? updateFields.basePrice ?? 0, {
+  const existingBasePrice = existingVariants.find(v => v.isDefault)?.price ?? existingVariants[0]?.price ?? 0;
+  const prices = buildPriceMap(basePrice ?? updateFields.basePrice ?? existingBasePrice, {
     p100: data.prices?.p100 ?? existingPrices[100],
     p250: data.prices?.p250 ?? existingPrices[250],
     p500: data.prices?.p500 ?? existingPrices[500],

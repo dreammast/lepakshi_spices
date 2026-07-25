@@ -13,11 +13,12 @@ export async function findCategoryBySlug(slug: string) {
   return category ?? null;
 }
 
-export async function createCategoryRecord(data: { name: string; slug: string; description?: string }) {
+export async function createCategoryRecord(data: { name: string; slug: string; description?: string; imageUrl?: string }) {
   const [res] = await db.insert(categories).values({
     name: data.name,
     slug: data.slug,
     description: data.description,
+    imageUrl: data.imageUrl,
     createdAt: new Date(),
     updatedAt: new Date()
   });
@@ -28,7 +29,7 @@ export async function deleteCategoryRecord(id: number) {
   return db.delete(categories).where(eq(categories.id, id));
 }
 
-export async function updateCategoryRecord(id: number, data: { name?: string; slug?: string; description?: string }) {
+export async function updateCategoryRecord(id: number, data: { name?: string; slug?: string; description?: string; imageUrl?: string }) {
   await db.update(categories).set({ ...data, updatedAt: new Date() }).where(eq(categories.id, id));
   const [updated] = await db.select().from(categories).where(eq(categories.id, id));
   return updated ?? null;

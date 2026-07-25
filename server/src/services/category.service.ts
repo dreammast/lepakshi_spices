@@ -13,7 +13,7 @@ export async function getCategoryBySlug(slug: string) {
   return category;
 }
 
-export async function createCategory(data: { name: string; slug: string; description?: string }) {
+export async function createCategory(data: { name: string; slug: string; description?: string; imageUrl?: string }) {
   return createCategoryRecord(data);
 }
 
@@ -21,7 +21,7 @@ export async function deleteCategory(id: number) {
   return deleteCategoryRecord(id);
 }
 
-export async function updateCategory(id: number, data: { name?: string; slug?: string; description?: string }) {
+export async function updateCategory(id: number, data: { name?: string; slug?: string; description?: string; imageUrl?: string }) {
   return updateCategoryRecord(id, data);
 }
 

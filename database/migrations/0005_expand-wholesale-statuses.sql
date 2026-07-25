@@ -1,0 +1,1 @@
+ALTER TABLE `wholesale_inquiries` MODIFY COLUMN `status` enum('new','reviewing','quoted','contacted','quotation_sent','negotiation','approved','processing','converted','completed','rejected','cancelled','closed') NOT NULL DEFAULT 'new';
