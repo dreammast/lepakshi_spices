@@ -54,9 +54,23 @@ export const authApi = {
     api.post<{ user: any; token: string }>('/auth/login', { email, password }),
   register: (body: { email: string; password: string; firstName: string; lastName?: string; phone?: string }) =>
     api.post<{ user: any; token: string }>('/auth/register', body),
-  syncClerk: (body: { email: string; firstName?: string; lastName?: string; phone?: string; clerkId?: string }) =>
-    api.post<{ user: any; token: string }>('/auth/sync-clerk', body),
-  me: () => api.get<any>('/auth/me')
+  syncOAuth: (body: { email: string; firstName?: string; lastName?: string; avatarUrl?: string }) =>
+    api.post<{ user: any; token: string }>('/auth/sync-oauth', body),
+  me: () => api.get<any>('/auth/me'),
+  forgotPassword: (email: string) =>
+    api.post<{ message: string }>('/auth/forgot-password', { email }),
+  verifyResetOtp: (email: string, otp: string) =>
+    api.post<{ message: string }>('/auth/verify-reset-otp', { email, otp }),
+  resetPassword: (email: string, otp: string, newPassword: string) =>
+    api.post<{ message: string }>('/auth/reset-password', { email, otp, newPassword }),
+  changePassword: (currentPassword: string, newPassword: string) =>
+    api.post<{ message: string }>('/auth/change-password', { currentPassword, newPassword }),
+  updateProfile: (body: { firstName?: string; lastName?: string; phone?: string; avatarUrl?: string }) =>
+    api.post<any>('/auth/update-profile', body),
+  sendVerificationEmail: () =>
+    api.post<{ message: string }>('/auth/send-verification-email'),
+  verifyEmail: (email: string, token: string) =>
+    api.post<{ message: string }>('/auth/verify-email', { email, token }),
 };
 
 export const productsApi = {

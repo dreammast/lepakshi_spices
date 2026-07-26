@@ -8,8 +8,6 @@
     "dev": "vite"
   },
   "dependencies": {
-    "@clerk/clerk-react": "^5.61.9",
-    "@clerk/react-router": "^3.5.15",
     "@emotion/react": "11.14.0",
     "@emotion/styled": "11.14.1",
     "@mui/icons-material": "7.3.5",
