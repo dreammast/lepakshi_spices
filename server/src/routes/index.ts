@@ -48,13 +48,13 @@ router.use('/admin/recipes', authenticate, requireRole('admin', 'staff', 'manage
 router.use('/recipes', recipePublicRouter);
 router.use('/admin/reviews', authenticate, requireRole('admin', 'staff', 'manager'), adminReviewRouter);
 router.use('/admin/settings', authenticate, requireRole('admin', 'staff', 'manager'), settingsAdminRouter);
-router.use('/settings', settingsPublicRouter);
-router.use('/admin', authenticate, requireRole('admin', 'staff', 'manager'), wholesaleAdminRouter);
-router.use('/wholesale-inquiries', wholesalePublicRouter);
-router.use('/', packagingRoute);
 router.use('/admin/customers', authenticate, requireRole('admin', 'staff', 'manager'), adminCustomerRoute);
 router.use('/admin/audit-logs', authenticate, requireRole('admin', 'staff', 'manager'), auditRoute);
 router.get('/admin/dashboard/stats', authenticate, requireRole('admin', 'staff', 'manager'), asyncHandler(getDashboardStatsController));
+router.use('/admin', authenticate, requireRole('admin', 'staff', 'manager'), wholesaleAdminRouter);
+router.use('/settings', settingsPublicRouter);
+router.use('/wholesale-inquiries', wholesalePublicRouter);
+router.use('/', packagingRoute);
 
 router.use('/entities', authenticate, requireRole('admin'), genericRoute);
 

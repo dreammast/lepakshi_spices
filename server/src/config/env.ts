@@ -33,7 +33,16 @@ const envSchema = z.object({
   ADMIN_PASSWORD: z.string().min(1).default('change-me'),
   CLOUDINARY_URL: z.string().optional(),
   RAZORPAY_KEY_ID: z.string().optional(),
-  RAZORPAY_KEY_SECRET: z.string().optional()
+  RAZORPAY_KEY_SECRET: z.string().optional(),
+  GOOGLE_CLIENT_ID: z.string().optional().default(''),
+  GOOGLE_CLIENT_SECRET: z.string().optional().default(''),
+  SMTP_HOST: z.string().optional().default('smtp-relay.brevo.com'),
+  SMTP_PORT: z.string().optional().default('587'),
+  SMTP_USER: z.string().optional().default(''),
+  SMTP_PASS: z.string().optional().default(''),
+  EMAIL_FROM: z.string().optional().default('Lepakshi Spices <noreply@lepakshispices.com>'),
+  FRONTEND_URL: z.string().optional().default('http://localhost:5174'),
+  BETTER_AUTH_SECRET: z.string().optional().default('lepakshi-better-auth-secret-2026'),
 });
 
 const parsedEnv = envSchema.safeParse(process.env);

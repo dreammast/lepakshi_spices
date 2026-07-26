@@ -1,7 +1,5 @@
 import { useState, useEffect, useRef, createContext, useContext } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { SignInButton, SignUpButton, SignedIn, SignedOut, UserButton, useUser, useAuth, useClerk } from "@clerk/clerk-react";
-import { toast, Toaster } from "sonner";
 import {
   ShoppingCart, Heart, Search, User, Menu, X, Star, ChevronRight,
   ChevronLeft, ChevronDown, Plus, Minus, Trash2, ArrowRight, Package,
@@ -10,7 +8,7 @@ import {
   Instagram, Facebook, Twitter, Youtube, Mail, Globe, Zap, CheckCircle,
   AlertCircle, BookOpen, Tag, Clock, HelpCircle, FileText, Phone
 } from "lucide-react";
-import { campaignsApi, cartApi, ordersApi, productsApi, categoriesApi, recipesApi, reviewsApi, settingsApi, wholesaleInquiryApi, addressesApi } from "../lib/apiClient";
+import { authApi, campaignsApi, cartApi, ordersApi, productsApi, categoriesApi, recipesApi, reviewsApi, settingsApi, wholesaleInquiryApi, addressesApi } from "../lib/apiClient";
 
 
 // ─── DATA & LIVE API INTEGRATION ──────────────────────────────────────────────────
@@ -499,23 +497,17 @@ function Header() {
 
             {/* Profile */}
             <div className="relative hidden sm:flex items-center gap-2">
-              <SignedOut>
-                <SignInButton mode="modal">
-                  <button className="px-4 py-2 text-sm font-medium text-[#2A4A3C] hover:bg-[#2A4A3C]/8 rounded-xl transition-all cursor-pointer">
+              {!user && (
+                <>
+                  <button onClick={() => setAuthModalOpen("login")} className="px-4 py-2 text-sm font-medium text-[#2A4A3C] hover:bg-[#2A4A3C]/8 rounded-xl transition-all cursor-pointer">
                     Sign In
                   </button>
-                </SignInButton>
-                <SignUpButton mode="modal">
-                  <button className="px-4 py-2 text-sm font-medium bg-[#2A4A3C] text-white rounded-xl hover:bg-[#1E352B] transition-all cursor-pointer shadow-sm">
+                  <button onClick={() => setAuthModalOpen("signup")} className="px-4 py-2 text-sm font-medium bg-[#2A4A3C] text-white rounded-xl hover:bg-[#1E352B] transition-all cursor-pointer shadow-sm">
                     Sign Up
                   </button>
-                </SignUpButton>
-              </SignedOut>
-              <SignedIn>
-                <UserButton showName />
-              </SignedIn>
+                </>
+              )}
 
-              {/* Local user fallback */}
               {user && (
                 <>
                   <button onClick={() => { setProfileOpen(v => !v); setNotifOpen(false); }}
@@ -4633,8 +4625,8 @@ function TelemetryDrawer() {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: i < 5 ? i * 0.05 : 0 }}
                     className={`p-3 rounded-lg border text-left transition-all ${i === 0
-                        ? "bg-[#2A4A3C]/5 border-[#2A4A3C]/20 shadow-[0_2px_8px_rgba(42,74,60,0.06)]"
-                        : "bg-white border-[#1A1714]/6 text-opacity-80"
+                      ? "bg-[#2A4A3C]/5 border-[#2A4A3C]/20 shadow-[0_2px_8px_rgba(42,74,60,0.06)]"
+                      : "bg-white border-[#1A1714]/6 text-opacity-80"
                       }`}
                   >
                     <div className="flex justify-between items-center mb-1">
@@ -4662,8 +4654,6 @@ function TelemetryDrawer() {
 // ─── APP ───────────────────────────────────────────────────────────────────────
 
 export default function App() {
-  const clerk = useClerk();
-  const { user: clerkUser, isSignedIn, isLoaded: isClerkLoaded } = useUser();
   const [products, setProducts] = useState<any[]>([]);
 
   const [categories, setCategories] = useState<any[]>([]);
@@ -4720,59 +4710,69 @@ export default function App() {
   const [redirectAfterLogin, setRedirectAfterLogin] = useState<string | null>(null);
   const [users, setUsers] = useState<any[]>([]);
 
-  // Sync Clerk authentication state to local user state and backend database
+  // Restore session from localStorage/sessionStorage on mount
   useEffect(() => {
-    if (isClerkLoaded && isSignedIn && clerkUser) {
-      const email = clerkUser.primaryEmailAddress?.emailAddress || "";
-      const firstName = clerkUser.firstName || clerkUser.fullName?.split(" ")[0] || "";
-      const lastName = clerkUser.lastName || clerkUser.fullName?.split(" ").slice(1).join(" ") || "";
-      const name = clerkUser.fullName || `${firstName} ${lastName}`.trim() || email || "User";
+    const params = new URLSearchParams(window.location.search);
+    const authSuccess = params.get('auth') === 'success';
 
-      authApi.syncClerk({ email, firstName, lastName, clerkId: clerkUser.id })
-        .then(res => {
-          if (res?.user) {
+    if (authSuccess) {
+      // After Better Auth OAuth redirect, exchange session cookie for JWT
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api';
+      fetch(`${API_URL}/auth/session-jwt`, { credentials: 'include' })
+        .then((r) => r.json())
+        .then((json) => {
+          if (json.success && json.data?.token) {
+            const userData = { ...json.data.user, token: json.data.token, isLoggedIn: true };
             setUser({
-              id: res.user.id,
-              name: `${res.user.firstName || ''} ${res.user.lastName || ''}`.trim() || email,
-              email: res.user.email,
-              token: res.token || `clerk_${clerkUser.id}`,
-              isLoggedIn: true,
-              clerkId: clerkUser.id
+              ...userData,
+              name: `${userData.firstName || ''} ${userData.lastName || ''}`.trim() || userData.email,
             });
+            const store = params.get('remember') === 'true' ? localStorage : sessionStorage;
+            store.setItem('spiceora_user', JSON.stringify(userData));
+            window.history.replaceState({}, '', window.location.pathname);
           }
         })
-        .catch(err => {
-          console.warn("Failed to sync user profile into database:", err);
-          setUser((prev: any) => prev || {
-            id: clerkUser.id,
-            name,
-            email,
-            token: `clerk_${clerkUser.id}`,
-            isLoggedIn: true,
-            clerkId: clerkUser.id
-          });
+        .catch(() => {
+          window.history.replaceState({}, '', window.location.pathname);
         });
-    } else if (isClerkLoaded && !isSignedIn) {
-      setUser((prev: any) => {
-        if (prev?.clerkId) {
-          localStorage.removeItem("spiceora_user");
-          sessionStorage.removeItem("spiceora_user");
-          return null;
-        }
-        return prev;
-      });
+      return;
     }
-  }, [isClerkLoaded, isSignedIn, clerkUser]);
+
+    const saved = localStorage.getItem("spiceora_user") || sessionStorage.getItem("spiceora_user");
+    if (saved) {
+      try {
+        const u = JSON.parse(saved);
+        if (u?.token && u?.isLoggedIn) {
+          authApi.me().then((profile: any) => {
+            if (profile) {
+              setUser({
+                ...u,
+                id: profile.id,
+                name: `${profile.firstName || ''} ${profile.lastName || ''}`.trim() || profile.email,
+                email: profile.email,
+                role: profile.role,
+              });
+            }
+          }).catch(() => {
+            localStorage.removeItem("spiceora_user");
+            sessionStorage.removeItem("spiceora_user");
+          });
+        }
+      } catch {
+        localStorage.removeItem("spiceora_user");
+        sessionStorage.removeItem("spiceora_user");
+      }
+    }
+  }, []);
 
   // Automatically process redirectAfterLogin when user logs in
   useEffect(() => {
-    const isUserLoggedIn = Boolean(user || (isSignedIn && clerkUser));
-    if (isUserLoggedIn && redirectAfterLogin) {
+    if (user && redirectAfterLogin) {
       setCurrentPage(redirectAfterLogin as Page);
       setRedirectAfterLogin(null);
       setAuthModalOpen("closed");
     }
-  }, [user, isSignedIn, clerkUser, redirectAfterLogin]);
+  }, [user, redirectAfterLogin]);
 
   useEffect(() => {
     const fetchApiData = async () => {
@@ -4810,22 +4810,6 @@ export default function App() {
     fetchApiData();
     campaignsApi.active().then(setCampaigns).catch(() => setCampaigns([]));
 
-    const saved = localStorage.getItem("spiceora_user") || sessionStorage.getItem("spiceora_user");
-    if (saved) {
-      try {
-        const u = JSON.parse(saved);
-        setUser(u);
-        if (u?.email) {
-          const parts = (u.name || "").trim().split(/\s+/);
-          const firstName = parts.shift() || u.email.split("@")[0] || "User";
-          const lastName = parts.join(" ") || "";
-          authApi.syncClerk({ email: u.email, firstName, lastName, phone: u.phone }).catch(() => { });
-        }
-      } catch (e) {
-        localStorage.removeItem("spiceora_user");
-      }
-    }
-
     const stored = localStorage.getItem("spiceora_recently_viewed");
     if (stored) {
       try { setRecentlyViewed(JSON.parse(stored)); } catch (e) { }
@@ -4861,7 +4845,8 @@ export default function App() {
   }
 
   async function login(email: string, password: string, rememberMe: boolean) {
-    const res = await fetch("http://localhost:4000/api/auth/login", {
+    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api';
+    const res = await fetch(`${API_URL}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password })
@@ -4897,7 +4882,8 @@ export default function App() {
     const parts = name.trim().split(/\s+/);
     const firstName = parts.shift() || '';
     const lastName = parts.join(' ') || '';
-    const res = await fetch("http://localhost:4000/api/auth/register", {
+    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api';
+    const res = await fetch(`${API_URL}/auth/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ firstName, lastName, email, password })
@@ -4925,35 +4911,19 @@ export default function App() {
     }
   }
 
-  function forgotPassword(email: string) {
-    return new Promise<void>((resolve, reject) => {
-      setTimeout(() => {
-        const exists = users.find(u => u.email.toLowerCase() === email.toLowerCase());
-        if (exists) {
-          resolve();
-        } else {
-          reject(new Error("No account found with this email."));
-        }
-      }, 1000);
-    });
+  async function forgotPassword(email: string) {
+    await authApi.forgotPassword(email);
   }
 
   async function logout() {
     setUser(null);
     localStorage.removeItem("spiceora_user");
     sessionStorage.removeItem("spiceora_user");
-    try {
-      if (clerk && typeof clerk.signOut === "function") {
-        await clerk.signOut();
-      }
-    } catch (err) {
-      console.warn("Clerk sign-out error:", err);
-    }
     setCurrentPage("home");
   }
 
   function navigate(page: string, data?: any) {
-    const isUserLoggedIn = Boolean(user || (isSignedIn && clerkUser));
+    const isUserLoggedIn = Boolean(user);
     if (page === "profile" && !isUserLoggedIn) {
       setRedirectAfterLogin("profile");
       setAuthModalOpen("login");
@@ -5232,6 +5202,27 @@ function AuthModal() {
             <CheckCircle className="w-4 h-4 flex-shrink-0" />
             <span>{success}</span>
           </div>
+        )}
+
+        {mode !== 'forgot' && (
+          <>
+            <button
+              type="button"
+              onClick={() => {
+                const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api';
+                const frontendUrl = window.location.origin;
+                window.location.href = `${API_URL}/auth/sign-in/google?callbackURL=${encodeURIComponent(frontendUrl + '/?auth=success')}`;
+              }}
+              className="w-full flex items-center justify-center gap-3 py-3 px-4 border border-[#1A1714]/12 rounded-xl text-sm font-medium text-[#1A1714] hover:bg-[#FAF8F3] transition-all cursor-pointer"
+            >
+              <svg className="w-4 h-4" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4" /><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" /><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" /><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" /></svg>
+              Continue with Google
+            </button>
+            <div className="relative my-4">
+              <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-[#1A1714]/8"></div></div>
+              <div className="relative flex justify-center text-xs"><span className="bg-white/95 px-3 text-[#7A7064]">or</span></div>
+            </div>
+          </>
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">

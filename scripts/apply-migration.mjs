@@ -30,13 +30,14 @@ const pool = createPool({
   multipleStatements: true
 });
 
-const migrationPath = resolve(dirname(fileURLToPath(import.meta.url)), '../database/migrations/0002_add-api-tables.sql');
+const migrationFile = process.argv[2] || '0002_add-api-tables.sql';
+const migrationPath = resolve(dirname(fileURLToPath(import.meta.url)), `../database/migrations/${migrationFile}`);
 const rawSql = readFileSync(migrationPath, 'utf8');
 const statements = rawSql.split('--> statement-breakpoint').map(s => s.trim()).filter(Boolean);
 
 try {
   const conn = await pool.getConnection();
-  console.log('Connected to TiDB, applying 0002_add-api-tables.sql...');
+  console.log(`Connected to TiDB, applying ${migrationFile}...`);
   for (const sql of statements) {
     try {
       await conn.query(sql);
@@ -44,7 +45,7 @@ try {
       console.log(`[✓] ${match ? match[1] : 'statement'}`);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      if (msg.includes('already exists')) {
+      if (msg.includes('already exists') || msg.includes('Duplicate column name') || msg.includes('Duplicate key name')) {
         console.log(`[~] Skipped (exists): ${sql.slice(0, 60)}...`);
       } else {
         throw err;
@@ -52,7 +53,7 @@ try {
     }
   }
   conn.release();
-  console.log('\n[SUCCESS] Migration 0002 applied.');
+  console.log(`\n[SUCCESS] Migration ${migrationFile} applied.`);
   process.exit(0);
 } catch (err) {
   console.error('[ERROR]', err);

@@ -131,7 +131,7 @@ export const bulkPackaging = mysqlTable('bulk_packaging', {
 export const customerProfiles = mysqlTable('customer_profiles', {
   id: serial('id').primaryKey(),
   email: varchar('email', { length: 255 }).notNull(),
-  passwordHash: varchar('password_hash', { length: 255 }).notNull(),
+  passwordHash: varchar('password_hash', { length: 255 }),
   firstName: varchar('first_name', { length: 128 }).notNull(),
   lastName: varchar('last_name', { length: 128 }).notNull(),
   phone: varchar('phone', { length: 32 }),
@@ -139,6 +139,7 @@ export const customerProfiles = mysqlTable('customer_profiles', {
   role: mysqlEnum('role', ['customer', 'staff', 'manager', 'admin']).notNull().default('customer'),
   segment: mysqlEnum('segment', ['new', 'regular', 'vip', 'wholesale']).notNull().default('new'),
   isActive: boolean('is_active').notNull().default(true),
+  emailVerified: boolean('email_verified').notNull().default(false),
   createdAt: datetime('created_at').notNull(),
   updatedAt: datetime('updated_at').notNull()
 }, (table) => ({
@@ -439,4 +440,23 @@ export const auditLogs = mysqlTable('audit_logs', {
   entityIdx: index('audit_logs_entity_idx').on(table.entityType, table.entityId),
   createdIdx: index('audit_logs_created_idx').on(table.createdAt),
   actionIdx: index('audit_logs_action_idx').on(table.action)
+}));
+
+// ---------------------------------------------------------------------------
+// OTP / Email Verification
+// ---------------------------------------------------------------------------
+
+export const emailOtps = mysqlTable('email_otps', {
+  id: serial('id').primaryKey(),
+  email: varchar('email', { length: 255 }).notNull(),
+  otpHash: varchar('otp_hash', { length: 64 }).notNull(),
+  purpose: mysqlEnum('purpose', ['EMAIL_VERIFICATION', 'PASSWORD_RESET', 'LOGIN_VERIFICATION']).notNull(),
+  expiresAt: datetime('expires_at').notNull(),
+  attempts: int('attempts').notNull().default(0),
+  verified: boolean('verified').notNull().default(false),
+  createdAt: datetime('created_at').notNull(),
+  updatedAt: datetime('updated_at').notNull()
+}, (table) => ({
+  emailIdx: index('email_otps_email_idx').on(table.email),
+  purposeIdx: index('email_otps_purpose_idx').on(table.purpose)
 }));
