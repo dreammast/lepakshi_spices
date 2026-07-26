@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, createContext, useContext } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { SignInButton, SignUpButton, SignedIn, SignedOut, UserButton, useUser, useAuth, useClerk } from "@clerk/clerk-react";
+import { toast, Toaster } from "sonner";
 import {
   ShoppingCart, Heart, Search, User, Menu, X, Star, ChevronRight,
   ChevronLeft, ChevronDown, Plus, Minus, Trash2, ArrowRight, Package,
@@ -5087,6 +5088,7 @@ export default function App() {
           {authModalOpen !== "closed" && <AuthModal />}
         </AnimatePresence>
         <TelemetryDrawer />
+        <Toaster position="top-right" richColors />
       </div>
     </AppCtx.Provider>
   );

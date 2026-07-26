@@ -1,5 +1,5 @@
 import type { NextFunction, Request, Response } from 'express';
-import { registerCustomer, authenticateCustomer, getCustomerProfile, syncClerkUser } from '../services/auth.service.js';
+import { registerCustomer, authenticateCustomer, authenticateAdmin, getCustomerProfile, syncClerkUser } from '../services/auth.service.js';
 import { sendCreated, sendSuccess } from '../utils/response.util.js';
 import type { AuthenticatedRequest } from '../middleware/auth.middleware.js';
 import { logAudit } from '../utils/audit.js';
