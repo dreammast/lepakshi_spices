@@ -14,7 +14,7 @@ import {
   sendVerificationEmailController,
   verifyEmailController,
   googleCallbackController,
-  sessionJwtController,
+  syncFirebaseController,
 } from '../controllers/auth.controller.js';
 import { asyncHandler } from '../middleware/async-handler.js';
 import { validateBody } from '../middleware/validate.middleware.js';
@@ -87,6 +87,7 @@ router.post('/admin/logout', authenticate, asyncHandler(logoutController));
 router.get('/me', authenticate, asyncHandler(meController));
 
 router.post('/sync-oauth', validateBody(googleCallbackSchema), asyncHandler(syncOAuthController));
+router.post('/sync-firebase', asyncHandler(syncFirebaseController));
 router.post('/google/callback', validateBody(googleCallbackSchema), asyncHandler(googleCallbackController));
 
 router.post('/forgot-password', validateBody(forgotPasswordSchema), asyncHandler(forgotPasswordController));
@@ -99,6 +100,5 @@ router.post('/update-profile', authenticate, validateBody(updateProfileSchema), 
 router.post('/send-verification-email', authenticate, asyncHandler(sendVerificationEmailController));
 router.post('/verify-email', validateBody(verifyEmailSchema), asyncHandler(verifyEmailController));
 
-router.get('/session-jwt', asyncHandler(sessionJwtController));
-
 export default router;
+

@@ -1,7 +1,11 @@
 import { defineConfig, type Plugin } from 'vite'
-import path from 'path'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 
 function figmaAssetResolver(): Plugin {
   return {
@@ -17,10 +21,11 @@ function figmaAssetResolver(): Plugin {
 }
 
 export default defineConfig({
+  envDir: path.resolve(__dirname, '../../'),
   plugins: [
     figmaAssetResolver(),
-    react(),
-    tailwindcss(),
+    react() as any,
+    tailwindcss() as any,
   ],
   resolve: {
     alias: {

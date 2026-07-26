@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
+
+
 import { toast, Toaster } from "sonner";
 import {
   LayoutDashboard, Package, ShoppingBag, Users, BarChart3,
@@ -82,17 +84,17 @@ const NOTIFS: any[] = [];
 // ─── Primitives ───────────────────────────────────────────────
 function Badge({ status }: { status: string }) {
   const map: Record<string, { label: string; bg: string; text: string; dot: string }> = {
-    active:         { label: "Active",        bg: "#EBF5E6", text: "#2D5016", dot: "#4A7A2A" },
-    "out-of-stock": { label: "Out of Stock",  bg: "#FDECEA", text: "#C94040", dot: "#C94040" },
-    "low-stock":    { label: "Low Stock",     bg: "#FEF3E2", text: "#C85A1A", dot: "#D4921A" },
-    delivered:      { label: "Delivered",     bg: "#EBF5E6", text: "#2D5016", dot: "#4A7A2A" },
-    shipped:        { label: "Shipped",       bg: "#E8F2FE", text: "#1B5EAD", dot: "#2B7FE2" },
-    processing:     { label: "Processing",    bg: "#FEF3E2", text: "#C85A1A", dot: "#D4921A" },
-    pending:        { label: "Pending",       bg: "#F4F4F4", text: "#6B6B6B", dot: "#9E9E9E" },
-    cancelled:      { label: "Cancelled",     bg: "#FDECEA", text: "#C94040", dot: "#C94040" },
-    VIP:            { label: "VIP",           bg: "#FEF3E2", text: "#C85A1A", dot: "#D4921A" },
-    Regular:        { label: "Regular",       bg: "#EBF5E6", text: "#2D5016", dot: "#4A7A2A" },
-    New:            { label: "New",           bg: "#E8F2FE", text: "#1B5EAD", dot: "#2B7FE2" },
+    active: { label: "Active", bg: "#EBF5E6", text: "#2D5016", dot: "#4A7A2A" },
+    "out-of-stock": { label: "Out of Stock", bg: "#FDECEA", text: "#C94040", dot: "#C94040" },
+    "low-stock": { label: "Low Stock", bg: "#FEF3E2", text: "#C85A1A", dot: "#D4921A" },
+    delivered: { label: "Delivered", bg: "#EBF5E6", text: "#2D5016", dot: "#4A7A2A" },
+    shipped: { label: "Shipped", bg: "#E8F2FE", text: "#1B5EAD", dot: "#2B7FE2" },
+    processing: { label: "Processing", bg: "#FEF3E2", text: "#C85A1A", dot: "#D4921A" },
+    pending: { label: "Pending", bg: "#F4F4F4", text: "#6B6B6B", dot: "#9E9E9E" },
+    cancelled: { label: "Cancelled", bg: "#FDECEA", text: "#C94040", dot: "#C94040" },
+    VIP: { label: "VIP", bg: "#FEF3E2", text: "#C85A1A", dot: "#D4921A" },
+    Regular: { label: "Regular", bg: "#EBF5E6", text: "#2D5016", dot: "#4A7A2A" },
+    New: { label: "New", bg: "#E8F2FE", text: "#1B5EAD", dot: "#2B7FE2" },
   };
   const s = map[status] ?? { label: status, bg: "#F4F4F4", text: "#6B6B6B", dot: "#9E9E9E" };
   return (
@@ -357,13 +359,13 @@ const NAV_GROUPS = [
   {
     label: "Navigation",
     items: [
-      { id: "dashboard",  label: "Dashboard",  icon: LayoutDashboard },
-      { id: "products",   label: "Products",   icon: Package },
-      { id: "orders",     label: "Orders",     icon: ShoppingBag, badge: 3 },
-      { id: "wholesale",  label: "Wholesale",  icon: ClipboardList },
-      { id: "website",    label: "Website",    icon: Globe },
-      { id: "customers",  label: "Customers",  icon: Users },
-      { id: "settings",   label: "Settings",   icon: Settings },
+      { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
+      { id: "products", label: "Products", icon: Package },
+      { id: "orders", label: "Orders", icon: ShoppingBag, badge: 3 },
+      { id: "wholesale", label: "Wholesale", icon: ClipboardList },
+      { id: "website", label: "Website", icon: Globe },
+      { id: "customers", label: "Customers", icon: Users },
+      { id: "settings", label: "Settings", icon: Settings },
     ]
   }
 ];
@@ -481,7 +483,7 @@ function Header({ page, offset, notifs, bellOpen, onBell, toggleDarkMode, darkMo
     <header className="fixed top-0 right-0 h-16 flex items-center gap-3 px-6 z-30 transition-all duration-300"
       style={{ left: offset, backgroundColor: darkMode ? "#1F1A12" : "rgba(250,248,245,0.92)", backdropFilter: "blur(16px)", borderBottom: `1px solid ${C.border}` }}>
       <h1 className="text-[17px] font-semibold flex-1" style={{ color: darkMode ? "#FFF" : C.charcoal, fontFamily: "'Playfair Display', serif" }}>{title}</h1>
-      
+
       {/* Search Input triggering Command Palette */}
       <div onClick={openCommandPalette} className="flex items-center gap-2 rounded-xl px-3 py-2 overflow-hidden cursor-pointer w-44 bg-[#F0EDE8]/80 hover:bg-[#F0EDE8] transition-colors">
         <Search className="w-4 h-4 shrink-0 text-[#8B7355]" />
@@ -514,9 +516,9 @@ function Header({ page, offset, notifs, bellOpen, onBell, toggleDarkMode, darkMo
               </div>
               {notifs.map(n => (
                 <div key={n.id} className="px-4 py-3 flex items-start gap-3 cursor-pointer transition-colors duration-100"
-                   style={{ backgroundColor: n.read ? "transparent" : "rgba(212,146,26,0.04)" }}
-                   onMouseEnter={e => (e.currentTarget.style.backgroundColor = C.bg)}
-                   onMouseLeave={e => (e.currentTarget.style.backgroundColor = n.read ? "transparent" : "rgba(212,146,26,0.04)")}>
+                  style={{ backgroundColor: n.read ? "transparent" : "rgba(212,146,26,0.04)" }}
+                  onMouseEnter={e => (e.currentTarget.style.backgroundColor = C.bg)}
+                  onMouseLeave={e => (e.currentTarget.style.backgroundColor = n.read ? "transparent" : "rgba(212,146,26,0.04)")}>
                   <div className="w-7 h-7 rounded-lg shrink-0 flex items-center justify-center mt-0.5"
                     style={{ backgroundColor: n.type === "order" ? C.greenFaint : n.type === "stock" ? C.orangeFaint : C.yellowFaint, color: n.type === "order" ? C.green : n.type === "stock" ? C.orange : C.yellow }}>
                     {n.type === "order" ? <ShoppingBag className="w-3.5 h-3.5" /> : n.type === "stock" ? <Package className="w-3.5 h-3.5" /> : <Star className="w-3.5 h-3.5" />}
@@ -563,16 +565,16 @@ function DashboardPage({ navigateTo }: { navigateTo: (p: string) => void }) {
     if (requestInFlight.current) return requestInFlight.current;
     if (Date.now() - cacheTimestamp.current < 3000 && stats) return;
     requestInFlight.current = (async () => {
-    try {
-      const data = await dashboardApi.getStats();
-      setStats(data);
-      setLastUpdated(new Date());
-      cacheTimestamp.current = Date.now();
-    } catch (err) {
-      console.warn("Dashboard stats fetch failed:", err);
-    } finally {
-      setLoading(false);
-    }
+      try {
+        const data = await dashboardApi.getStats();
+        setStats(data);
+        setLastUpdated(new Date());
+        cacheTimestamp.current = Date.now();
+      } catch (err) {
+        console.warn("Dashboard stats fetch failed:", err);
+      } finally {
+        setLoading(false);
+      }
     })();
     try { await requestInFlight.current; } finally { requestInFlight.current = null; }
   };
@@ -639,7 +641,7 @@ function DashboardPage({ navigateTo }: { navigateTo: (p: string) => void }) {
     return (
       <div className="space-y-6">
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-          {[1,2,3,4,5].map(i => (
+          {[1, 2, 3, 4, 5].map(i => (
             <div key={i} className="rounded-2xl bg-white border border-[#2C2416]/10 p-5 animate-pulse h-28" />
           ))}
         </div>
@@ -857,7 +859,7 @@ function blankProduct() {
 
 function ProductsPage() {
   const [activeSubTab, setActiveSubTab] = useState<"all" | "categories" | "inventory" | "reviews">("all");
-  
+
   // Products state
   const [products, setProducts] = useState<any[]>(() => {
     try {
@@ -946,7 +948,7 @@ function ProductsPage() {
   const [editTarget, setEditTarget] = useState<any | null>(null);
   const [wizardStep, setWizardStep] = useState<number>(1);
   const [form, setForm] = useState<any>(blankProduct());
-  
+
   // Pricing Assistant helper state
   const [cogs, setCogs] = useState<number>(30);
   const [margin, setMargin] = useState<number>(30); // in percent
@@ -1410,7 +1412,7 @@ function ProductsPage() {
         {wizardOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: "rgba(26,23,20,0.5)", backdropFilter: "blur(4px)" }}>
             <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="relative bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-6 max-h-[90vh] overflow-y-auto">
-              
+
               {/* Progress Stepper Indicator */}
               <div className="flex items-center justify-between border-b pb-4">
                 <h3 className="font-bold text-lg font-serif text-[#2C2416]">{editTarget ? "Edit Product Wizard" : "Create Product Wizard"}</h3>
@@ -1657,8 +1659,8 @@ function OrdersPage() {
           <p className="text-xs text-[#8B7355]">Manage consumer order fulfillment, state status, and receipts</p>
         </div>
         <div className="flex items-center gap-2">
-          <button 
-            onClick={() => setHasError(prev => !prev)} 
+          <button
+            onClick={() => setHasError(prev => !prev)}
             className="text-[10px] font-bold px-2.5 py-1.5 rounded-lg border border-red-200 text-red-600 bg-red-50 hover:bg-red-100 transition-colors"
           >
             {hasError ? "Clear Mock Error" : "Simulate Server Error"}
@@ -1758,8 +1760,8 @@ function OrdersPage() {
                 <div className="flex items-center justify-between px-2 text-xs text-[#8B7355] bg-white p-3 rounded-xl border border-[#2C2416]/10">
                   <p>Showing <span className="font-semibold text-[#2C2416]">{((currentPage - 1) * itemsPerPage) + 1}</span> to <span className="font-semibold text-[#2C2416]">{Math.min(currentPage * itemsPerPage, filtered.length)}</span> of <span className="font-semibold text-[#2C2416]">{filtered.length}</span> orders</p>
                   <div className="flex items-center gap-1">
-                    <button 
-                      onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))} 
+                    <button
+                      onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
                       disabled={currentPage === 1}
                       className="px-2.5 py-1.5 rounded-lg border border-[#2C2416]/10 text-stone-600 bg-white hover:bg-stone-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
@@ -1774,8 +1776,8 @@ function OrdersPage() {
                         {p}
                       </button>
                     ))}
-                    <button 
-                      onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))} 
+                    <button
+                      onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
                       disabled={currentPage === totalPages}
                       className="px-2.5 py-1.5 rounded-lg border border-[#2C2416]/10 text-stone-600 bg-white hover:bg-stone-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
@@ -2019,7 +2021,7 @@ function CategoriesPage() {
             <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="relative bg-white rounded-2xl max-w-3xl w-full p-6 shadow-2xl space-y-4">
               <h3 className="font-bold text-lg font-serif text-[#2C2416]">Products in {viewProductsFor.name}</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-96 overflow-y-auto">
-                {viewProductsFor.products.length === 0 ? <p className="text-sm text-[#8B7355]">No products linked to this category yet.</p> : viewProductsFor.products.map((p:any) => (
+                {viewProductsFor.products.length === 0 ? <p className="text-sm text-[#8B7355]">No products linked to this category yet.</p> : viewProductsFor.products.map((p: any) => (
                   <div key={p.id} className="p-3 border rounded-lg">
                     <div className="flex items-center gap-3">
                       <img src={p.imageUrl || p.image || 'https://images.unsplash.com/photo-1596040033229-a9821ebd058d?w=800&fit=crop'} alt={p.name} className="w-14 h-14 rounded-lg object-cover" />
@@ -2787,168 +2789,168 @@ function SettingsPage() {
         </AnimatePresence>
       </div>
 
-            {/* Promotions Tab */}
-            {tab === "promotions" && (
-              <div className="space-y-6">
-                <div>
-                  <h3 className="text-lg font-semibold" style={{ fontFamily: "'Playfair Display', serif", color: C.charcoal }}>Promotions & Campaigns</h3>
-                  <p className="text-xs mt-1" style={{ color: C.muted }}>Manage storefront announcement banners, popup offers, and discount coupons</p>
+      {/* Promotions Tab */}
+      {tab === "promotions" && (
+        <div className="space-y-6">
+          <div>
+            <h3 className="text-lg font-semibold" style={{ fontFamily: "'Playfair Display', serif", color: C.charcoal }}>Promotions & Campaigns</h3>
+            <p className="text-xs mt-1" style={{ color: C.muted }}>Manage storefront announcement banners, popup offers, and discount coupons</p>
+          </div>
+
+          {/* Homepage Banner */}
+          <Card className="p-5 space-y-4">
+            <div className="flex justify-between items-center border-b pb-2" style={{ borderColor: C.border }}>
+              <h4 className="font-semibold text-sm" style={{ color: C.charcoal }}>Storefront Announcement Header Alert</h4>
+              <button
+                onClick={() => setAlertBanner({ ...alertBanner, enabled: !alertBanner.enabled })}
+                className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase transition-all ${alertBanner.enabled ? "bg-green-100 text-green-700" : "bg-stone-100 text-stone-600"}`}
+              >
+                {alertBanner.enabled ? "Online" : "Offline"}
+              </button>
+            </div>
+            <div>
+              <label className="text-[10px] font-semibold uppercase block mb-1" style={{ color: C.muted }}>Banner Announcement Text</label>
+              <input
+                value={alertBanner.text}
+                onChange={e => setAlertBanner({ ...alertBanner, text: e.target.value })}
+                className="w-full rounded-xl px-3 py-2 text-xs outline-none"
+                style={{ backgroundColor: C.bg, border: `1px solid ${C.border}` }}
+              />
+            </div>
+            <Btn icon={Save} onClick={saveAlert}>Save Header Alert</Btn>
+          </Card>
+
+          {/* Popup Offer */}
+          <Card className="p-5 space-y-4">
+            <div className="flex justify-between items-center border-b pb-2" style={{ borderColor: C.border }}>
+              <h4 className="font-semibold text-sm" style={{ color: C.charcoal }}>Promotional Modal Popup Offer</h4>
+              <button
+                onClick={() => setModalOffer({ ...modalOffer, enabled: !modalOffer.enabled })}
+                className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase transition-all ${modalOffer.enabled ? "bg-green-100 text-green-700" : "bg-stone-100 text-stone-600"}`}
+              >
+                {modalOffer.enabled ? "Active" : "Disabled"}
+              </button>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="text-[10px] font-semibold uppercase block mb-1" style={{ color: C.muted }}>Popup Dialog Title</label>
+                <input
+                  value={modalOffer.title}
+                  onChange={e => setModalOffer({ ...modalOffer, title: e.target.value })}
+                  className="w-full rounded-xl px-3 py-2 text-xs outline-none"
+                  style={{ backgroundColor: C.bg, border: `1px solid ${C.border}` }}
+                />
+              </div>
+              <div>
+                <label className="text-[10px] font-semibold uppercase block mb-1" style={{ color: C.muted }}>Popup Dialog Body Description</label>
+                <textarea
+                  rows={2}
+                  value={modalOffer.description}
+                  onChange={e => setModalOffer({ ...modalOffer, description: e.target.value })}
+                  className="w-full rounded-xl px-3 py-2 text-xs outline-none resize-none"
+                  style={{ backgroundColor: C.bg, border: `1px solid ${C.border}` }}
+                />
+              </div>
+            </div>
+            <Btn icon={Save} onClick={savePopup}>Save Modal Popup</Btn>
+          </Card>
+
+          {/* Coupon Codes */}
+          <Card className="p-5 space-y-4">
+            <div className="flex justify-between items-center border-b pb-2" style={{ borderColor: C.border }}>
+              <h4 className="font-semibold text-sm" style={{ color: C.charcoal }}>Discount Coupons</h4>
+              <Btn size="sm" icon={Plus} onClick={() => setIsAddCouponOpen(true)}>Add Coupon</Btn>
+            </div>
+            <div className="space-y-3">
+              {coupons.map(c => (
+                <div key={c.code} className="flex items-center justify-between p-4 rounded-xl border" style={{ backgroundColor: C.bg, borderColor: C.border }}>
+                  <div className="space-y-0.5">
+                    <span className="font-mono font-bold text-sm tracking-wider" style={{ color: C.green }}>{c.code}</span>
+                    <p className="text-[10.5px]" style={{ color: C.muted }}>
+                      {c.discountType === "percentage" ? `${c.value}% discount` : `₹${c.value} discount`} · Min purchase: ₹{c.minPurchase}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleToggleCoupon(c.code)}
+                      className={`px-3 py-1 rounded-lg text-[10px] font-bold uppercase transition-all ${c.active ? "bg-green-100 text-green-700 hover:bg-green-200" : "bg-stone-200 text-stone-600 hover:bg-stone-300"}`}
+                    >
+                      {c.active ? "Enabled" : "Disabled"}
+                    </button>
+                    <button
+                      onClick={() => handleDeleteCoupon(c.code)}
+                      className="p-1.5 rounded-lg border hover:bg-red-50 text-red-600 transition-colors"
+                      style={{ borderColor: C.border }}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
+              ))}
+              {coupons.length === 0 && (
+                <p className="text-xs text-[#8B7355] italic text-center py-6">No coupons created yet.</p>
+              )}
+            </div>
+          </Card>
 
-                {/* Homepage Banner */}
-                <Card className="p-5 space-y-4">
-                  <div className="flex justify-between items-center border-b pb-2" style={{ borderColor: C.border }}>
-                    <h4 className="font-semibold text-sm" style={{ color: C.charcoal }}>Storefront Announcement Header Alert</h4>
-                    <button 
-                      onClick={() => setAlertBanner({ ...alertBanner, enabled: !alertBanner.enabled })}
-                      className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase transition-all ${alertBanner.enabled ? "bg-green-100 text-green-700" : "bg-stone-100 text-stone-600"}`}
-                    >
-                      {alertBanner.enabled ? "Online" : "Offline"}
-                    </button>
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-semibold uppercase block mb-1" style={{ color: C.muted }}>Banner Announcement Text</label>
-                    <input 
-                      value={alertBanner.text} 
-                      onChange={e => setAlertBanner({ ...alertBanner, text: e.target.value })}
-                      className="w-full rounded-xl px-3 py-2 text-xs outline-none" 
-                      style={{ backgroundColor: C.bg, border: `1px solid ${C.border}` }} 
-                    />
-                  </div>
-                  <Btn icon={Save} onClick={saveAlert}>Save Header Alert</Btn>
-                </Card>
-
-                {/* Popup Offer */}
-                <Card className="p-5 space-y-4">
-                  <div className="flex justify-between items-center border-b pb-2" style={{ borderColor: C.border }}>
-                    <h4 className="font-semibold text-sm" style={{ color: C.charcoal }}>Promotional Modal Popup Offer</h4>
-                    <button 
-                      onClick={() => setModalOffer({ ...modalOffer, enabled: !modalOffer.enabled })}
-                      className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase transition-all ${modalOffer.enabled ? "bg-green-100 text-green-700" : "bg-stone-100 text-stone-600"}`}
-                    >
-                      {modalOffer.enabled ? "Active" : "Disabled"}
-                    </button>
-                  </div>
+          {/* Add Coupon Modal */}
+          <AnimatePresence>
+            {isAddCouponOpen && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: "rgba(26,23,20,0.5)", backdropFilter: "blur(4px)" }}>
+                <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="relative bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl space-y-4">
+                  <h3 className="font-bold text-lg font-serif text-[#2C2416]">New Promo Coupon</h3>
                   <div className="space-y-3">
                     <div>
-                      <label className="text-[10px] font-semibold uppercase block mb-1" style={{ color: C.muted }}>Popup Dialog Title</label>
-                      <input 
-                        value={modalOffer.title} 
-                        onChange={e => setModalOffer({ ...modalOffer, title: e.target.value })}
-                        className="w-full rounded-xl px-3 py-2 text-xs outline-none" 
-                        style={{ backgroundColor: C.bg, border: `1px solid ${C.border}` }} 
+                      <label className="text-[10px] font-semibold text-[#8B7355] uppercase block mb-1">Coupon Code</label>
+                      <input
+                        value={couponForm.code}
+                        onChange={e => setCouponForm({ ...couponForm, code: e.target.value })}
+                        placeholder="e.g. MONSOON20"
+                        className="w-full bg-[#FAF8F5] border border-[#2C2416]/10 rounded-xl px-3 py-2 text-xs outline-none font-mono text-[#2C2416]"
                       />
                     </div>
-                    <div>
-                      <label className="text-[10px] font-semibold uppercase block mb-1" style={{ color: C.muted }}>Popup Dialog Body Description</label>
-                      <textarea 
-                        rows={2} 
-                        value={modalOffer.description} 
-                        onChange={e => setModalOffer({ ...modalOffer, description: e.target.value })}
-                        className="w-full rounded-xl px-3 py-2 text-xs outline-none resize-none" 
-                        style={{ backgroundColor: C.bg, border: `1px solid ${C.border}` }} 
-                      />
-                    </div>
-                  </div>
-                  <Btn icon={Save} onClick={savePopup}>Save Modal Popup</Btn>
-                </Card>
-
-                {/* Coupon Codes */}
-                <Card className="p-5 space-y-4">
-                  <div className="flex justify-between items-center border-b pb-2" style={{ borderColor: C.border }}>
-                    <h4 className="font-semibold text-sm" style={{ color: C.charcoal }}>Discount Coupons</h4>
-                    <Btn size="sm" icon={Plus} onClick={() => setIsAddCouponOpen(true)}>Add Coupon</Btn>
-                  </div>
-                  <div className="space-y-3">
-                    {coupons.map(c => (
-                      <div key={c.code} className="flex items-center justify-between p-4 rounded-xl border" style={{ backgroundColor: C.bg, borderColor: C.border }}>
-                        <div className="space-y-0.5">
-                          <span className="font-mono font-bold text-sm tracking-wider" style={{ color: C.green }}>{c.code}</span>
-                          <p className="text-[10.5px]" style={{ color: C.muted }}>
-                            {c.discountType === "percentage" ? `${c.value}% discount` : `₹${c.value} discount`} · Min purchase: ₹{c.minPurchase}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <button 
-                            onClick={() => handleToggleCoupon(c.code)}
-                            className={`px-3 py-1 rounded-lg text-[10px] font-bold uppercase transition-all ${c.active ? "bg-green-100 text-green-700 hover:bg-green-200" : "bg-stone-200 text-stone-600 hover:bg-stone-300"}`}
-                          >
-                            {c.active ? "Enabled" : "Disabled"}
-                          </button>
-                          <button 
-                            onClick={() => handleDeleteCoupon(c.code)}
-                            className="p-1.5 rounded-lg border hover:bg-red-50 text-red-600 transition-colors"
-                            style={{ borderColor: C.border }}
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-[10px] font-semibold text-[#8B7355] uppercase block mb-1">Discount Type</label>
+                        <select
+                          value={couponForm.discountType}
+                          onChange={e => setCouponForm({ ...couponForm, discountType: e.target.value })}
+                          className="w-full bg-[#FAF8F5] border border-[#2C2416]/10 rounded-xl px-3 py-2 text-xs outline-none cursor-pointer text-[#2C2416]"
+                        >
+                          <option value="percentage">Percentage (%)</option>
+                          <option value="fixed">Fixed Flat (₹)</option>
+                        </select>
                       </div>
-                    ))}
-                    {coupons.length === 0 && (
-                      <p className="text-xs text-[#8B7355] italic text-center py-6">No coupons created yet.</p>
-                    )}
-                  </div>
-                </Card>
-
-                {/* Add Coupon Modal */}
-                <AnimatePresence>
-                  {isAddCouponOpen && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: "rgba(26,23,20,0.5)", backdropFilter: "blur(4px)" }}>
-                      <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="relative bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl space-y-4">
-                        <h3 className="font-bold text-lg font-serif text-[#2C2416]">New Promo Coupon</h3>
-                        <div className="space-y-3">
-                          <div>
-                            <label className="text-[10px] font-semibold text-[#8B7355] uppercase block mb-1">Coupon Code</label>
-                            <input 
-                              value={couponForm.code} 
-                              onChange={e => setCouponForm({ ...couponForm, code: e.target.value })} 
-                              placeholder="e.g. MONSOON20" 
-                              className="w-full bg-[#FAF8F5] border border-[#2C2416]/10 rounded-xl px-3 py-2 text-xs outline-none font-mono text-[#2C2416]" 
-                            />
-                          </div>
-                          <div className="grid grid-cols-2 gap-3">
-                            <div>
-                              <label className="text-[10px] font-semibold text-[#8B7355] uppercase block mb-1">Discount Type</label>
-                              <select 
-                                value={couponForm.discountType} 
-                                onChange={e => setCouponForm({ ...couponForm, discountType: e.target.value })} 
-                                className="w-full bg-[#FAF8F5] border border-[#2C2416]/10 rounded-xl px-3 py-2 text-xs outline-none cursor-pointer text-[#2C2416]"
-                              >
-                                <option value="percentage">Percentage (%)</option>
-                                <option value="fixed">Fixed Flat (₹)</option>
-                              </select>
-                            </div>
-                            <div>
-                              <label className="text-[10px] font-semibold text-[#8B7355] uppercase block mb-1">Benefit Value</label>
-                              <input 
-                                type="number" 
-                                value={couponForm.value} 
-                                onChange={e => setCouponForm({ ...couponForm, value: Number(e.target.value) })} 
-                                className="w-full bg-[#FAF8F5] border border-[#2C2416]/10 rounded-xl px-3 py-2 text-xs outline-none text-[#2C2416]" 
-                              />
-                            </div>
-                          </div>
-                          <div>
-                            <label className="text-[10px] font-semibold text-[#8B7355] uppercase block mb-1">Minimum Order Value (₹)</label>
-                            <input 
-                              type="number" 
-                              value={couponForm.minPurchase} 
-                              onChange={e => setCouponForm({ ...couponForm, minPurchase: Number(e.target.value) })} 
-                              className="w-full bg-[#FAF8F5] border border-[#2C2416]/10 rounded-xl px-3 py-2 text-xs outline-none text-[#2C2416]" 
-                            />
-                          </div>
-                        </div>
-                        <div className="flex gap-3">
-                          <button onClick={() => setIsAddCouponOpen(false)} className="flex-1 py-2 text-xs font-semibold border border-[#2C2416]/10 rounded-xl hover:bg-[#FAF8F5]">Cancel</button>
-                          <Btn onClick={handleCreateCoupon} className="flex-1">Create Code</Btn>
-                        </div>
-                      </motion.div>
+                      <div>
+                        <label className="text-[10px] font-semibold text-[#8B7355] uppercase block mb-1">Benefit Value</label>
+                        <input
+                          type="number"
+                          value={couponForm.value}
+                          onChange={e => setCouponForm({ ...couponForm, value: Number(e.target.value) })}
+                          className="w-full bg-[#FAF8F5] border border-[#2C2416]/10 rounded-xl px-3 py-2 text-xs outline-none text-[#2C2416]"
+                        />
+                      </div>
                     </div>
-                  )}
-                </AnimatePresence>
+                    <div>
+                      <label className="text-[10px] font-semibold text-[#8B7355] uppercase block mb-1">Minimum Order Value (₹)</label>
+                      <input
+                        type="number"
+                        value={couponForm.minPurchase}
+                        onChange={e => setCouponForm({ ...couponForm, minPurchase: Number(e.target.value) })}
+                        className="w-full bg-[#FAF8F5] border border-[#2C2416]/10 rounded-xl px-3 py-2 text-xs outline-none text-[#2C2416]"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex gap-3">
+                    <button onClick={() => setIsAddCouponOpen(false)} className="flex-1 py-2 text-xs font-semibold border border-[#2C2416]/10 rounded-xl hover:bg-[#FAF8F5]">Cancel</button>
+                    <Btn onClick={handleCreateCoupon} className="flex-1">Create Code</Btn>
+                  </div>
+                </motion.div>
               </div>
             )}
+          </AnimatePresence>
+        </div>
+      )}
 
       {/* 2FA Modal */}
       <Modal open={twoFAOpen} onClose={() => setTwoFAOpen(false)} title="Enable Two-Factor Authentication">
@@ -2990,7 +2992,7 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
   const [volumeFilter, setVolumeFilter] = useState<string>("all");
   const [executiveFilter, setExecutiveFilter] = useState<string>("all");
   const [sortBy, setSortBy] = useState<string>("newest");
-  
+
   // Pagination
   const [currentPage, setCurrentPage] = useState<number>(1);
   const itemsPerPage = 8;
@@ -3058,17 +3060,17 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
 
   // Status mapping colors & labels
   const statusMap: Record<string, { label: string; bg: string; text: string; dot: string }> = {
-    new:            { label: "New",            bg: "#FEF3E2", text: "#C85A1A", dot: "#D4921A" },
-    pending:        { label: "New",            bg: "#FEF3E2", text: "#C85A1A", dot: "#D4921A" }, // backward compat
-    contacted:      { label: "Contacted",      bg: "#E8F2FE", text: "#1B5EAD", dot: "#2B7FE2" },
+    new: { label: "New", bg: "#FEF3E2", text: "#C85A1A", dot: "#D4921A" },
+    pending: { label: "New", bg: "#FEF3E2", text: "#C85A1A", dot: "#D4921A" }, // backward compat
+    contacted: { label: "Contacted", bg: "#E8F2FE", text: "#1B5EAD", dot: "#2B7FE2" },
     quotation_sent: { label: "Quotation Sent", bg: "#EBF5E6", text: "#2D5016", dot: "#4A7A2A" },
-    negotiation:    { label: "Negotiation",    bg: "#FFF4E5", text: "#B26A00", dot: "#ED8936" },
-    approved:       { label: "Approved",       bg: "#EBF5E6", text: "#2D5016", dot: "#4A7A2A" },
-    processing:     { label: "Processing",     bg: "#E8F2FE", text: "#1B5EAD", dot: "#2B7FE2" },
-    converted:      { label: "Converted",      bg: "rgba(45,80,22,0.15)", text: "#1A3A0A", dot: "#2D5016" },
-    completed:      { label: "Completed",      bg: "#EBF5E6", text: "#1A3A0A", dot: "#2D5016" },
-    rejected:       { label: "Rejected",       bg: "#FDECEA", text: "#C94040", dot: "#C94040" },
-    cancelled:      { label: "Cancelled",      bg: "#FDECEA", text: "#C94040", dot: "#C94040" },
+    negotiation: { label: "Negotiation", bg: "#FFF4E5", text: "#B26A00", dot: "#ED8936" },
+    approved: { label: "Approved", bg: "#EBF5E6", text: "#2D5016", dot: "#4A7A2A" },
+    processing: { label: "Processing", bg: "#E8F2FE", text: "#1B5EAD", dot: "#2B7FE2" },
+    converted: { label: "Converted", bg: "rgba(45,80,22,0.15)", text: "#1A3A0A", dot: "#2D5016" },
+    completed: { label: "Completed", bg: "#EBF5E6", text: "#1A3A0A", dot: "#2D5016" },
+    rejected: { label: "Rejected", bg: "#FDECEA", text: "#C94040", dot: "#C94040" },
+    cancelled: { label: "Cancelled", bg: "#FDECEA", text: "#C94040", dot: "#C94040" },
   };
 
   // ── Inline Quote Builder Helpers ───────────────────────────────
@@ -3083,7 +3085,7 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
     const list = getQuotations();
     const idx = list.findIndex((x: any) => x.id === q.id);
     if (idx >= 0) list[idx] = q; else list.unshift(q);
-    try { localStorage.setItem("spiceora_quotations", JSON.stringify(list)); } catch {}
+    try { localStorage.setItem("spiceora_quotations", JSON.stringify(list)); } catch { }
   };
 
   const calcTotals = (form: any) => {
@@ -3227,8 +3229,8 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
     try {
       const { jsPDF } = (window as any).jspdf;
       const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-      const primary: [number,number,number] = [42, 74, 60];
-      const secondary: [number,number,number] = [201, 146, 10];
+      const primary: [number, number, number] = [42, 74, 60];
+      const secondary: [number, number, number] = [201, 146, 10];
       doc.setFillColor(...primary); doc.rect(0, 0, 210, 40, "F");
       doc.setFont("Helvetica", "bold"); doc.setFontSize(24); doc.setTextColor(...secondary);
       doc.text("SPICEORA", 15, 20);
@@ -3257,8 +3259,8 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
       let tableY = 125;
       doc.setFillColor(...primary); doc.rect(15, tableY, 180, 8, "F");
       doc.setFont("Helvetica", "bold"); doc.setFontSize(8.5); doc.setTextColor(255, 255, 255);
-      ["Product Details","Pack","Qty","Rate (INR)","Disc%","GST%","Net Total"].forEach((h, i) => {
-        doc.text(h, [18,70,90,110,135,155,175][i], tableY + 5.5);
+      ["Product Details", "Pack", "Qty", "Rate (INR)", "Disc%", "GST%", "Net Total"].forEach((h, i) => {
+        doc.text(h, [18, 70, 90, 110, 135, 155, 175][i], tableY + 5.5);
       });
       let rowY = tableY + 8, totalSub = 0, totalGst = 0;
       (q.items || []).forEach((row: any, i: number) => {
@@ -3305,12 +3307,12 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
   // Filter inquiries
   const filtered = inquiries.filter(inq => {
     const matchesTab = activeTab === "all" || inq.status === activeTab;
-    const matchesSearch = 
+    const matchesSearch =
       inq.businessName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       inq.contactName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       inq.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
       inq.phone.includes(searchQuery);
-    
+
     const matchesProduct = productFilter === "all" || inq.productInterest === productFilter;
     const matchesVolume = volumeFilter === "all" || inq.volume.includes(volumeFilter);
     const matchesExecutive = executiveFilter === "all" || inq.assignedExecutive === executiveFilter;
@@ -3363,7 +3365,7 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
       toast.success(`Assigned ${selectedIds.length} inquiries to ${bulkExecutive}`);
       setBulkExecutive("");
     }
-    
+
     saveInquiries(updated);
     if (bulkStatus === "") refreshInquiries();
     setSelectedIds([]);
@@ -3459,7 +3461,7 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
           template.primaryColor = colorMap[parsed.primaryColor] || [42, 74, 60];
           template.secondaryColor = colorMap[parsed.secondaryColor] || [201, 146, 10];
         }
-      } catch {}
+      } catch { }
 
       // Load products prices
       let productsData: any[] = [];
@@ -3477,7 +3479,7 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
             }));
           }
         }
-      } catch {}
+      } catch { }
 
       const primary = template.primaryColor;
       const secondary = template.secondaryColor;
@@ -3523,7 +3525,7 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
       doc.rect(20, 98, 170, 120, "FD");
 
       let cardY = 108;
-      
+
       doc.setFont("Helvetica", "bold");
       doc.setFontSize(15);
       doc.setTextColor(primary[0], primary[1], primary[2]);
@@ -3531,7 +3533,7 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
       cardY += 12;
 
       doc.setFontSize(11);
-      
+
       doc.setFont("Helvetica", "normal");
       doc.setTextColor(26, 23, 20);
       doc.text("Business Name:", 30, cardY);
@@ -3687,7 +3689,7 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
           contactInfo.whatsapp = parsedContact.whatsapp || contactInfo.whatsapp;
           contactInfo.email = parsedContact.email || contactInfo.email;
         }
-      } catch {}
+      } catch { }
 
       doc.setFont("Helvetica", "normal");
       doc.setFontSize(8.5);
@@ -3981,7 +3983,7 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
                       <div className={`w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs ${isDone ? "bg-[#2D5016] text-white" : "bg-white text-[#8B7355] border-2 border-[#2C2416]/10"}`}>
                         {isDone ? <Check className="w-3.5 h-3.5" /> : i + 1}
                       </div>
-                      <span className="text-[9px] capitalize font-medium mt-1.5 text-center leading-tight" style={{maxWidth:44}}>{st.replace(/_/g, " ")}</span>
+                      <span className="text-[9px] capitalize font-medium mt-1.5 text-center leading-tight" style={{ maxWidth: 44 }}>{st.replace(/_/g, " ")}</span>
                     </div>
                   );
                 })}
@@ -4022,9 +4024,9 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
                   <option value="new">New Inquiry</option>
                   <option value="contacted">Contacted Partner</option>
                   <option value="quotation_sent">Quotation Sent</option>
-              <option value="negotiation">In Negotiation</option>
-              <option value="approved">Approved</option>
-              <option value="processing">Processing</option>
+                  <option value="negotiation">In Negotiation</option>
+                  <option value="approved">Approved</option>
+                  <option value="processing">Processing</option>
                   <option value="converted">Converted</option>
                   <option value="completed">Completed</option>
                   <option value="rejected">Rejected</option>
@@ -4136,7 +4138,7 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
                       <div className="flex items-start justify-between">
                         <div>
                           <p className="font-bold text-xs text-[#2C2416]">{q.id}</p>
-                          <p className="text-[10px] text-[#8B7355]">{q.date} • {q.items?.length || 0} product{(q.items?.length||0)!==1?"s":""}</p>
+                          <p className="text-[10px] text-[#8B7355]">{q.date} • {q.items?.length || 0} product{(q.items?.length || 0) !== 1 ? "s" : ""}</p>
                         </div>
                         <div className="text-right">
                           <p className="font-bold text-xs text-[#2D5016]">₹{q.payableAmount?.toLocaleString('en-IN')}</p>
@@ -4248,7 +4250,7 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
                               <label className="block text-[10px] uppercase font-bold text-[#8B7355] mb-1">Product</label>
                               <select value={it.name} onChange={e => handleItemFieldChange(idx, "name", e.target.value)}
                                 className="w-full bg-white border border-[#2C2416]/10 rounded-lg p-2 text-xs outline-none cursor-pointer">
-                                {["Chilli Powder","Turmeric Powder","Coriander Powder","Ginger Garlic Paste","Garam Masala"].map(n => <option key={n} value={n}>{n}</option>)}
+                                {["Chilli Powder", "Turmeric Powder", "Coriander Powder", "Ginger Garlic Paste", "Garam Masala"].map(n => <option key={n} value={n}>{n}</option>)}
                               </select>
                             </div>
                             <div className="md:col-span-2"><Field label="Sack Weight" value={it.weight} onChange={v => handleItemFieldChange(idx, "weight", v)} placeholder="25kg Sack" /></div>
@@ -4652,7 +4654,7 @@ function QuotationManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
   const handleUpdateStatusSingle = (id: string, newStatus: string) => {
     const timeStr = new Date().toLocaleDateString('en-IN') + " " + new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
     const logEvent = `Status changed to ${newStatus.replace("_", " ")} by Admin`;
-    
+
     const updated = quotations.map(q => {
       if (q.id === id) {
         return {
@@ -4680,7 +4682,7 @@ function QuotationManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
     // Generate order record
     const orderId = "ORD-" + Math.floor(Math.random() * 90000 + 10000);
     const dateStr = new Date().toLocaleDateString('en-IN');
-    
+
     const newOrder = {
       id: orderId,
       customer: quote.businessName,
@@ -4700,10 +4702,10 @@ function QuotationManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
       const list = storedOrders ? JSON.parse(storedOrders) : [];
       list.unshift(newOrder);
       localStorage.setItem("spiceora_orders", JSON.stringify(list));
-      
+
       // Update quote status
       handleUpdateStatusSingle(quote.id, "converted");
-      
+
       // Save logs
       addAuditLog("Quotation Converted", `Quotation ${quote.id} successfully converted to Order ${orderId}`);
       toast.success("Converted to Order successfully!", {
@@ -4754,7 +4756,7 @@ function QuotationManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
           template.primaryColor = colorMap[parsed.primaryColor] || [42, 74, 60];
           template.secondaryColor = colorMap[parsed.secondaryColor] || [201, 146, 10];
         }
-      } catch {}
+      } catch { }
 
       const primary = template.primaryColor;
       const secondary = template.secondaryColor;
@@ -4967,7 +4969,7 @@ function QuotationManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
       const cleanBiz = q.businessName.trim().replace(/\s+/g, "_");
       doc.save(`SPICEORA_Quotation_${q.id}_${cleanBiz}.pdf`);
       toast.success("Quotation PDF generated", { description: `Downloaded successfully.` });
-      
+
       // Update activity logs
       const timeStr = new Date().toLocaleDateString('en-IN') + " " + new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
       const updated = quotations.map(item => {
@@ -4999,12 +5001,12 @@ function QuotationManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
   // Filter quotation list
   const filtered = quotations.filter(q => {
     const matchesTab = activeTab === "all" || q.status === activeTab;
-    const matchesSearch = 
+    const matchesSearch =
       q.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
       q.businessName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       q.contactPerson.toLowerCase().includes(searchQuery.toLowerCase()) ||
       q.salesExecutive.toLowerCase().includes(searchQuery.toLowerCase());
-    
+
     const matchesExec = executiveFilter === "all" || q.salesExecutive === executiveFilter;
     const matchesProduct = productFilter === "all" || q.items?.some((it: any) => it.name === productFilter);
 
@@ -5038,7 +5040,7 @@ function QuotationManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
     if (selectedIds.length === 0 || !bulkStatus) return;
     const timeStr = new Date().toLocaleDateString('en-IN') + " " + new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
     const logEvent = `Bulk Status changed to ${bulkStatus} by Admin`;
-    
+
     const updated = quotations.map(q => {
       if (selectedIds.includes(q.id)) {
         return {
@@ -5204,7 +5206,7 @@ function QuotationManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
           <div className="space-y-6">
             <Card className="p-6 space-y-4">
               <h3 className="font-bold text-sm uppercase tracking-wider text-[#8B7355]">5. Quote discount structure</h3>
-              
+
               <div>
                 <label className="block text-xs font-semibold text-[#8B7355] mb-1.5">Discount Management Option</label>
                 <select value={quoteForm.discountType} onChange={e => setQuoteForm({ ...quoteForm, discountType: e.target.value })}
@@ -5222,7 +5224,7 @@ function QuotationManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
 
             <Card className="p-6 space-y-4">
               <h3 className="font-bold text-sm uppercase tracking-wider text-[#8B7355]">6. Pricing Summary</h3>
-              
+
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
                   <span className="text-[#8B7355]">Items Subtotal:</span>
@@ -5256,7 +5258,7 @@ function QuotationManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
             {/* Terms and conditions presets manager */}
             <Card className="p-6 space-y-4">
               <h3 className="font-bold text-sm uppercase tracking-wider text-[#8B7355]">7. Terms and Dispatch Policies</h3>
-              
+
               <div className="space-y-2">
                 {quoteForm.termsList.map((t: string, i: number) => (
                   <div key={i} className="flex items-center justify-between p-2.5 rounded-lg bg-[#FAF8F5] border border-[#2C2416]/8 text-xs">
@@ -5679,7 +5681,7 @@ function ProductCatalogCMSPage() {
 
   const triggerContactSave = () => {
     localStorage.setItem("spiceora_contact_settings", JSON.stringify(contactSettings));
-    
+
     // Also save to audit log
     const storedLogs = localStorage.getItem("spiceora_audit_logs");
     const logs = storedLogs ? JSON.parse(storedLogs) : [];
@@ -5775,7 +5777,7 @@ function ProductCatalogCMSPage() {
       doc.rect(20, 98, 170, 120, "FD");
 
       let cardY = 108;
-      
+
       doc.setFont("Helvetica", "bold");
       doc.setFontSize(15);
       doc.setTextColor(primary[0], primary[1], primary[2]);
@@ -5955,7 +5957,7 @@ function ProductCatalogCMSPage() {
 
       {/* Main CMS Contents Panels */}
       <div className="bg-white rounded-3xl border border-[#2C2416]/10 p-6 lg:p-8">
-        
+
         {/* Company Profile tab */}
         {activeSubTab === "profile" && (
           <div className="space-y-5">
@@ -6016,7 +6018,7 @@ function ProductCatalogCMSPage() {
                       setCatalogProducts(updated);
                     }} className="mt-1 w-full bg-white border border-[#2C2416]/10 rounded-lg p-1.5 text-xs text-[#2C2416]" placeholder="Description" />
                   </div>
-                  
+
                   <div className="lg:col-span-6 grid grid-cols-4 gap-2">
                     {["p100", "p250", "p500", "p1000"].map((size) => (
                       <div key={size}>
@@ -7139,6 +7141,7 @@ function AdminLogin({ onLogin }: { onLogin: () => void }) {
 export default function App() {
   const [authenticated, setAuthenticated] = useState(() => Boolean(localStorage.getItem("spiceora_admin")));
   if (!authenticated) return <AdminLogin onLogin={() => setAuthenticated(true)} />;
+
   const [page, setPage] = useState("dashboard");
   const [collapsed, setCollapsed] = useState(false);
   const [bellOpen, setBellOpen] = useState(false);
@@ -7181,10 +7184,10 @@ export default function App() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  const navigate = (p: string) => { 
-    setPage(p); 
-    setBellOpen(false); 
-    setCmdOpen(false); 
+  const navigate = (p: string) => {
+    setPage(p);
+    setBellOpen(false);
+    setCmdOpen(false);
   };
 
   useEffect(() => {
@@ -7196,14 +7199,14 @@ export default function App() {
 
   const pages: Record<string, React.ReactNode> = {
     dashboard: <DashboardPage navigateTo={navigate} />,
-    products:  <ProductsPage />,
-    orders:    <OrdersPage />,
+    products: <ProductsPage />,
+    orders: <OrdersPage />,
     wholesale: <WholesaleManagementPage navigateTo={navigate} />,
     quotations: <QuotationManagementPage navigateTo={navigate} />,
-    website:   <WebsiteCMSPage />,
+    website: <WebsiteCMSPage />,
     customers: <CustomersPage />,
-    settings:  <SettingsPage />,
-    catalog:   <ProductCatalogCMSPage />,
+    settings: <SettingsPage />,
+    catalog: <ProductCatalogCMSPage />,
     // Legacy pages still accessible via URL/command but not in sidebar
     categories: <ProductsPage />,
     collections: <ProductsPage />,
@@ -7234,7 +7237,7 @@ export default function App() {
       <Toaster position="top-right" toastOptions={{
         style: { background: C.card, color: C.charcoal, border: `1px solid ${C.border}`, borderRadius: 14, fontFamily: "DM Sans, sans-serif", fontSize: 13, boxShadow: "0 8px 30px rgba(26,58,10,0.14)" },
       }} richColors />
-      <Sidebar page={page} setPage={navigate} collapsed={collapsed} setCollapsed={setCollapsed} onLogout={async () => { try { await authApi.adminLogout(); } catch {} localStorage.clear(); sessionStorage.clear(); setAuthenticated(false); }} />
+      <Sidebar page={page} setPage={navigate} collapsed={collapsed} setCollapsed={setCollapsed} onLogout={async () => { try { await authApi.adminLogout(); } catch { } localStorage.clear(); sessionStorage.clear(); setAuthenticated(false); }} />
       <div data-headernav>
         <Header page={page} offset={sideW} notifs={NOTIFS} bellOpen={bellOpen} onBell={() => setBellOpen(v => !v)} toggleDarkMode={toggleDarkMode} darkMode={darkMode} openCommandPalette={() => setCmdOpen(true)} />
       </div>

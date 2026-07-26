@@ -166,19 +166,23 @@ export async function googleCallbackController(req: Request, res: Response, next
   }
 }
 
-export async function sessionJwtController(req: Request, res: Response, next: NextFunction) {
+export async function syncFirebaseController(req: Request, res: Response, next: NextFunction) {
   try {
-    const { authInstance } = await import('../config/better-auth.js');
-    const { fromNodeHeaders } = await import('better-auth/node');
-    const session = await authInstance.api.getSession({
-      headers: fromNodeHeaders(req.headers),
-    });
-    if (!session) {
-      return res.status(401).json({ success: false, message: 'No active session' });
+    const { email, firstName, lastName, avatarUrl, phone } = req.body || {};
+    if (!email) {
+      return res.status(400).json({ success: false, message: 'Email is required' });
     }
-    const result = await exchangeSessionForJwt(session);
-    sendSuccess(res, result, 'Session exchanged successfully');
+    const result = await syncOAuthUser({
+      email,
+      firstName,
+      lastName,
+      avatarUrl,
+      phone,
+      provider: 'firebase',
+    });
+    sendSuccess(res, result, 'Firebase user synced successfully');
   } catch (error) {
     next(error);
   }
 }
+

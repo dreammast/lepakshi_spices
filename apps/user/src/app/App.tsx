@@ -8,7 +8,10 @@ import {
   Instagram, Facebook, Twitter, Youtube, Mail, Globe, Zap, CheckCircle,
   AlertCircle, BookOpen, Tag, Clock, HelpCircle, FileText, Phone
 } from "lucide-react";
-import { authApi, campaignsApi, cartApi, ordersApi, productsApi, categoriesApi, recipesApi, reviewsApi, settingsApi, wholesaleInquiryApi, addressesApi } from "../lib/apiClient";
+import { useAuth } from "../context/AuthContext";
+import { authApi, campaignsApi, cartApi, ordersApi, productsApi, categoriesApi, recipesApi, reviewsApi, settingsApi, wholesaleInquiryApi, addressesApi, couponsApi, locationApi } from "../lib/apiClient";
+import { toast, Toaster } from "sonner";
+
 
 
 // ─── DATA & LIVE API INTEGRATION ──────────────────────────────────────────────────
@@ -4705,65 +4708,11 @@ export default function App() {
     setAnalyticsEvents(prev => [newEvent, ...prev].slice(0, 50));
   }
 
-  const [user, setUser] = useState<any>(null);
+  const { user, logout, login, signup, resetPassword: forgotPassword } = useAuth();
   const [authModalOpen, setAuthModalOpen] = useState<'login' | 'signup' | 'forgot' | 'closed'>('closed');
   const [redirectAfterLogin, setRedirectAfterLogin] = useState<string | null>(null);
   const [users, setUsers] = useState<any[]>([]);
 
-  // Restore session from localStorage/sessionStorage on mount
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const authSuccess = params.get('auth') === 'success';
-
-    if (authSuccess) {
-      // After Better Auth OAuth redirect, exchange session cookie for JWT
-      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api';
-      fetch(`${API_URL}/auth/session-jwt`, { credentials: 'include' })
-        .then((r) => r.json())
-        .then((json) => {
-          if (json.success && json.data?.token) {
-            const userData = { ...json.data.user, token: json.data.token, isLoggedIn: true };
-            setUser({
-              ...userData,
-              name: `${userData.firstName || ''} ${userData.lastName || ''}`.trim() || userData.email,
-            });
-            const store = params.get('remember') === 'true' ? localStorage : sessionStorage;
-            store.setItem('spiceora_user', JSON.stringify(userData));
-            window.history.replaceState({}, '', window.location.pathname);
-          }
-        })
-        .catch(() => {
-          window.history.replaceState({}, '', window.location.pathname);
-        });
-      return;
-    }
-
-    const saved = localStorage.getItem("spiceora_user") || sessionStorage.getItem("spiceora_user");
-    if (saved) {
-      try {
-        const u = JSON.parse(saved);
-        if (u?.token && u?.isLoggedIn) {
-          authApi.me().then((profile: any) => {
-            if (profile) {
-              setUser({
-                ...u,
-                id: profile.id,
-                name: `${profile.firstName || ''} ${profile.lastName || ''}`.trim() || profile.email,
-                email: profile.email,
-                role: profile.role,
-              });
-            }
-          }).catch(() => {
-            localStorage.removeItem("spiceora_user");
-            sessionStorage.removeItem("spiceora_user");
-          });
-        }
-      } catch {
-        localStorage.removeItem("spiceora_user");
-        sessionStorage.removeItem("spiceora_user");
-      }
-    }
-  }, []);
 
   // Automatically process redirectAfterLogin when user logs in
   useEffect(() => {
@@ -4844,83 +4793,8 @@ export default function App() {
     });
   }
 
-  async function login(email: string, password: string, rememberMe: boolean) {
-    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api';
-    const res = await fetch(`${API_URL}/auth/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password })
-    });
-    const json = await res.json();
-    if (!res.ok || !json.success || !json.data?.token) {
-      throw new Error((json && json.message) || 'Invalid credentials');
-    }
-    const u = json.data.user;
-    const token = json.data.token;
-    const userData = {
-      id: u.id,
-      name: `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.email,
-      email: u.email,
-      role: u.role,
-      token,
-      isLoggedIn: true
-    };
-    setUser(userData);
-    if (rememberMe) {
-      localStorage.setItem("spiceora_user", JSON.stringify(userData));
-    } else {
-      sessionStorage.setItem("spiceora_user", JSON.stringify(userData));
-    }
-    setAuthModalOpen('closed');
-    if (redirectAfterLogin) {
-      setCurrentPage(redirectAfterLogin as Page);
-      setRedirectAfterLogin(null);
-    }
-  }
 
-  async function signup(name: string, email: string, password: string) {
-    const parts = name.trim().split(/\s+/);
-    const firstName = parts.shift() || '';
-    const lastName = parts.join(' ') || '';
-    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api';
-    const res = await fetch(`${API_URL}/auth/register`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ firstName, lastName, email, password })
-    });
-    const json = await res.json();
-    if (!res.ok || !json.success || !json.data?.token) {
-      throw new Error((json && json.message) || 'Signup failed');
-    }
-    const u = json.data.user;
-    const token = json.data.token;
-    const userData = {
-      id: u.id,
-      name: `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.email,
-      email: u.email,
-      role: u.role,
-      token,
-      isLoggedIn: true
-    };
-    setUser(userData);
-    localStorage.setItem("spiceora_user", JSON.stringify(userData));
-    setAuthModalOpen('closed');
-    if (redirectAfterLogin) {
-      setCurrentPage(redirectAfterLogin as Page);
-      setRedirectAfterLogin(null);
-    }
-  }
 
-  async function forgotPassword(email: string) {
-    await authApi.forgotPassword(email);
-  }
-
-  async function logout() {
-    setUser(null);
-    localStorage.removeItem("spiceora_user");
-    sessionStorage.removeItem("spiceora_user");
-    setCurrentPage("home");
-  }
 
   function navigate(page: string, data?: any) {
     const isUserLoggedIn = Boolean(user);
@@ -5065,20 +4939,21 @@ export default function App() {
 }
 
 function AuthModal() {
-  const { authModalOpen, setAuthModalOpen, login, signup, forgotPassword } = useApp();
+  const { authModalOpen, setAuthModalOpen } = useApp();
+  const { login, signup, resetPassword, loginWithGoogle } = useAuth();
   const [mode, setMode] = useState<'login' | 'signup' | 'forgot'>('login');
 
   useEffect(() => {
     if (authModalOpen && authModalOpen !== 'closed') {
-      setMode(authModalOpen);
+      setMode(authModalOpen as 'login' | 'signup' | 'forgot');
     }
   }, [authModalOpen]);
 
+  const [rememberMe, setRememberMe] = useState(true);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [name, setName] = useState("");
-  const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -5105,7 +4980,8 @@ function AuthModal() {
       }
       setLoading(true);
       try {
-        await login(email, password, rememberMe);
+        await login(email, password);
+        setAuthModalOpen('closed');
       } catch (err: any) {
         setError(err.message || "Login failed.");
       } finally {
@@ -5127,6 +5003,8 @@ function AuthModal() {
       setLoading(true);
       try {
         await signup(name, email, password);
+        setSuccess("Account created! A verification link has been sent to your email.");
+        setTimeout(() => setAuthModalOpen('closed'), 1500);
       } catch (err: any) {
         setError(err.message || "Signup failed.");
       } finally {
@@ -5139,7 +5017,7 @@ function AuthModal() {
       }
       setLoading(true);
       try {
-        await forgotPassword(email);
+        await resetPassword(email);
         setSuccess("Password reset instructions have been sent to your email.");
       } catch (err: any) {
         setError(err.message || "Password recovery failed.");
@@ -5208,10 +5086,17 @@ function AuthModal() {
           <>
             <button
               type="button"
-              onClick={() => {
-                const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api';
-                const frontendUrl = window.location.origin;
-                window.location.href = `${API_URL}/auth/sign-in/google?callbackURL=${encodeURIComponent(frontendUrl + '/?auth=success')}`;
+              onClick={async () => {
+                setError("");
+                setLoading(true);
+                try {
+                  await loginWithGoogle();
+                  setAuthModalOpen('closed');
+                } catch (err: any) {
+                  setError(err.message || "Google sign-in failed.");
+                } finally {
+                  setLoading(false);
+                }
               }}
               className="w-full flex items-center justify-center gap-3 py-3 px-4 border border-[#1A1714]/12 rounded-xl text-sm font-medium text-[#1A1714] hover:bg-[#FAF8F3] transition-all cursor-pointer"
             >
