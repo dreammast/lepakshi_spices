@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, createContext, useContext } from "react";
+import { Toaster, toast } from "sonner";
 import { motion, AnimatePresence } from "motion/react";
 import {
   ShoppingCart, Heart, Search, User, Menu, X, Star, ChevronRight,
@@ -6,9 +7,9 @@ import {
   MapPin, CreditCard, Check, Bell, Settings, LogOut, Filter, LayoutGrid,
   List, Share2, Leaf, Award, Truck, RefreshCw, Shield,
   Instagram, Facebook, Twitter, Youtube, Mail, Globe, Zap, CheckCircle,
-  AlertCircle, BookOpen, Tag, Clock, HelpCircle, FileText, Phone
+  AlertCircle, AlertTriangle, BookOpen, Tag, Clock, HelpCircle, FileText, Phone
 } from "lucide-react";
-import { authApi, campaignsApi, cartApi, ordersApi, productsApi, categoriesApi, recipesApi, reviewsApi, settingsApi, wholesaleInquiryApi, addressesApi } from "../lib/apiClient";
+import { authApi, campaignsApi, cartApi, ordersApi, productsApi, categoriesApi, couponsApi, locationApi, recipesApi, reviewsApi, settingsApi, wholesaleInquiryApi, addressesApi, wishlistApi } from "../lib/apiClient";
 
 
 // ─── DATA & LIVE API INTEGRATION ──────────────────────────────────────────────────
@@ -34,7 +35,8 @@ export type Product = {
   ingredients?: string[];
   storage?: string;
   tags?: string[];
-  variants?: { id: number; label?: string | null; weightGrams?: number | null; price: number; stock?: number }[];
+  lowStockThreshold?: number;
+  variants?: { id: number; label?: string | null; weightGrams?: number | null; price: number; stock?: number; lowStockThreshold?: number }[];
   packaging?: { id?: number; label: string; price: number; minOrderQty?: number }[];
 };
 
@@ -86,18 +88,37 @@ function getWeightOptions(product: Product) {
     p500: Math.round((product.price || 0) * 5.2),
     p1000: Math.round(product.basePrice || (product.price || 0) * 11),
   };
-  const kgPrice = prices.p1000 || Math.round((product.price || 0) * 11);
 
   return [
     { label: "100g Standard", price: prices.p100 },
     { label: "250g Chef Pack", price: prices.p250 },
     { label: "500g Family Pack", price: prices.p500 },
     { label: "1000g Pantry Bag", price: prices.p1000 },
-    { label: "5kg Bulk Crate", price: kgPrice * 5 },
-    { label: "10kg Bulk Sack", price: kgPrice * 10 },
-    { label: "15kg Bulk Crate", price: kgPrice * 15 },
-    { label: "25kg Bulk Supply", price: kgPrice * 25 },
   ];
+}
+
+function getVariantStock(product: Product, weightLabel?: string): number {
+  if (!product.variants?.length) return 0;
+  if (weightLabel) {
+    const match = product.variants.find(v => (v.label || `${v.weightGrams}g`) === weightLabel);
+    if (match) return match.stock ?? 0;
+  }
+  return product.variants.reduce((sum, v) => sum + (v.stock ?? 0), 0);
+}
+
+function getLowStockThreshold(product: Product, weightLabel?: number): number {
+  if (weightLabel !== undefined) {
+    const match = product.variants?.find(v => v.id === weightLabel);
+    if (match?.lowStockThreshold) return match.lowStockThreshold;
+  }
+  return product.lowStockThreshold || 10;
+}
+
+function StockBadge({ stock, threshold }: { stock: number; threshold?: number }) {
+  const thresh = threshold || 10;
+  if (stock <= 0) return <span className="text-[11px] font-semibold text-red-500">Out of Stock</span>;
+  if (stock <= thresh) return <span className="text-[11px] font-semibold text-amber-600">Only {stock} left!</span>;
+  return <span className="text-[11px] text-[#7A7064]">{stock} in stock</span>;
 }
 
 // ─── CONTEXT ───────────────────────────────────────────────────────────────────
@@ -247,10 +268,13 @@ function ProductCard({ product, index = 0 }: { product: Product; index?: number 
   const { navigate, addToCart, toggleWishlist, wishlist } = useApp();
   const [adding, setAdding] = useState(false);
   const isWished = wishlist.has(product.id);
-  const badgeColor: Record<string, string> = { Bestseller: "orange", Premium: "gold", New: "green", Luxury: "gold" };
+  const badgeColor: Record<string, string> = { Bestseller: "orange", Premium: "gold", New: "green", Luxury: "gold", Featured: "orange" };
+  const totalStock = getVariantStock(product);
+  const isOOS = !product.inStock || totalStock <= 0;
 
   function handleAdd(e: React.MouseEvent) {
     e.stopPropagation();
+    if (isOOS) return;
     setAdding(true);
     setTimeout(() => { addToCart(product); setAdding(false); }, 600);
   }
@@ -263,22 +287,31 @@ function ProductCard({ product, index = 0 }: { product: Product; index?: number 
       >
         <div className="relative overflow-hidden bg-[#F5F0E8]" style={{ aspectRatio: "1/1" }}>
           <img src={product.image} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-          {product.badge && (
+          {isOOS && (
+            <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-10">
+              <span className="bg-white/90 text-[#1A1714] text-xs font-bold px-4 py-2 rounded-full uppercase tracking-wide">Out of Stock</span>
+            </div>
+          )}
+          {product.badge && !isOOS && (
             <div className="absolute top-3 left-3">
               <Badge color={badgeColor[product.badge] || "green"}>{product.badge}</Badge>
             </div>
           )}
-          <button
-            onClick={e => { e.stopPropagation(); toggleWishlist(product.id); }}
-            className="absolute top-3 right-3 w-9 h-9 rounded-full bg-white/90 backdrop-blur-sm flex items-center justify-center shadow-sm hover:scale-110 transition-all duration-200"
-          >
-            <Heart className={`w-4 h-4 transition-all ${isWished ? "fill-red-500 text-red-500 scale-110" : "text-[#7A7064]"}`} />
-          </button>
-          <div className="absolute inset-x-0 bottom-0 p-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300 translate-y-2 group-hover:translate-y-0">
-            <Btn size="sm" loading={adding} onClick={handleAdd} className="w-full">
-              {adding ? "Adding…" : "Add to Cart"}
-            </Btn>
-          </div>
+          {!isOOS && (
+            <button
+              onClick={e => { e.stopPropagation(); toggleWishlist(product.id); }}
+              className="absolute top-3 right-3 w-9 h-9 rounded-full bg-white/90 backdrop-blur-sm flex items-center justify-center shadow-sm hover:scale-110 transition-all duration-200"
+            >
+              <Heart className={`w-4 h-4 transition-all ${isWished ? "fill-red-500 text-red-500 scale-110" : "text-[#7A7064]"}`} />
+            </button>
+          )}
+          {!isOOS && (
+            <div className="absolute inset-x-0 bottom-0 p-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300 translate-y-2 group-hover:translate-y-0">
+              <Btn size="sm" loading={adding} onClick={handleAdd} className="w-full">
+                {adding ? "Adding…" : "Add to Cart"}
+              </Btn>
+            </div>
+          )}
         </div>
         <div className="p-4">
           <p className="text-[10px] font-semibold text-[#7A7064] uppercase tracking-widest mb-1">{product.origin}</p>
@@ -295,6 +328,9 @@ function ProductCard({ product, index = 0 }: { product: Product; index?: number 
                 {Math.round((1 - product.price / product.originalPrice) * 100)}% OFF
               </span>
             )}
+          </div>
+          <div className="mt-1.5">
+            <StockBadge stock={totalStock} threshold={product.lowStockThreshold} />
           </div>
         </div>
       </div>
@@ -1296,12 +1332,19 @@ function ListCard({ product, index = 0 }: { product: Product; index?: number }) 
   const { navigate, addToCart, toggleWishlist, wishlist } = useApp();
   const [adding, setAdding] = useState(false);
   const isWished = wishlist.has(product.id);
+  const totalStock = getVariantStock(product);
+  const isOOS = !product.inStock || totalStock <= 0;
   return (
     <Reveal delay={index * 50}>
       <div onClick={() => navigate("product", product)}
-        className="group flex gap-4 bg-white rounded-2xl overflow-hidden border border-[#1A1714]/6 hover:border-[#2A4A3C]/20 hover:shadow-md transition-all duration-300 cursor-pointer p-4">
-        <div className="w-24 h-24 rounded-xl overflow-hidden bg-[#F5F0E8] flex-shrink-0">
+        className={`group flex gap-4 bg-white rounded-2xl overflow-hidden border border-[#1A1714]/6 hover:border-[#2A4A3C]/20 hover:shadow-md transition-all duration-300 cursor-pointer p-4 ${isOOS ? "opacity-60" : ""}`}>
+        <div className="w-24 h-24 rounded-xl overflow-hidden bg-[#F5F0E8] flex-shrink-0 relative">
           <img src={product.image} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+          {isOOS && (
+            <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+              <span className="text-white text-[9px] font-bold uppercase">OOS</span>
+            </div>
+          )}
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between gap-2">
@@ -1315,14 +1358,21 @@ function ListCard({ product, index = 0 }: { product: Product; index?: number }) 
           <div className="flex items-center justify-between mt-2 flex-wrap gap-2">
             <StarRating rating={product.rating} count={product.reviewCount} />
             <div className="flex items-center gap-3">
-              <span className="text-lg font-bold text-[#1A1714]">₹{product.price}</span>
-              <button onClick={e => { e.stopPropagation(); toggleWishlist(product.id); }}
-                className="w-9 h-9 rounded-xl bg-[#FAF8F3] flex items-center justify-center hover:bg-red-50 transition-colors">
-                <Heart className={`w-4 h-4 ${isWished ? "fill-red-500 text-red-500" : "text-[#7A7064]"}`} />
-              </button>
-              <Btn size="sm" loading={adding} onClick={e => { e.stopPropagation(); setAdding(true); setTimeout(() => { addToCart(product); setAdding(false); }, 600); }}>
-                {adding ? "…" : "Add"}
-              </Btn>
+              <div className="flex flex-col items-end">
+                <span className="text-lg font-bold text-[#1A1714]">₹{product.price}</span>
+                <StockBadge stock={totalStock} threshold={product.lowStockThreshold} />
+              </div>
+              {!isOOS && (
+                <>
+                  <button onClick={e => { e.stopPropagation(); toggleWishlist(product.id); }}
+                    className="w-9 h-9 rounded-xl bg-[#FAF8F3] flex items-center justify-center hover:bg-red-50 transition-colors">
+                    <Heart className={`w-4 h-4 ${isWished ? "fill-red-500 text-red-500" : "text-[#7A7064]"}`} />
+                  </button>
+                  <Btn size="sm" loading={adding} onClick={e => { e.stopPropagation(); setAdding(true); setTimeout(() => { addToCart(product); setAdding(false); }, 600); }}>
+                    {adding ? "…" : "Add"}
+                  </Btn>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -1387,6 +1437,9 @@ function ProductPage({ product }: { product: any }) {
   const retailOptions = weightOptions.filter((option: any) => !option.isWholesale && !option.label.toLowerCase().includes("kg"));
   const wholesaleOptions = weightOptions.filter((option: any) => option.isWholesale || option.label.toLowerCase().includes("kg"));
   const [selectedWeightOpt, setSelectedWeightOpt] = useState(weightOptions[0]); // default 100g
+  const selectedVariantStock = selectedWeightOpt?.id ? (product.variants?.find((v: any) => v.id === selectedWeightOpt.id)?.stock ?? 0) : getVariantStock(product);
+  const selectedThreshold = selectedWeightOpt?.id ? (product.variants?.find((v: any) => v.id === selectedWeightOpt.id)?.lowStockThreshold ?? product.lowStockThreshold ?? 10) : (product.lowStockThreshold || 10);
+  const isProductOOS = selectedVariantStock <= 0;
 
   useEffect(() => {
     setSelectedWeightOpt(weightOptions[0]);
@@ -1396,9 +1449,12 @@ function ProductPage({ product }: { product: any }) {
   }, [product]);
 
   function handleAdd() {
+    if (isProductOOS) return;
+    const maxQty = Math.min(qty, selectedVariantStock);
+    if (maxQty <= 0) return;
     setAdding(true);
     setTimeout(() => {
-      for (let i = 0; i < qty; i++) addToCart(product, selectedWeightOpt.label, selectedWeightOpt.price);
+      for (let i = 0; i < maxQty; i++) addToCart(product, selectedWeightOpt.label, selectedWeightOpt.price);
       setAdding(false);
       setAdded(true);
       setTimeout(() => setAdded(false), 2000);
@@ -1473,6 +1529,22 @@ function ProductPage({ product }: { product: any }) {
               )}
             </div>
 
+            <div className="mb-4">
+              {isProductOOS ? (
+                <div className="flex items-center gap-2 text-red-600">
+                  <AlertCircle className="w-4 h-4" />
+                  <span className="text-sm font-semibold">Out of Stock for this size</span>
+                </div>
+              ) : selectedVariantStock <= selectedThreshold ? (
+                <div className="flex items-center gap-2 text-amber-600">
+                  <AlertTriangle className="w-4 h-4" />
+                  <span className="text-sm font-semibold">Only {selectedVariantStock} {selectedVariantStock === 1 ? 'item' : 'items'} left in stock!</span>
+                </div>
+              ) : (
+                <span className="text-sm text-[#7A7064]">{selectedVariantStock} in stock</span>
+              )}
+            </div>
+
             <p className="text-[#7A7064] leading-relaxed mb-5">{product.description}</p>
 
             <div className="flex flex-wrap gap-2 mb-6">
@@ -1510,27 +1582,33 @@ function ProductPage({ product }: { product: any }) {
             <div className="mb-6">
               <label className="text-xs font-semibold text-[#7A7064] uppercase tracking-widest mb-2.5 block">Select Size</label>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                {(weightTab === "retail" ? retailOptions : wholesaleOptions).map(opt => (
-                  <button
-                    key={opt.label}
-                    type="button"
-                    onClick={() => setSelectedWeightOpt(opt)}
-                    className={`px-4 py-3 rounded-xl border text-xs font-semibold transition-all cursor-pointer text-center ${selectedWeightOpt.label === opt.label ? "bg-[#2A4A3C] border-[#2A4A3C] text-white shadow-sm" : "bg-white border-[#1A1714]/12 text-[#7A7064] hover:border-[#2A4A3C]/45 hover:text-[#1A1714]"}`}
-                  >
-                    <span className="block">{opt.label.split(" ")[0]}</span>
-                    <span className="block text-[10px] mt-0.5 opacity-80">₹{opt.price}</span>
-                  </button>
-                ))}
+                {(weightTab === "retail" ? retailOptions : wholesaleOptions).map(opt => {
+                  const optStock = opt.id ? (product.variants?.find((v: any) => v.id === opt.id)?.stock ?? 0) : 0;
+                  const optOOS = optStock <= 0;
+                  return (
+                    <button
+                      key={opt.label}
+                      type="button"
+                      onClick={() => { if (!optOOS) { setSelectedWeightOpt(opt); setQty(1); } }}
+                      disabled={optOOS}
+                      className={`px-4 py-3 rounded-xl border text-xs font-semibold transition-all cursor-pointer text-center ${optOOS ? "bg-gray-50 border-gray-200 text-gray-400 cursor-not-allowed opacity-50" : selectedWeightOpt.label === opt.label ? "bg-[#2A4A3C] border-[#2A4A3C] text-white shadow-sm" : "bg-white border-[#1A1714]/12 text-[#7A7064] hover:border-[#2A4A3C]/45 hover:text-[#1A1714]"}`}
+                    >
+                      <span className="block">{opt.label.split(" ")[0]}</span>
+                      <span className="block text-[10px] mt-0.5 opacity-80">₹{opt.price}</span>
+                      {optOOS ? <span className="block text-[9px] mt-0.5 text-red-400">Out of Stock</span> : optStock <= 10 ? <span className="block text-[9px] mt-0.5 text-amber-500">Only {optStock} left</span> : null}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
             {/* Quantity + Add or B2B Sourcing CTA */}
             {weightTab === "retail" ? (
               <div className="flex gap-3 mb-3">
-                <QtySelector value={qty} onChange={setQty} />
-                <Btn size="md" loading={adding} onClick={handleAdd}
+                {!isProductOOS && <QtySelector value={qty} onChange={(v: number) => setQty(Math.min(v, selectedVariantStock))} max={selectedVariantStock} />}
+                <Btn size="md" loading={adding} onClick={handleAdd} disabled={isProductOOS}
                   className={`flex-1 transition-all duration-300 ${added ? "!bg-[#2A7A55] hover:!bg-[#2A7A55]" : ""}`}>
-                  {added ? <><Check className="w-4 h-4" /> Added!</> : <><ShoppingCart className="w-4 h-4" /> Add to Cart</>}
+                  {isProductOOS ? "Out of Stock" : added ? <><Check className="w-4 h-4" /> Added!</> : <><ShoppingCart className="w-4 h-4" /> Add to Cart</>}
                 </Btn>
               </div>
             ) : (
@@ -1684,15 +1762,15 @@ function ProductPage({ product }: { product: any }) {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              {weightTab === "retail" && (
+              {weightTab === "retail" && !isProductOOS && (
                 <div className="hidden sm:block">
-                  <QtySelector value={qty} onChange={setQty} />
+                  <QtySelector value={qty} onChange={(v: number) => setQty(Math.min(v, selectedVariantStock))} max={selectedVariantStock} />
                 </div>
               )}
               {weightTab === "retail" ? (
-                <Btn size="md" loading={adding} onClick={handleAdd}
+                <Btn size="md" loading={adding} onClick={handleAdd} disabled={isProductOOS}
                   className={`py-2 px-6 text-xs sm:text-sm ${added ? "!bg-[#2A7A55] hover:!bg-[#2A7A55]" : ""}`}>
-                  {added ? <><Check className="w-4 h-4" /> Added!</> : <><ShoppingCart className="w-4 h-4" /> Add</>}
+                  {isProductOOS ? "Out of Stock" : added ? <><Check className="w-4 h-4" /> Added!</> : <><ShoppingCart className="w-4 h-4" /> Add</>}
                 </Btn>
               ) : (
                 <Btn size="md" onClick={() => navigate("wholesale", { product: product.name, volume: selectedWeightOpt.label })}
@@ -1836,9 +1914,18 @@ function CartPage() {
           {/* Items */}
           <div className="lg:col-span-2 space-y-3">
             <AnimatePresence>
-              {cart.map((item: CartItem) => (
+              {cart.map((item: CartItem) => {
+                const itemStock = item.productVariantId
+                  ? (item.product.variants?.find(v => v.id === item.productVariantId)?.stock ?? 99)
+                  : getVariantStock(item.product, item.selectedWeight);
+                const itemThreshold = item.productVariantId
+                  ? (item.product.variants?.find(v => v.id === item.productVariantId)?.lowStockThreshold ?? 10)
+                  : (item.product.lowStockThreshold || 10);
+                const isLow = itemStock > 0 && itemStock <= itemThreshold;
+                const isOverStock = item.quantity > itemStock;
+                return (
                 <motion.div key={item.product.id + "-" + item.selectedWeight} layout initial={{ opacity: 0, x: -16 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20, height: 0, marginBottom: 0 }}
-                  className="bg-white rounded-2xl border border-[#1A1714]/8 p-4 flex gap-4">
+                  className={`bg-white rounded-2xl border p-4 flex gap-4 ${isOverStock ? "border-red-300 bg-red-50/30" : "border-[#1A1714]/8"}`}>
                   <button onClick={() => navigate("product", item.product)} className="w-24 h-24 rounded-xl overflow-hidden bg-[#F5F0E8] flex-shrink-0 hover:opacity-90 transition-opacity">
                     <img src={item.product.image} alt={item.product.name} className="w-full h-full object-cover" />
                   </button>
@@ -1856,12 +1943,19 @@ function CartPage() {
                       </button>
                     </div>
                     <div className="flex items-center justify-between mt-3 flex-wrap gap-2">
-                      <QtySelector value={item.quantity} onChange={(q: number) => updateCartItem(item.product.id, item.selectedWeight, q)} />
+                      <div className="flex items-center gap-2">
+                        <QtySelector value={item.quantity} onChange={(q: number) => updateCartItem(item.product.id, item.selectedWeight, Math.min(q, itemStock))} max={itemStock} />
+                        {isLow && <span className="text-[10px] text-amber-600 font-semibold whitespace-nowrap">Only {itemStock} left</span>}
+                      </div>
                       <p className="font-bold text-[#1A1714]">₹{(item.price * item.quantity).toFixed(2)}</p>
                     </div>
+                    {isOverStock && (
+                      <p className="text-[10px] text-red-500 mt-1 font-semibold">Only {itemStock} available — quantity adjusted</p>
+                    )}
                   </div>
                 </motion.div>
-              ))}
+                );
+              })}
             </AnimatePresence>
 
             <AnimatePresence>
@@ -1974,6 +2068,7 @@ function CheckoutPage() {
   const [locatingCheckout, setLocatingCheckout] = useState(false);
   const [errors, setErrors] = useState<any>({});
   const [placedOrder, setPlacedOrder] = useState<any>(null);
+  const [orderError, setOrderError] = useState("");
 
   useEffect(() => {
     addressesApi.list().then((list: any[]) => {
@@ -2067,33 +2162,40 @@ function CheckoutPage() {
       setStep(3);
     } else if (step === 3) {
       setLoading(true);
+      setOrderError("");
       try {
-        const items = cart.map((item: CartItem) => ({
-          productVariantId: item.productVariantId || item.product.variants?.find(v => (v.label || `${v.weightGrams}g`) === item.selectedWeight)?.id || (typeof item.product.id === "number" ? item.product.id : 1),
-          quantity: item.quantity,
-          price: item.price
-        }));
+        const items = cart.map((item: CartItem) => {
+          const variant = item.product.variants?.find(v => v.id === item.productVariantId) || item.product.variants?.find(v => (v.label || `${v.weightGrams}g`) === item.selectedWeight);
+          return {
+            productVariantId: item.productVariantId || variant?.id || 0,
+            quantity: item.quantity,
+            price: item.price,
+          };
+        });
         if (items.some(item => !item.productVariantId)) throw new Error("A selected product pack is unavailable. Refresh the cart and try again.");
-        const order = await ordersApi.create({ items, couponCode: couponCode || undefined, discountAmount: discount });
+        const uniqueVariantIds = [...new Set(items.map(i => i.productVariantId))];
+        const serverStock = await productsApi.checkStock(uniqueVariantIds).catch(() => []);
+        const stockMap = new Map(serverStock.map((s: any) => [s.id, s.stock]));
+        const outOfStockItems = items.filter(item => (stockMap.get(item.productVariantId) ?? 0) <= 0);
+        if (outOfStockItems.length > 0) throw new Error("Some items in your cart are out of stock. Please remove them and try again.");
+        const overStockItems = items.filter(item => item.quantity > (stockMap.get(item.productVariantId) ?? 0));
+        if (overStockItems.length > 0) {
+          const adjustedCart = cart.map((item: CartItem) => {
+            const serverQty = stockMap.get(item.productVariantId ?? 0) ?? item.quantity;
+            return { ...item, quantity: Math.min(item.quantity, serverQty) };
+          });
+          setCart(adjustedCart);
+          throw new Error(`Some items had limited stock. Quantities have been adjusted. Please review and try again.`);
+        }
+        const orderItems = items.map(({ productVariantId, quantity, price }) => ({ productVariantId, quantity, price }));
+        const order = await ordersApi.create({ items: orderItems, couponCode: couponCode || undefined, discountAmount: discount });
         setPlacedOrder(order);
         await cartApi.clear();
         clearCart();
         setStep(4);
       } catch (error: any) {
         console.error("Order process error:", error);
-        const orderId = Math.floor(100000 + Math.random() * 900000);
-        const fallbackOrder = {
-          id: orderId,
-          orderNumber: `ORD-${orderId}`,
-          total: total.toFixed(2),
-          items: cart.map(i => `${i.product.name} (${i.selectedWeight}) × ${i.quantity}`),
-          status: "Processing",
-          date: new Date().toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
-        };
-        setPlacedOrder(fallbackOrder);
-        setOrders((prev: any[]) => [fallbackOrder, ...prev]);
-        clearCart();
-        setStep(4);
+        setOrderError(error.message || "Failed to place order. Please try again.");
       } finally {
         setLoading(false);
       }
@@ -2314,6 +2416,11 @@ function CheckoutPage() {
                   {step === 3 ? "Place Order" : <>Continue <ArrowRight className="w-4 h-4" /></>}
                 </Btn>
               </div>
+              {orderError && (
+                <div className="mt-3 p-3 bg-red-50 text-red-700 border border-red-100 rounded-xl text-xs font-semibold text-center">
+                  {orderError}
+                </div>
+              )}
             </div>
           </div>
 
@@ -2372,6 +2479,7 @@ function ProfilePage() {
   const [settingsPhone, setSettingsPhone] = useState("");
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [saveLoading, setSaveLoading] = useState(false);
+  const [saveError, setSaveError] = useState("");
 
   // User real addresses from API
   const [userAddresses, setUserAddresses] = useState<any[]>([]);
@@ -2570,14 +2678,22 @@ function ProfilePage() {
 
   const wishedProducts = products.filter((p: any) => wishlist.has(p.id));
 
-  function handleSaveSettings(e: React.FormEvent) {
+  async function handleSaveSettings(e: React.FormEvent) {
     e.preventDefault();
     setSaveLoading(true);
-    setTimeout(() => {
-      setSaveLoading(false);
+    try {
+      const parts = settingsName.trim().split(/\s+/);
+      const firstName = parts.shift() || user?.name || '';
+      const lastName = parts.join(' ') || '';
+      await authApi.updateProfile({ firstName, lastName, phone: settingsPhone });
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 2500);
-    }, 1000);
+    } catch (err: any) {
+      setSaveError(err.message || 'Failed to save settings');
+      setTimeout(() => setSaveError(''), 3000);
+    } finally {
+      setSaveLoading(false);
+    }
   }
 
   function handleSendSupport(e: React.FormEvent) {
@@ -2963,6 +3079,11 @@ function ProfilePage() {
                         {saveSuccess && (
                           <div className="p-3 bg-green-50 text-green-700 border border-green-100 rounded-xl text-xs font-semibold flex items-center gap-2">
                             <CheckCircle className="w-4 h-4" /> Changes saved successfully!
+                          </div>
+                        )}
+                        {saveError && (
+                          <div className="p-3 bg-red-50 text-red-700 border border-red-100 rounded-xl text-xs font-semibold flex items-center gap-2">
+                            {saveError}
                           </div>
                         )}
                         <div>
@@ -4774,6 +4895,23 @@ export default function App() {
     }
   }, [user, redirectAfterLogin]);
 
+  // Handle Google sign-in result dispatched from AuthModal
+  useEffect(() => {
+    function handleGoogleAuth(e: Event) {
+      const userData = (e as CustomEvent).detail;
+      if (userData?.token) {
+        setUser(userData);
+        setAuthModalOpen('closed');
+        if (redirectAfterLogin) {
+          setCurrentPage(redirectAfterLogin as Page);
+          setRedirectAfterLogin(null);
+        }
+      }
+    }
+    window.addEventListener('spiceora_google_auth', handleGoogleAuth);
+    return () => window.removeEventListener('spiceora_google_auth', handleGoogleAuth);
+  }, [redirectAfterLogin]);
+
   useEffect(() => {
     const fetchApiData = async () => {
       try {
@@ -4818,11 +4956,31 @@ export default function App() {
 
   async function refreshCustomerData() {
     if (!user?.token) return;
-    const [serverCart, serverOrders] = await Promise.all([cartApi.get(), ordersApi.list()]);
+    const [serverCart, serverOrders, serverWishlist] = await Promise.all([
+      cartApi.get(),
+      ordersApi.list(),
+      wishlistApi.get().catch(() => ({ items: [] })),
+    ]);
+    const productsList = products.length > 0 ? products : (await productsApi.list().catch(() => []));
     setCart((serverCart.items || []).flatMap((row: any) => {
       if (!row.product || !row.variant) return [];
+      const fullProduct = productsList.find((p: any) => p.id === row.product.id);
+      const serverVariant = {
+        id: row.variant.id,
+        label: row.variant.label,
+        weightGrams: row.variant.weightGrams,
+        price: Number(row.variant.price),
+        stock: row.variant.stock ?? 0,
+        lowStockThreshold: row.variant.lowStockThreshold,
+      };
+      const productWithVariants = fullProduct || {
+        ...row.product,
+        variants: [serverVariant],
+        inStock: (row.variant.stock ?? 0) > 0,
+        stock: row.variant.stock ?? 0,
+      };
       return [{
-        product: row.product,
+        product: productWithVariants,
         quantity: row.item.quantity,
         selectedWeight: row.variant.label || `${row.variant.weightGrams}g`,
         price: Number(row.item.price),
@@ -4830,6 +4988,7 @@ export default function App() {
       }];
     }));
     setOrders(serverOrders || []);
+    setWishlist(new Set((serverWishlist.items || []).map((row: any) => row.item?.productId || row.productId).filter(Boolean)));
   }
 
   useEffect(() => { refreshCustomerData().catch(console.error); }, [user?.token]);
@@ -4979,26 +5138,44 @@ export default function App() {
   function addToCart(product: Product, selectedWeight?: string, price?: number) {
     const weight = selectedWeight || "100g Standard";
     const itemPrice = price !== undefined ? price : product.price;
-    const variantId = product.variants?.find(v => (v.label || `${v.weightGrams}g`) === weight)?.id || product.variants?.[0]?.id;
+    const variant = product.variants?.find(v => (v.label || `${v.weightGrams}g`) === weight) || product.variants?.[0];
+    const variantId = variant?.id;
+    const variantStock = variant?.stock ?? 0;
     logAnalyticsEvent("Add Cart", { productId: product.id, name: product.name, weight, price: itemPrice });
 
+    if (variantStock <= 0) {
+      toast.error("This item is currently out of stock.");
+      return;
+    }
+
+    let newQty = 1;
     setCart(prev => {
       const exIdx = prev.findIndex(i => i.product.id === product.id && i.selectedWeight === weight);
       if (exIdx > -1) {
-        return prev.map((item, idx) => idx === exIdx ? { ...item, quantity: item.quantity + 1 } : item);
+        const currentQty = prev[exIdx].quantity;
+        if (currentQty >= variantStock) {
+          toast.warning(`Only ${variantStock} available in stock.`);
+          return prev;
+        }
+        newQty = currentQty + 1;
+        return prev.map((item, idx) => idx === exIdx ? { ...item, quantity: newQty } : item);
       }
+      newQty = 1;
       return [...prev, { product, quantity: 1, selectedWeight: weight, price: itemPrice, productVariantId: variantId }];
     });
     if (user?.token && variantId) {
-      const existing = cart.find(item => item.product.id === product.id && item.selectedWeight === weight);
-      cartApi.setItem({ productVariantId: variantId, quantity: (existing?.quantity || 0) + 1, price: itemPrice }).catch(console.error);
+      cartApi.setItem({ productVariantId: variantId, quantity: newQty, price: itemPrice }).catch(console.error);
     }
   }
 
   function updateCartItem(productId: number, selectedWeight: string, quantity: number) {
     const item = cart.find(i => i.product.id === productId && i.selectedWeight === selectedWeight);
-    setCart(prev => prev.map(i => i.product.id === productId && i.selectedWeight === selectedWeight ? { ...i, quantity } : i));
-    if (user?.token && item?.productVariantId) cartApi.setItem({ productVariantId: item.productVariantId, quantity, price: item.price }).catch(console.error);
+    if (!item) return;
+    const variant = item.product.variants?.find(v => v.id === item.productVariantId) || item.product.variants?.find(v => (v.label || `${v.weightGrams}g`) === selectedWeight);
+    const maxStock = variant?.stock ?? 99;
+    const clampedQty = Math.max(1, Math.min(quantity, maxStock));
+    setCart(prev => prev.map(i => i.product.id === productId && i.selectedWeight === selectedWeight ? { ...i, quantity: clampedQty } : i));
+    if (user?.token && item.productVariantId) cartApi.setItem({ productVariantId: item.productVariantId, quantity: clampedQty, price: item.price }).catch(console.error);
   }
 
   function removeFromCart(productId: number, selectedWeight: string) {
@@ -5013,6 +5190,9 @@ export default function App() {
       n.has(productId) ? n.delete(productId) : n.add(productId);
       return n;
     });
+    if (user?.token) {
+      wishlistApi.toggle(productId).catch(console.error);
+    }
   }
 
   const [profileData, setProfileData] = useState<any>(null);
@@ -5209,9 +5389,56 @@ function AuthModal() {
             <button
               type="button"
               onClick={() => {
+                setError("");
+                setLoading(true);
+                const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '917080802896-st1ihphek9f5kcseuu0ajjemsnce08ig.apps.googleusercontent.com';
                 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api';
-                const frontendUrl = window.location.origin;
-                window.location.href = `${API_URL}/auth/sign-in/google?callbackURL=${encodeURIComponent(frontendUrl + '/?auth=success')}`;
+                const gsi = (window as any).google?.accounts?.id;
+                if (!gsi) {
+                  setError("Google sign-in is not available. Please try again in a moment.");
+                  setLoading(false);
+                  return;
+                }
+                gsi.initialize({
+                  client_id: GOOGLE_CLIENT_ID,
+                  callback: async (response: any) => {
+                    try {
+                      const payload = JSON.parse(atob(response.credential.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+                      const email: string = payload.email || '';
+                      const name: string = payload.name || '';
+                      const picture: string = payload.picture || '';
+                      const parts = name.trim().split(/\s+/);
+                      const firstName = parts.shift() || email.split('@')[0] || 'User';
+                      const lastName = parts.join(' ') || '';
+                      const res = await fetch(`${API_URL}/auth/sync-oauth`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ email, firstName, lastName, ...(picture ? { avatarUrl: picture } : {}) })
+                      });
+                      const json = await res.json();
+                      if (!res.ok || !json.success || !json.data?.token) {
+                        throw new Error(json.message || 'Google sign-in failed. Please try again.');
+                      }
+                      const u = json.data.user;
+                      const token = json.data.token;
+                      const userData = {
+                        id: u.id,
+                        name: `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.email,
+                        email: u.email,
+                        role: u.role,
+                        token,
+                        isLoggedIn: true
+                      };
+                      localStorage.setItem('spiceora_user', JSON.stringify(userData));
+                      window.dispatchEvent(new CustomEvent('spiceora_google_auth', { detail: userData }));
+                    } catch (err: any) {
+                      setError(err.message || 'Google sign-in failed.');
+                    } finally {
+                      setLoading(false);
+                    }
+                  },
+                });
+                gsi.prompt();
               }}
               className="w-full flex items-center justify-center gap-3 py-3 px-4 border border-[#1A1714]/12 rounded-xl text-sm font-medium text-[#1A1714] hover:bg-[#FAF8F3] transition-all cursor-pointer"
             >

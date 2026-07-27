@@ -11,29 +11,43 @@ import { requestLogger } from './middleware/logger.middleware.js';
 import { notFoundHandler, errorHandler } from './middleware/error.middleware.js';
 import { swaggerSpec } from './utils/swagger.js';
 import { adminActivity } from './middleware/admin-activity.middleware.js';
+import { runMigrations } from './db/migrate.js';
 
 const app = express();
 app.use(requestLogger);
 app.use(helmet());
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:5174',
+  origin: (origin, callback) => {
+    const allowed = [
+      process.env.FRONTEND_URL,
+      'http://localhost:5174',
+      'http://localhost:5173',
+    ];
+    if (!origin || allowed.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
 }));
 
 // Better Auth handler — mounted BEFORE express.json() so the body stream is
 // still available for any POST-based Better Auth endpoints.
-// Mounted at /api/auth so Express strips the prefix before the handler sees
-// the path (Better Auth expects /sign-in/google, not /api/auth/sign-in/google).
-// Non-Better-Auth paths fall through to the main router below.
+// Better Auth expects paths like /sign-in/google (without the /api/auth prefix),
+// so we match at root level and manually strip the prefix.
 const baHandler = toNodeHandler(authInstance);
 const BA_PREFIXES = ['/sign-in/', '/callback/', '/sign-out', '/get-session', '/sign-up/'];
-app.use('/api/auth', (req, res, next) => {
-  if (BA_PREFIXES.some((p) => req.path.startsWith(p))) {
-    baHandler(req, res).catch(next);
+app.use((req, res, next) => {
+  const baMatch = req.path.match(/^\/api\/auth(\/.*)$/);
+  if (baMatch && BA_PREFIXES.some((p) => baMatch[1].startsWith(p))) {
+    const baReq = Object.assign(Object.create(req), {
+      url: baMatch[1],
+      path: baMatch[1],
+    });
+    baHandler(baReq, res).catch(next);
     return;
   }
-  // Restore original URL so downstream /api router can still match
-  req.url = req.originalUrl;
   next();
 });
 
@@ -46,6 +60,7 @@ app.use(errorHandler);
 
 export function startServer() {
   const port = Number(env.PORT);
+  runMigrations().catch(err => console.warn('[migrate] Migration check failed:', err.message));
   app.listen(port, () => {
     console.log(`Lepakshi Spices backend listening on port ${port}`);
   });

@@ -75,7 +75,8 @@ export const authApi = {
 
 export const productsApi = {
   list: () => api.get<any[]>('/products'),
-  get: (slug: string) => api.get<any>(`/products/${slug}`)
+  get: (slug: string) => api.get<any>(`/products/${slug}`),
+  checkStock: (variantIds: number[]) => api.post<any[]>('/products/stock-check', { variantIds })
 };
 
 export const categoriesApi = {
