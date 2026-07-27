@@ -1,5 +1,5 @@
 import type { Request, Response, NextFunction } from 'express';
-import { getProductDetails, listProducts, createProduct, updateProduct, deleteProduct } from '../services/product.service.js';
+import { getProductDetails, listProducts, createProduct, updateProduct, deleteProduct, updateVariantStock, checkStock } from '../services/product.service.js';
 import { sendSuccess, sendCreated } from '../utils/response.util.js';
 
 export async function listProductsController(_req: Request, res: Response, next: NextFunction) {
@@ -43,6 +43,31 @@ export async function deleteProductController(req: Request, res: Response, next:
   try {
     await deleteProduct(Number(req.params.id));
     sendSuccess(res, { message: 'Product deleted successfully' });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function updateVariantStockController(req: Request, res: Response, next: NextFunction) {
+  try {
+    const variantId = Number(req.params.variantId);
+    const { stock, lowStockThreshold } = req.body;
+    const updated = await updateVariantStock(variantId, Number(stock), lowStockThreshold !== undefined ? Number(lowStockThreshold) : undefined);
+    sendSuccess(res, updated, 'Variant stock updated');
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function checkStockController(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { variantIds } = req.body;
+    if (!Array.isArray(variantIds) || variantIds.length === 0) {
+      sendSuccess(res, []);
+      return;
+    }
+    const stockInfo = await checkStock(variantIds.map(Number));
+    sendSuccess(res, stockInfo);
   } catch (error) {
     next(error);
   }

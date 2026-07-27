@@ -1,4 +1,4 @@
-import { findAllWholesaleInquiries, findWholesaleInquiryById, createWholesaleInquiryRecord, updateWholesaleInquiryStatus, findAllQuotations, findQuotationById, createQuotationRecord, updateQuotationRecord } from '../repositories/wholesale.repository.js';
+import { findAllWholesaleInquiries, findWholesaleInquiryById, createWholesaleInquiryRecord, updateWholesaleInquiryStatus, findAllQuotations, findQuotationById, createQuotationRecord, updateQuotationRecord, deleteWholesaleInquiry, deleteQuotation } from '../repositories/wholesale.repository.js';
 import { AppError } from '../utils/app-error.js';
 
 export async function listWholesaleInquiries() { return findAllWholesaleInquiries(); }
@@ -18,3 +18,5 @@ export async function getQuotation(id: number) {
 }
 export async function createQuotation(data: Parameters<typeof createQuotationRecord>[0]) { return createQuotationRecord(data); }
 export async function updateQuotation(id: number, data: Record<string, any>) { return updateQuotationRecord(id, data); }
+export async function removeWholesaleInquiry(id: number) { return deleteWholesaleInquiry(id); }
+export async function removeQuotation(id: number) { return deleteQuotation(id); }

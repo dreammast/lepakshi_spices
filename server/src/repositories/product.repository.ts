@@ -1,4 +1,4 @@
-import { eq, type InferModel } from 'drizzle-orm';
+import { eq, inArray, type InferModel } from 'drizzle-orm';
 import { db } from '../config/database.js';
 import { bulkPackaging, categories, productImages, productVariants, products } from '../db/schema.js';
 
@@ -89,7 +89,8 @@ export async function findAllActiveProducts() {
       p1000: priceByWeight[1000],
     });
     const price = prices.p100;
-    const stock = mainVariant ? mainVariant.stock : 100;
+    const totalStock = pVariants.reduce((sum, v) => sum + (v.stock || 0), 0);
+    const stock = totalStock;
     const sku = mainVariant ? mainVariant.sku : `SPH-${p.id}`;
     const imageUrl = primaryImg ? primaryImg.url : "https://images.unsplash.com/photo-1596040033229-a9821ebd058d?w=800&fit=crop";
 
@@ -131,8 +132,8 @@ export async function findAllActiveProducts() {
       })),
       stock,
       lowStockThreshold: mainVariant ? mainVariant.lowStockThreshold : 30,
-      sold: 12,
-      rating: 4.9,
+      sold: 0,
+      rating: 0,
       status: p.isActive ? (stock > 0 ? "active" : "out-of-stock") : "out-of-stock",
       sku,
       origin: "India",
@@ -142,8 +143,8 @@ export async function findAllActiveProducts() {
       subtitle: cat ? cat.name : "Single Origin",
       weight: "100g",
       inStock: stock > 0,
-      badge: "Bestseller",
-      tags: ["organic", "premium"],
+      badge: p.isFeatured ? "Featured" : "",
+      tags: [],
     };
   });
 }
@@ -345,6 +346,19 @@ export async function deleteProductRecord(id: number) {
   await db.delete(productVariants).where(eq(productVariants.productId, id));
   await db.delete(productImages).where(eq(productImages.productId, id));
   return db.delete(products).where(eq(products.id, id));
+}
+
+export async function updateVariantStockRecord(variantId: number, stock: number, lowStockThreshold?: number) {
+  const fields: Record<string, any> = { stock, updatedAt: new Date() };
+  if (lowStockThreshold !== undefined) fields.lowStockThreshold = lowStockThreshold;
+  await db.update(productVariants).set(fields).where(eq(productVariants.id, variantId));
+  const [updated] = await db.select().from(productVariants).where(eq(productVariants.id, variantId));
+  return updated ?? null;
+}
+
+export async function checkVariantsStock(variantIds: number[]) {
+  const rows = await db.select().from(productVariants).where(inArray(productVariants.id, variantIds));
+  return rows.map(v => ({ id: v.id, stock: v.stock, label: v.label, productId: v.productId }));
 }
 
 

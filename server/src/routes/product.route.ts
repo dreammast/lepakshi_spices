@@ -6,15 +6,18 @@ import {
   listProductsController,
   createProductController,
   updateProductController,
-  deleteProductController
+  deleteProductController,
+  updateVariantStockController,
+  checkStockController
 } from '../controllers/product.controller.js';
 
 const router = Router();
 
 router.get('/', asyncHandler(listProductsController));
+router.post('/stock-check', asyncHandler(checkStockController));
 router.get('/:slug', asyncHandler(getProductController));
-// The current admin UI has no login flow, so catalog management remains open.
 router.post('/', authenticate, requireRole('admin', 'staff', 'manager'), asyncHandler(createProductController));
+router.put('/variants/:variantId/stock', authenticate, requireRole('admin', 'staff', 'manager'), asyncHandler(updateVariantStockController));
 router.put('/:id', authenticate, requireRole('admin', 'staff', 'manager'), asyncHandler(updateProductController));
 router.delete('/:id', authenticate, requireRole('admin', 'staff', 'manager'), asyncHandler(deleteProductController));
 

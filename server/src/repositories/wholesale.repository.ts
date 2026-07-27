@@ -102,3 +102,12 @@ export async function updateQuotationRecord(id: number, data: Record<string, any
   await db.update(quotations).set({ ...rest, updatedAt: new Date() }).where(eq(quotations.id, id));
   return findQuotationById(id);
 }
+
+export async function deleteWholesaleInquiry(id: number) {
+  await db.delete(wholesaleInquiries).where(eq(wholesaleInquiries.id, id));
+}
+
+export async function deleteQuotation(id: number) {
+  await db.delete(quotationItems).where(eq(quotationItems.quotationId, id));
+  await db.delete(quotations).where(eq(quotations.id, id));
+}

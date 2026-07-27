@@ -22,7 +22,7 @@ import {
   PieChart, Pie, Cell,
 } from "recharts";
 import { SmartPricingAssistant } from "./components/SmartPricingAssistant";
-import { authApi, auditApi, categoriesApi, customersApi, ordersApi, couponsApi, campaignsApi, recipesApi, reviewsApi, wholesaleApi, productsApi, dashboardApi } from "../lib/apiClient";
+import { authApi, auditApi, categoriesApi, customersApi, ordersApi, couponsApi, campaignsApi, recipesApi, reviewsApi, wholesaleApi, productsApi, dashboardApi, settingsApi, collectionsApi } from "../lib/apiClient";
 
 // ─── Brand Tokens ─────────────────────────────────────────────
 const C = {
@@ -1108,10 +1108,12 @@ function ProductsPage() {
       const numId = Number(id);
       if (!isNaN(numId)) {
         try {
-          await fetch(`http://localhost:4000/api/products/${numId}`, { method: "DELETE" });
-          toast.success("Product removed from database");
-        } catch (err) {
+          await productsApi.remove(numId);
+          toast.success("Product deleted from database");
+        } catch (err: any) {
           console.error("Failed to delete product from API:", err);
+          toast.error(err.message || "Failed to delete product");
+          return;
         }
       } else {
         toast.success("Product removed");
@@ -1126,7 +1128,14 @@ function ProductsPage() {
   // Inventory Save
   const handleSaveInventory = async () => {
     try {
-      await Promise.all(Object.entries(inventoryChanges).map(([id, change]) => productsApi.update(Number(id), change)));
+      const entries = Object.entries(inventoryChanges);
+      for (const [key, change] of entries) {
+        if (change.variantId && change.productId) {
+          await productsApi.updateVariantStock(Number(change.variantId), change.stock, change.lowStockThreshold);
+        } else {
+          await productsApi.update(Number(key), change);
+        }
+      }
       await loadDbData();
       setInventoryChanges({});
       toast.success("Inventory stock levels updated");
@@ -1229,9 +1238,17 @@ function ProductsPage() {
                     <td className="px-5 py-4 text-[#2C2416]">{p.category}</td>
                     <td className="px-5 py-4 font-semibold text-[#2D5016]">₹{p.price}</td>
                     <td className="px-5 py-4">
-                      <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold ${p.stock < p.lowStockThreshold ? "bg-red-50 text-red-700" : "bg-green-50 text-green-700"}`}>
-                        {p.stock} units {p.stock < p.lowStockThreshold && "(Low)"}
-                      </span>
+                      <div className="space-y-0.5">
+                        {(p.variants || []).length > 0 ? (p.variants || []).map((v: any) => (
+                          <span key={v.id || v.label} className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-semibold mr-1 ${v.stock <= 0 ? "bg-red-50 text-red-700" : v.stock <= (v.lowStockThreshold || 30) ? "bg-amber-50 text-amber-700" : "bg-green-50 text-green-700"}`}>
+                            {v.label || v.weightGrams + 'g'}: {v.stock}
+                          </span>
+                        )) : (
+                          <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold ${p.stock < p.lowStockThreshold ? "bg-red-50 text-red-700" : "bg-green-50 text-green-700"}`}>
+                            {p.stock} units
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-5 py-4 capitalize">
                       <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${p.status === "active" ? "bg-green-100 text-green-800" : "bg-stone-100 text-stone-600"}`}>
@@ -1296,7 +1313,7 @@ function ProductsPage() {
           <table className="w-full text-xs">
             <thead>
               <tr className="bg-[#FAF8F5] border-b border-[#2C2416]/8">
-                {["Product Details", "Current Stock Level", "Low Stock Threshold Alert", "Status"].map(h => (
+                {["Product Details", "Variants & Stock", "Low Stock Alert", "Status"].map(h => (
                   <th key={h} className="px-5 py-4 text-left font-semibold text-[#8B7355]">{h}</th>
                 ))}
               </tr>
@@ -1306,8 +1323,8 @@ function ProductsPage() {
                 .filter(p => p.name.toLowerCase().includes(query.toLowerCase()) || p.sku.toLowerCase().includes(query.toLowerCase()))
                 .filter(p => catFilter === "all" || p.category === catFilter)
                 .map(p => {
-                  const currentStock = inventoryChanges[p.id]?.stock ?? p.stock;
                   const currentThreshold = inventoryChanges[p.id]?.lowStockThreshold ?? p.lowStockThreshold ?? 30;
+                  const variants = p.variants || [];
                   return (
                     <tr key={p.id}>
                       <td className="px-5 py-4">
@@ -1315,31 +1332,78 @@ function ProductsPage() {
                         <p className="text-[10px] text-[#8B7355] font-mono">{p.sku}</p>
                       </td>
                       <td className="px-5 py-4">
-                        <input
-                          type="number"
-                          value={currentStock}
-                          onChange={e => setInventoryChanges({
-                            ...inventoryChanges,
-                            [p.id]: { stock: Number(e.target.value), lowStockThreshold: currentThreshold }
-                          })}
-                          className="w-20 px-2 py-1 border rounded-lg bg-[#FAF8F5] outline-none text-[#2C2416] font-semibold"
-                        />
+                        {variants.length > 0 ? (
+                          <div className="space-y-1.5">
+                            {variants.map((v: any) => {
+                              const vStock = inventoryChanges[`${p.id}-${v.id}`]?.stock ?? v.stock ?? 0;
+                              return (
+                                <div key={v.id} className="flex items-center gap-2">
+                                  <span className="text-[10px] font-semibold text-[#8B7355] w-16">{v.label || `${v.weightGrams}g`}</span>
+                                  <input
+                                    type="number"
+                                    min={0}
+                                    value={vStock}
+                                    onChange={e => setInventoryChanges({
+                                      ...inventoryChanges,
+                                      [`${p.id}-${v.id}`]: { stock: Number(e.target.value), lowStockThreshold: currentThreshold, variantId: v.id, productId: p.id }
+                                    })}
+                                    className="w-20 px-2 py-1 border rounded-lg bg-[#FAF8F5] outline-none text-[#2C2416] font-semibold"
+                                  />
+                                  <span className={`text-[9px] font-bold ${vStock <= 0 ? "text-red-600" : vStock <= currentThreshold ? "text-amber-600" : "text-green-600"}`}>
+                                    {vStock <= 0 ? "OUT" : vStock <= currentThreshold ? "LOW" : "OK"}
+                                  </span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <input
+                            type="number"
+                            value={inventoryChanges[p.id]?.stock ?? p.stock ?? 0}
+                            onChange={e => setInventoryChanges({
+                              ...inventoryChanges,
+                              [p.id]: { stock: Number(e.target.value), lowStockThreshold: currentThreshold }
+                            })}
+                            className="w-20 px-2 py-1 border rounded-lg bg-[#FAF8F5] outline-none text-[#2C2416] font-semibold"
+                          />
+                        )}
                       </td>
                       <td className="px-5 py-4">
                         <input
                           type="number"
                           value={currentThreshold}
-                          onChange={e => setInventoryChanges({
-                            ...inventoryChanges,
-                            [p.id]: { stock: currentStock, lowStockThreshold: Number(e.target.value) }
-                          })}
+                          onChange={e => {
+                            const updated = { ...inventoryChanges };
+                            if (variants.length > 0) {
+                              variants.forEach((v: any) => {
+                                const key = `${p.id}-${v.id}`;
+                                updated[key] = { ...updated[key], stock: updated[key]?.stock ?? v.stock ?? 0, lowStockThreshold: Number(e.target.value), variantId: v.id, productId: p.id };
+                              });
+                            } else {
+                              updated[p.id] = { ...updated[p.id], stock: updated[p.id]?.stock ?? p.stock ?? 0, lowStockThreshold: Number(e.target.value) };
+                            }
+                            setInventoryChanges(updated);
+                          }}
                           className="w-20 px-2 py-1 border rounded-lg bg-[#FAF8F5] outline-none text-[#8B7355]"
                         />
                       </td>
                       <td className="px-5 py-4">
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${currentStock < currentThreshold ? "bg-red-100 text-red-800" : "bg-green-100 text-green-800"}`}>
-                          {currentStock < currentThreshold ? "Restock Required" : "Healthy Stock"}
-                        </span>
+                        {variants.length > 0 ? (
+                          <div className="space-y-0.5">
+                            {variants.map((v: any) => {
+                              const vStock = inventoryChanges[`${p.id}-${v.id}`]?.stock ?? v.stock ?? 0;
+                              return (
+                                <span key={v.id} className={`block px-2 py-0.5 rounded-full text-[9px] font-bold ${vStock <= 0 ? "bg-red-100 text-red-800" : vStock <= currentThreshold ? "bg-amber-100 text-amber-800" : "bg-green-100 text-green-800"}`}>
+                                  {v.label || `${v.weightGrams}g`}: {vStock <= 0 ? "Out of Stock" : vStock <= currentThreshold ? "Restock Soon" : "Healthy"}
+                                </span>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${(inventoryChanges[p.id]?.stock ?? p.stock ?? 0) < currentThreshold ? "bg-red-100 text-red-800" : "bg-green-100 text-green-800"}`}>
+                            {(inventoryChanges[p.id]?.stock ?? p.stock ?? 0) < currentThreshold ? "Restock Required" : "Healthy Stock"}
+                          </span>
+                        )}
                       </td>
                     </tr>
                   );
@@ -1890,10 +1954,14 @@ function CategoriesPage() {
   };
 
   const handleSave = async () => {
-    // Update locally; server-side update endpoint is not implemented for partial edits, so keep local update
-    setCategories(prev => prev.map(c => c.id === form.id ? { ...form } : c));
-    setEditTarget(null);
-    toast.success("Category updated successfully");
+    try {
+      await categoriesApi.update(form.id, { name: form.name, description: form.description });
+      setCategories(prev => prev.map(c => c.id === form.id ? { ...form } : c));
+      setEditTarget(null);
+      toast.success("Category updated successfully");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to update category");
+    }
   };
 
   const handleCreateCategory = async () => {
@@ -2045,22 +2113,29 @@ function CategoriesPage() {
 }
 
 function CollectionsPage() {
-  const [collections, setCollections] = useState<any[]>(() => {
+  const [collections, setCollections] = useState<any[]>([]);
+
+  const loadCollections = async () => {
     try {
-      const stored = localStorage.getItem("spiceora_collections");
-      return stored ? JSON.parse(stored) : [];
-    } catch {
-      return [];
+      const data = await collectionsApi.list();
+      if (Array.isArray(data)) setCollections(data.map((c: any) => ({ ...c, id: c.id, name: c.name, products: c.products || [], active: c.isActive ?? true })));
+    } catch (err) {
+      console.warn("Failed to load collections:", err);
     }
-  });
+  };
 
-  useEffect(() => {
-    localStorage.setItem("spiceora_collections", JSON.stringify(collections));
-  }, [collections]);
+  useEffect(() => { loadCollections(); }, []);
 
-  const toggleStatus = (id: string) => {
-    setCollections(prev => prev.map(c => c.id === id ? { ...c, active: !c.active } : c));
-    toast.success("Collection status changed");
+  const toggleStatus = async (id: number) => {
+    const col = collections.find((c: any) => c.id === id);
+    if (!col) return;
+    try {
+      await collectionsApi.update(id, { isActive: !col.active });
+      setCollections(prev => prev.map(c => c.id === id ? { ...c, active: !c.active } : c));
+      toast.success("Collection status changed");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to update collection");
+    }
   };
 
   return (
@@ -2153,6 +2228,17 @@ function CustomersPage() {
   const customerOrders = customerDetails?.orders || [];
   const purchasedProducts = customerOrders.flatMap((order: any) => order.items || []);
   const customerReviews: any[] = [];
+
+  const handleRoleChange = async (rawId: number, newRole: string) => {
+    try {
+      await customersApi.updateRole(rawId, newRole);
+      setCustomers(prev => prev.map(c => c.rawId === rawId ? { ...c, role: newRole } : c));
+      setDrawer((prev: any) => prev ? { ...prev, role: newRole } : prev);
+      toast.success(`Customer role updated to ${newRole}`);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to update role");
+    }
+  };
 
   const filtered = customers.filter(c => (c.name || '').toLowerCase().includes(query.toLowerCase()) || (c.email || '').toLowerCase().includes(query.toLowerCase()));
 
@@ -2270,9 +2356,19 @@ function CustomersPage() {
                   <div className="space-y-4 text-xs">
                     <div className="p-4 rounded-xl border space-y-2.5">
                       <p className="font-bold text-[#2C2416] text-sm mb-2">Contact Information</p>
-                      <div className="flex justify-between"><span className="text-[#8B7355]">Phone:</span><span className="font-semibold">{drawer.phone || "+91 98100 12345"}</span></div>
+                      <div className="flex justify-between"><span className="text-[#8B7355]">Phone:</span><span className="font-semibold">{drawer.phone || "N/A"}</span></div>
                       <div className="flex justify-between"><span className="text-[#8B7355]">Email:</span><span className="font-semibold">{drawer.email}</span></div>
                       <div className="flex justify-between"><span className="text-[#8B7355]">Location:</span><span className="font-semibold">{drawer.location}</span></div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-[#8B7355]">Role:</span>
+                        <select value={drawer.role || 'customer'} onChange={e => handleRoleChange(drawer.rawId, e.target.value)}
+                          className="px-2 py-1 rounded-lg text-[10px] font-bold border border-[#2C2416]/12 bg-[#FAF8F5] text-[#2C2416] outline-none">
+                          <option value="customer">Customer</option>
+                          <option value="wholesale">Wholesale</option>
+                          <option value="staff">Staff</option>
+                          <option value="admin">Admin</option>
+                        </select>
+                      </div>
                     </div>
                     <div className="space-y-3">
                       <p className="font-bold text-[#2C2416] text-sm">Saved Addresses</p>
@@ -2382,29 +2478,51 @@ function CustomersPage() {
 
 // ─── Analytics ────────────────────────────────────────────────
 function FeedbackPage() {
-  const [reviews, setReviews] = useState<any[]>(() => {
-    try {
-      const stored = localStorage.getItem("spiceora_testimonials");
-      return stored ? JSON.parse(stored) : [];
-    } catch {
-      return [];
-    }
-  });
-
+  const [reviews, setReviews] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState<"pending" | "approved">("approved");
 
-  useEffect(() => {
-    localStorage.setItem("spiceora_testimonials", JSON.stringify(reviews));
-  }, [reviews]);
-
-  const toggleApproval = (id: string) => {
-    setReviews(prev => prev.map(r => r.id === id ? { ...r, approved: !r.approved } : r));
-    toast.success("Review approval status changed");
+  const loadReviews = async () => {
+    try {
+      const data = await reviewsApi.adminList();
+      if (Array.isArray(data)) {
+        setReviews(data.map((r: any) => ({
+          id: r.id,
+          name: r.customerName || r.userEmail || 'Anonymous',
+          rating: r.rating || 5,
+          comment: r.comment || '',
+          product: r.productName || '',
+          approved: r.status === 'approved',
+          createdAt: r.createdAt
+        })));
+      }
+    } catch (err) {
+      console.warn("Failed to load reviews from API:", err);
+    }
   };
 
-  const handleDelete = (id: string) => {
-    setReviews(prev => prev.filter(r => r.id !== id));
-    toast.success("Review removed");
+  useEffect(() => { loadReviews(); }, []);
+
+  const toggleApproval = async (id: string) => {
+    const review = reviews.find((r: any) => String(r.id) === String(id));
+    if (!review) return;
+    const newStatus = review.approved ? "hidden" : "approved";
+    try {
+      await reviewsApi.updateStatus(Number(id), newStatus);
+      setReviews(prev => prev.map(r => r.id === id ? { ...r, approved: !r.approved } : r));
+      toast.success("Review approval status changed");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to update review status");
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    try {
+      await reviewsApi.remove(Number(id));
+      setReviews(prev => prev.filter(r => r.id !== id));
+      toast.success("Review removed");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to delete review");
+    }
   };
 
   const filtered = reviews.filter(r => activeTab === "approved" ? r.approved : !r.approved);
@@ -2457,23 +2575,13 @@ function SettingsPage() {
   const [twoFAOpen, setTwoFAOpen] = useState(false);
   const [photoSaving, setPhotoSaving] = useState(false);
 
-  const [contacts, setContacts] = useState(() => {
-    try {
-      const stored = localStorage.getItem("spiceora_contact_settings");
-      return stored ? JSON.parse(stored) : { whatsapp: "", phone: "", email: "", hours: "" };
-    } catch {
-      return { whatsapp: "", phone: "", email: "", hours: "" };
-    }
-  });
+  const [contacts, setContacts] = useState({ whatsapp: "", phone: "", email: "", hours: "" });
+  const [taxes, setTaxes] = useState({ gst: 18, stripeMock: false });
 
-  const [taxes, setTaxes] = useState(() => {
-    try {
-      const stored = localStorage.getItem("spiceora_tax_settings");
-      return stored ? JSON.parse(stored) : { gst: 18, stripeMock: false };
-    } catch {
-      return { gst: 18, stripeMock: false };
-    }
-  });
+  useEffect(() => {
+    settingsApi.get('contact_settings').then((d: any) => { if (d?.value) setContacts(d.value); }).catch(() => { });
+    settingsApi.get('tax_settings').then((d: any) => { if (d?.value) setTaxes(d.value); }).catch(() => { });
+  }, []);
 
   const tabs = [
     { id: "profile", label: "Profile", icon: User },
@@ -2609,16 +2717,20 @@ function SettingsPage() {
 
 
   const handleSave = async () => {
-    localStorage.setItem("spiceora_contact_settings", JSON.stringify(contacts));
-    localStorage.setItem("spiceora_tax_settings", JSON.stringify(taxes));
-    await new Promise(r => setTimeout(r, 400));
-    setSaved(true); setTimeout(() => setSaved(false), 2000);
-    toast.success("Settings updated successfully");
+    try {
+      await Promise.all([
+        settingsApi.set('contact_settings', contacts),
+        settingsApi.set('tax_settings', taxes)
+      ]);
+      setSaved(true); setTimeout(() => setSaved(false), 2000);
+      toast.success("Settings updated successfully");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to save settings");
+    }
   };
 
   const handlePhoto = async () => {
-    setPhotoSaving(true); await new Promise(r => setTimeout(r, 1200));
-    setPhotoSaving(false); toast.success("Photo updated");
+    toast.info("Photo upload not yet configured on server");
   };
 
   function Toggle({ label, description, defaultOn = false }: { label: string; description: string; defaultOn?: boolean }) {
@@ -3076,16 +3188,19 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
   // ── Inline Quote Builder Helpers ───────────────────────────────
   const getQuotations = (): any[] => {
     try {
-      const s = localStorage.getItem("spiceora_quotations");
-      return s ? JSON.parse(s) : [];
+      const stored = localStorage.getItem("spiceora_quotations");
+      return stored ? JSON.parse(stored) : [];
     } catch { return []; }
   };
 
-  const saveQuotation = (q: any) => {
-    const list = getQuotations();
-    const idx = list.findIndex((x: any) => x.id === q.id);
-    if (idx >= 0) list[idx] = q; else list.unshift(q);
-    try { localStorage.setItem("spiceora_quotations", JSON.stringify(list)); } catch { }
+  const saveQuotation = async (q: any) => {
+    try {
+      const dbId = typeof q.id === 'string' && q.id.match(/^\d+$/) ? Number(q.id) : null;
+      if (dbId) await wholesaleApi.updateQuotation(dbId, q);
+      else await wholesaleApi.createQuotation(q);
+    } catch (err) {
+      console.warn("Quotation API save failed:", err);
+    }
   };
 
   const calcTotals = (form: any) => {
@@ -3371,16 +3486,24 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
     setSelectedIds([]);
   };
 
-  const handleBulkDelete = () => {
+  const handleBulkDelete = async () => {
     if (selectedIds.length === 0) {
       toast.error("Please select inquiries to delete.");
       return;
     }
-    const updated = inquiries.filter(inq => !selectedIds.includes(inq.id));
-    addAuditLog("Bulk Deletion", `Deleted ${selectedIds.length} wholesale inquiries`);
-    saveInquiries(updated);
-    toast.success(`Deleted ${selectedIds.length} inquiries`);
-    setSelectedIds([]);
+    try {
+      for (const id of selectedIds) {
+        const dbId = Number(id);
+        if (!isNaN(dbId) && dbId > 0) await wholesaleApi.deleteInquiry(dbId);
+      }
+      const updated = inquiries.filter(inq => !selectedIds.includes(inq.id));
+      addAuditLog("Bulk Deletion", `Deleted ${selectedIds.length} wholesale inquiries`);
+      saveInquiries(updated);
+      toast.success(`Deleted ${selectedIds.length} inquiries`);
+      setSelectedIds([]);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to delete inquiries");
+    }
   };
 
   const handleUpdateSingleInquiry = async (id: string, fields: any) => {
@@ -3419,12 +3542,18 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
     setFollowUpNote("");
   };
 
-  const handleDeleteInquiry = (id: string) => {
-    const updated = inquiries.filter(x => x.id !== id);
-    saveInquiries(updated);
-    addAuditLog("Inquiry Deleted", `Deleted inquiry ${id}`);
-    toast.success(`Inquiry ${id} deleted`);
-    setActiveInquiry(null);
+  const handleDeleteInquiry = async (id: string) => {
+    try {
+      const dbId = Number(id);
+      if (!isNaN(dbId) && dbId > 0) await wholesaleApi.deleteInquiry(dbId);
+      const updated = inquiries.filter(x => x.id !== id);
+      saveInquiries(updated);
+      addAuditLog("Inquiry Deleted", `Deleted inquiry ${id}`);
+      toast.success(`Inquiry ${id} deleted`);
+      setActiveInquiry(null);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to delete inquiry");
+    }
   };
 
   // Reusable PDF generator for specific inquiry details
@@ -3741,30 +3870,41 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
   };
 
   const handleResendCatalog = () => {
-    toast.loading("Sending catalog email...", { id: "resend-mail" });
-    setTimeout(() => {
-      toast.success("Catalog PDF Sent!", {
-        id: "resend-mail",
-        description: `Pricing catalog successfully dispatched to ${activeInquiry?.email}`
-      });
-      addAuditLog("Email Catalog Resent", `Resent B2B PDF catalog to ${activeInquiry?.email}`);
-    }, 1000);
+    if (!activeInquiry?.email) { toast.error("No email address on file for this inquiry"); return; }
+    toast.success("Catalog PDF download triggered", {
+      description: `PDF ready for ${activeInquiry.email}. Server-side email dispatch not yet configured.`
+    });
+    addAuditLog("Email Catalog Resent", `Triggered B2B PDF catalog download for ${activeInquiry.email}`);
   };
 
-  // Mock Export CSV
+  // Real CSV Export
   const exportCSV = () => {
-    toast.loading("Exporting B2B inquiries CSV...", { id: "inq-csv" });
-    setTimeout(() => {
-      toast.success("Inquiries CSV downloaded", { id: "inq-csv", description: "Downloaded 1 file containing B2B lead sheet." });
-    }, 800);
+    const headers = ["ID", "Business Name", "Contact", "Email", "Phone", "Status", "Products", "Notes"];
+    const rows = inquiries.map((inq: any) => [
+      inq.id, inq.businessName, inq.contactPerson, inq.email, inq.phone,
+      inq.status, (inq.products || []).join("; "), (inq.notes || []).join("; ")
+    ]);
+    const csv = [headers.join(","), ...rows.map(r => r.map(v => `"${String(v || '').replace(/"/g, '""')}"`).join(","))].join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a"); a.href = url; a.download = "wholesale_inquiries.csv"; a.click();
+    URL.revokeObjectURL(url);
+    toast.success("Inquiries CSV exported");
   };
 
-  // Mock Export Excel
+  // Real Excel Export (CSV with .xls extension for compatibility)
   const exportExcel = () => {
-    toast.loading("Exporting B2B inquiries Excel...", { id: "inq-excel" });
-    setTimeout(() => {
-      toast.success("Inquiries Excel downloaded", { id: "inq-excel", description: "Downloaded 1 file containing structured lead logs." });
-    }, 800);
+    const headers = ["ID", "Business Name", "Contact", "Email", "Phone", "Status", "Products", "Notes"];
+    const rows = inquiries.map((inq: any) => [
+      inq.id, inq.businessName, inq.contactPerson, inq.email, inq.phone,
+      inq.status, (inq.products || []).join("; "), (inq.notes || []).join("; ")
+    ]);
+    const csv = [headers.join(","), ...rows.map(r => r.map(v => `"${String(v || '').replace(/"/g, '""')}"`).join(","))].join("\n");
+    const blob = new Blob(["\ufeff" + csv], { type: "application/vnd.ms-excel" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a"); a.href = url; a.download = "wholesale_inquiries.xls"; a.click();
+    URL.revokeObjectURL(url);
+    toast.success("Inquiries Excel exported");
   };
 
   // Analytics Metrics computation
@@ -4348,16 +4488,13 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
 const DEFAULT_QUOTATIONS: any[] = [];
 
 function QuotationManagementPage({ navigateTo }: { navigateTo: (p: string) => void }) {
-  const [quotations, setQuotations] = useState<any[]>(() => {
-    try {
-      const stored = localStorage.getItem("spiceora_quotations");
-      if (stored) return JSON.parse(stored);
-      localStorage.setItem("spiceora_quotations", JSON.stringify(DEFAULT_QUOTATIONS));
-      return DEFAULT_QUOTATIONS;
-    } catch {
-      return DEFAULT_QUOTATIONS;
-    }
-  });
+  const [quotations, setQuotations] = useState<any[]>([]);
+
+  useEffect(() => {
+    wholesaleApi.listQuotations().then((data: any[]) => {
+      if (Array.isArray(data)) setQuotations(data);
+    }).catch((err: any) => console.warn("Failed to load quotations:", err));
+  }, []);
 
   const [activeTab, setActiveTab] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
@@ -4584,7 +4721,7 @@ function QuotationManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
     });
   };
 
-  const handleSaveQuotation = () => {
+  const handleSaveQuotation = async () => {
     if (!quoteForm.businessName || !quoteForm.contactPerson || !quoteForm.email) {
       toast.error("Please fill in Business Name, Contact Name, and Email.");
       return;
@@ -4593,20 +4730,24 @@ function QuotationManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
     const calculatedPayable = calcs.payableAmount;
     const finalForm = { ...quoteForm, payableAmount: calculatedPayable };
 
-    let updated = [...quotations];
-    if (editingQuoteId) {
-      updated = updated.map(q => q.id === editingQuoteId ? finalForm : q);
-      addAuditLog("Quotation Updated", `Updated quotation details for ${quoteForm.businessName} (${quoteForm.id})`);
-      toast.success("Quotation updated successfully");
-    } else {
-      updated.unshift(finalForm);
-      addAuditLog("Quotation Created", `Generated quotation ${quoteForm.id} for ${quoteForm.businessName}`);
-      toast.success("Quotation saved as draft");
+    try {
+      if (editingQuoteId) {
+        const dbId = typeof editingQuoteId === 'string' && editingQuoteId.match(/^\d+$/) ? Number(editingQuoteId) : null;
+        if (dbId) await wholesaleApi.updateQuotation(dbId, finalForm);
+        addAuditLog("Quotation Updated", `Updated quotation details for ${quoteForm.businessName} (${quoteForm.id})`);
+        toast.success("Quotation updated successfully");
+      } else {
+        await wholesaleApi.createQuotation(finalForm);
+        addAuditLog("Quotation Created", `Generated quotation ${quoteForm.id} for ${quoteForm.businessName}`);
+        toast.success("Quotation saved as draft");
+      }
+      const freshData = await wholesaleApi.listQuotations();
+      if (Array.isArray(freshData)) setQuotations(freshData);
+      setBuilderMode(false);
+      setEditingQuoteId(null);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to save quotation");
     }
-
-    saveQuotations(updated);
-    setBuilderMode(false);
-    setEditingQuoteId(null);
   };
 
   const handleOpenCreateNew = () => {
@@ -4651,30 +4792,29 @@ function QuotationManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
     setBuilderMode(true);
   };
 
-  const handleUpdateStatusSingle = (id: string, newStatus: string) => {
+  const handleUpdateStatusSingle = async (id: string, newStatus: string) => {
     const timeStr = new Date().toLocaleDateString('en-IN') + " " + new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
     const logEvent = `Status changed to ${newStatus.replace("_", " ")} by Admin`;
 
-    const updated = quotations.map(q => {
-      if (q.id === id) {
-        return {
-          ...q,
-          status: newStatus,
-          timeline: [...(q.timeline || []), { time: timeStr, event: logEvent }]
-        };
-      }
-      return q;
-    });
+    try {
+      const dbId = typeof id === 'string' && id.match(/^\d+$/) ? Number(id) : null;
+      if (dbId) await wholesaleApi.updateQuotation(dbId, { status: newStatus });
 
-    saveQuotations(updated);
-    addAuditLog("Quotation Status Changed", `Quotation ${id} marked as ${newStatus}`);
-    toast.success(`Quotation marked as ${newStatus}`);
-    if (activeDetailQuote && activeDetailQuote.id === id) {
-      setActiveDetailQuote({
-        ...activeDetailQuote,
-        status: newStatus,
-        timeline: [...(activeDetailQuote.timeline || []), { time: timeStr, event: logEvent }]
+      const updated = quotations.map(q => {
+        if (q.id === id) {
+          return { ...q, status: newStatus, timeline: [...(q.timeline || []), { time: timeStr, event: logEvent }] };
+        }
+        return q;
       });
+
+      setQuotations(updated);
+      addAuditLog("Quotation Status Changed", `Quotation ${id} marked as ${newStatus}`);
+      toast.success(`Quotation marked as ${newStatus}`);
+      if (activeDetailQuote && activeDetailQuote.id === id) {
+        setActiveDetailQuote({ ...activeDetailQuote, status: newStatus, timeline: [...(activeDetailQuote.timeline || []), { time: timeStr, event: logEvent }] });
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Failed to update quotation status");
     }
   };
 
@@ -4717,12 +4857,18 @@ function QuotationManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
     }
   };
 
-  const handleDeleteQuote = (id: string) => {
-    const updated = quotations.filter(q => q.id !== id);
-    saveQuotations(updated);
-    addAuditLog("Quotation Deleted", `Deleted quotation record ${id}`);
-    toast.success(`Quotation ${id} deleted`);
-    setActiveDetailQuote(null);
+  const handleDeleteQuote = async (id: string) => {
+    try {
+      const dbId = Number(id);
+      if (!isNaN(dbId) && dbId > 0) await wholesaleApi.deleteQuotation(dbId);
+      const updated = quotations.filter(q => q.id !== id);
+      setQuotations(updated);
+      addAuditLog("Quotation Deleted", `Deleted quotation record ${id}`);
+      toast.success(`Quotation ${id} deleted`);
+      setActiveDetailQuote(null);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to delete quotation");
+    }
   };
 
   // Reusable dynamic PDF quote generator using jsPDF
@@ -5674,50 +5820,60 @@ function ProductCatalogCMSPage() {
     auditApi.list({ page: "1", pageSize: "100" }).then(setAuditLogs).catch(() => setAuditLogs([]));
   }, []);
 
-  const triggerProfileSave = () => {
-    localStorage.setItem("spiceora_catalog_settings", JSON.stringify(companyProfile));
-    toast.success("Profile saved successfully");
-  };
-
-  const triggerContactSave = () => {
-    localStorage.setItem("spiceora_contact_settings", JSON.stringify(contactSettings));
-
-    // Also save to audit log
-    const storedLogs = localStorage.getItem("spiceora_audit_logs");
-    const logs = storedLogs ? JSON.parse(storedLogs) : [];
-    logs.unshift({
-      time: new Date().toLocaleDateString('en-IN') + " " + new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
-      action: "Admin Settings Updated",
-      user: "Arjun Kumar (Admin)",
-      details: "Wholesale contact numbers/details updated in CMS."
+  // Load CMS settings from API on mount
+  useEffect(() => {
+    const defaults = {
+      catalog_settings: (v: any) => setCompanyProfile(v),
+      contact_settings: (v: any) => setContactSettings(v),
+      pdf_products: (v: any) => setCatalogProducts(v),
+      bulk_packaging: (v: any) => setBulkPackaging(v),
+      pdf_template: (v: any) => setPdfTemplate(v),
+    };
+    Object.entries(defaults).forEach(([key, setter]) => {
+      settingsApi.get(key).then((data: any) => { if (data?.value) setter(data.value); }).catch(() => { });
     });
-    localStorage.setItem("spiceora_audit_logs", JSON.stringify(logs));
-    setAuditLogs(logs);
+  }, []);
 
-    toast.success("Contact specifications saved", {
-      description: "Changes instantly reflected on storefront B2B page and PDFs."
-    });
+  const triggerProfileSave = async () => {
+    try {
+      await settingsApi.set('catalog_settings', companyProfile);
+      toast.success("Profile saved successfully");
+    } catch (err: any) { toast.error(err.message || "Failed to save profile"); }
   };
 
-  const triggerProductsSave = () => {
-    localStorage.setItem("spiceora_pdf_products", JSON.stringify(catalogProducts));
-    toast.success("Catalog pricing updated successfully");
+  const triggerContactSave = async () => {
+    try {
+      await settingsApi.set('contact_settings', contactSettings);
+      toast.success("Contact specifications saved", {
+        description: "Changes instantly reflected on storefront B2B page and PDFs."
+      });
+    } catch (err: any) { toast.error(err.message || "Failed to save contact settings"); }
   };
 
-  const triggerBulkSave = () => {
-    localStorage.setItem("spiceora_bulk_packaging", JSON.stringify(bulkPackaging));
-    toast.success("Bulk packaging configurations saved");
+  const triggerProductsSave = async () => {
+    try {
+      await settingsApi.set('pdf_products', catalogProducts);
+      toast.success("Catalog pricing updated successfully");
+    } catch (err: any) { toast.error(err.message || "Failed to save product settings"); }
   };
 
-  const triggerTemplateSave = () => {
-    localStorage.setItem("spiceora_pdf_template", JSON.stringify(pdfTemplate));
-    toast.success("PDF catalog template style saved");
+  const triggerBulkSave = async () => {
+    try {
+      await settingsApi.set('bulk_packaging', bulkPackaging);
+      toast.success("Bulk packaging configurations saved");
+    } catch (err: any) { toast.error(err.message || "Failed to save bulk config"); }
+  };
+
+  const triggerTemplateSave = async () => {
+    try {
+      await settingsApi.set('pdf_template', pdfTemplate);
+      toast.success("PDF catalog template style saved");
+    } catch (err: any) { toast.error(err.message || "Failed to save template"); }
   };
 
   const handleDeleteHistory = (id: string) => {
     const updated = pdfHistory.filter(x => x.id !== id);
     setPdfHistory(updated);
-    localStorage.setItem("spiceora_pdf_history", JSON.stringify(updated));
     toast.success("History log deleted");
   };
 
@@ -6251,22 +6407,24 @@ function ProductCatalogCMSPage() {
   );
 }
 function HomepageCMSPage() {
-  const [heroSlides, setHeroSlides] = useState<any[]>(() => {
-    try {
-      const stored = localStorage.getItem("spiceora_homepage_hero");
-      return stored ? JSON.parse(stored) : [];
-    } catch {
-      return [];
-    }
-  });
+  const [heroSlides, setHeroSlides] = useState<any[]>([]);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    localStorage.setItem("spiceora_homepage_hero", JSON.stringify(heroSlides));
-  }, [heroSlides]);
+    settingsApi.get('homepage_hero').then((data: any) => {
+      if (data?.value && Array.isArray(data.value)) setHeroSlides(data.value);
+    }).catch(() => { });
+  }, []);
 
   const updateSlide = (id: number, fields: any) => {
-    setHeroSlides(prev => prev.map(s => s.id === id ? { ...s, ...fields } : s));
-    toast.success("Hero slide settings updated");
+    setHeroSlides(prev => {
+      const updated = prev.map(s => s.id === id ? { ...s, ...fields } : s);
+      clearTimeout((window as any).__heroSaveTimer);
+      (window as any).__heroSaveTimer = setTimeout(() => {
+        settingsApi.set('homepage_hero', updated).then(() => toast.success("Hero slide settings saved")).catch((err: any) => toast.error(err.message || "Failed to save"));
+      }, 800);
+      return updated;
+    });
   };
 
   return (
@@ -6445,46 +6603,42 @@ function RecipesCMSPage() {
 }
 
 function PagesCMSPage() {
-  const [timeline, setTimeline] = useState<any[]>(() => {
-    try {
-      const stored = localStorage.getItem("spiceora_timeline");
-      return stored ? JSON.parse(stored) : [];
-    } catch {
-      return [];
-    }
-  });
-
-  const [policies, setPolicies] = useState(() => {
-    try {
-      const stored = localStorage.getItem("spiceora_policies");
-      return stored ? JSON.parse(stored) : { privacy: "", terms: "" };
-    } catch {
-      return { privacy: "", terms: "" };
-    }
-  });
+  const [timeline, setTimeline] = useState<any[]>([]);
+  const [policies, setPolicies] = useState({ privacy: "", terms: "" });
 
   useEffect(() => {
-    localStorage.setItem("spiceora_timeline", JSON.stringify(timeline));
-  }, [timeline]);
+    settingsApi.get('policies').then((data: any) => { if (data?.value) setPolicies(data.value); }).catch(() => { });
+    settingsApi.get('timeline').then((data: any) => { if (data?.value && Array.isArray(data.value)) setTimeline(data.value); }).catch(() => { });
+  }, []);
 
-  const savePolicies = () => {
-    localStorage.setItem("spiceora_policies", JSON.stringify(policies));
-    toast.success("Policies updated successfully");
+  const savePolicies = async () => {
+    try {
+      await settingsApi.set('policies', policies);
+      toast.success("Policies updated successfully");
+    } catch (err: any) { toast.error(err.message || "Failed to save policies"); }
   };
 
-  const addTimelineEvent = () => {
+  const addTimelineEvent = async () => {
     const year = prompt("Enter event year:") || "";
     const title = prompt("Enter event title:") || "";
     const description = prompt("Enter event description:") || "";
     if (year && title) {
-      setTimeline(prev => [...prev, { year, title, description }]);
-      toast.success("Timeline event added");
+      const updated = [...timeline, { year, title, description }];
+      setTimeline(updated);
+      try {
+        await settingsApi.set('timeline', updated);
+        toast.success("Timeline event added");
+      } catch (err: any) { toast.error(err.message || "Failed to save timeline"); }
     }
   };
 
-  const deleteTimelineEvent = (idx: number) => {
-    setTimeline(prev => prev.filter((_, i) => i !== idx));
-    toast.success("Timeline event deleted");
+  const deleteTimelineEvent = async (idx: number) => {
+    const updated = timeline.filter((_: any, i: number) => i !== idx);
+    setTimeline(updated);
+    try {
+      await settingsApi.set('timeline', updated);
+      toast.success("Timeline event deleted");
+    } catch (err: any) { toast.error(err.message || "Failed to save timeline"); }
   };
 
   return (
@@ -6758,9 +6912,7 @@ function CampaignsPage() {
 function WebsiteCMSPage() {
   const [activeTab, setActiveTab] = useState<"homepage" | "recipes" | "testimonials" | "footer">("homepage");
 
-  const [homepage, setHomepage] = useState(() => {
-    try { const s = localStorage.getItem("spiceora_homepage_cms"); return s ? JSON.parse(s) : { headline: "", subheadline: "", heroBanner: "", ctaButton: "", ctaUrl: "", bannerActive: false }; } catch { return { headline: "", subheadline: "", heroBanner: "", ctaButton: "", ctaUrl: "", bannerActive: false }; }
-  });
+  const [homepage, setHomepage] = useState({ headline: "", subheadline: "", heroBanner: "", ctaButton: "", ctaUrl: "", bannerActive: false });
 
   const [recipes, setRecipes] = useState<any[]>([]);
   const [recipeModalOpen, setRecipeModalOpen] = useState(false);
@@ -6788,6 +6940,11 @@ function WebsiteCMSPage() {
 
   useEffect(() => {
     loadRecipesFromApi();
+    settingsApi.get('homepage_cms').then((d: any) => { if (d?.value) setHomepage(d.value); }).catch(() => { });
+    settingsApi.get('footer').then((d: any) => { if (d?.value) setFooter(d.value); }).catch(() => { });
+    reviewsApi.adminList().then((data: any[]) => {
+      if (Array.isArray(data)) setTestimonials(data.filter((r: any) => r.status === 'approved' || r.status === 'hidden').map((r: any) => ({ id: r.id, name: r.customerName || r.userEmail, comment: r.comment, rating: r.rating, status: r.status })));
+    }).catch(() => { });
   }, []);
 
   const handleOpenAddRecipe = () => {
@@ -6854,21 +7011,33 @@ function WebsiteCMSPage() {
     }
   };
 
-  const [testimonials, setTestimonials] = useState<any[]>(() => {
-    try { const s = localStorage.getItem("spiceora_testimonials"); return s ? JSON.parse(s) : []; } catch { return []; }
-  });
+  const [testimonials, setTestimonials] = useState<any[]>([]);
+  const [footer, setFooter] = useState({ tagline: "", copyright: "", instagramUrl: "", facebookUrl: "", whatsappNumber: "" });
 
-  const [footer, setFooter] = useState(() => {
-    try { const s = localStorage.getItem("spiceora_footer"); return s ? JSON.parse(s) : { tagline: "", copyright: "", instagramUrl: "", facebookUrl: "", whatsappNumber: "" }; } catch { return { tagline: "", copyright: "", instagramUrl: "", facebookUrl: "", whatsappNumber: "" }; }
-  });
+  const saveHomepage = async () => {
+    try {
+      await settingsApi.set('homepage_cms', homepage);
+      toast.success("Homepage content saved");
+    } catch (err: any) { toast.error(err.message || "Failed to save homepage content"); }
+  };
+  const saveFooter = async () => {
+    try {
+      await settingsApi.set('footer', footer);
+      toast.success("Footer content saved");
+    } catch (err: any) { toast.error(err.message || "Failed to save footer content"); }
+  };
 
-  const saveHomepage = () => { localStorage.setItem("spiceora_homepage_cms", JSON.stringify(homepage)); toast.success("Homepage content saved"); };
-  const saveFooter = () => { localStorage.setItem("spiceora_footer", JSON.stringify(footer)); toast.success("Footer content saved"); };
-
-  const toggleTestimonial = (id: string) => {
-    setTestimonials(prev => prev.map(t => t.id === id ? { ...t, status: t.status === "approved" ? "hidden" : "approved" } : t));
-    localStorage.setItem("spiceora_testimonials", JSON.stringify(testimonials));
-    toast.success("Testimonial status updated");
+  const toggleTestimonial = async (id: string) => {
+    const t = testimonials.find((t: any) => String(t.id) === String(id));
+    if (!t) return;
+    const newStatus = t.status === "approved" ? "hidden" : "approved";
+    try {
+      await reviewsApi.updateStatus(Number(id), newStatus);
+      setTestimonials(prev => prev.map(t => t.id === id ? { ...t, status: newStatus } : t));
+      toast.success("Testimonial status updated");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to update testimonial");
+    }
   };
 
   const TABS = [
@@ -7140,15 +7309,11 @@ function AdminLogin({ onLogin }: { onLogin: () => void }) {
 
 export default function App() {
   const [authenticated, setAuthenticated] = useState(() => Boolean(localStorage.getItem("spiceora_admin")));
-  if (!authenticated) return <AdminLogin onLogin={() => setAuthenticated(true)} />;
-
   const [page, setPage] = useState("dashboard");
   const [collapsed, setCollapsed] = useState(false);
   const [bellOpen, setBellOpen] = useState(false);
   const [cmdOpen, setCmdOpen] = useState(false);
   const [cmdSearch, setCmdSearch] = useState("");
-  const sideW = collapsed ? 72 : 256;
-
   const [darkMode, setDarkMode] = useState(() => {
     try {
       return localStorage.getItem("spiceora_dark_mode") === "true";
@@ -7156,14 +7321,6 @@ export default function App() {
       return false;
     }
   });
-
-  const toggleDarkMode = () => {
-    setDarkMode(prev => {
-      const next = !prev;
-      localStorage.setItem("spiceora_dark_mode", String(next));
-      return next;
-    });
-  };
 
   useEffect(() => {
     if (darkMode) {
@@ -7184,18 +7341,30 @@ export default function App() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  const navigate = (p: string) => {
-    setPage(p);
-    setBellOpen(false);
-    setCmdOpen(false);
-  };
-
   useEffect(() => {
     if (!bellOpen) return;
     const h = (e: MouseEvent) => { if (!(e.target as Element).closest("[data-headernav]")) setBellOpen(false); };
     document.addEventListener("mousedown", h);
     return () => document.removeEventListener("mousedown", h);
   }, [bellOpen]);
+
+  if (!authenticated) return <AdminLogin onLogin={() => setAuthenticated(true)} />;
+
+  const sideW = collapsed ? 72 : 256;
+
+  const toggleDarkMode = () => {
+    setDarkMode(prev => {
+      const next = !prev;
+      localStorage.setItem("spiceora_dark_mode", String(next));
+      return next;
+    });
+  };
+
+  const navigate = (p: string) => {
+    setPage(p);
+    setBellOpen(false);
+    setCmdOpen(false);
+  };
 
   const pages: Record<string, React.ReactNode> = {
     dashboard: <DashboardPage navigateTo={navigate} />,

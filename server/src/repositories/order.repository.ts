@@ -1,4 +1,4 @@
-import { desc, eq, and, gte, sql } from 'drizzle-orm';
+import { desc, eq, and, gte, sql, inArray } from 'drizzle-orm';
 import { db } from '../config/database.js';
 import { orderItems, orders, productVariants, products, customerProfiles, addresses } from '../db/schema.js';
 
@@ -116,12 +116,69 @@ export async function findOrderById(id: number) {
 
 export async function findOrdersByCustomerId(customerId: number) {
   const rows = await db.select().from(orders).where(eq(orders.customerId, customerId)).orderBy(desc(orders.placedAt));
-  return Promise.all(rows.map(o => findOrderById(o.id)));
+  if (rows.length === 0) return [];
+  return hydrateOrders(rows);
 }
 
 export async function findAllOrders() {
   const rows = await db.select().from(orders).orderBy(desc(orders.placedAt));
-  return Promise.all(rows.map(o => findOrderById(o.id)));
+  if (rows.length === 0) return [];
+  return hydrateOrders(rows);
+}
+
+async function hydrateOrders(rows: (typeof orders.$inferSelect)[]) {
+  const orderIds = rows.map(r => r.id);
+
+  const customerIds = [...new Set(rows.map(r => r.customerId).filter(Boolean))] as number[];
+  const addrIds = [...new Set(rows.map(r => r.shippingAddressId).filter(Boolean))] as number[];
+
+  const [customers, addrs, allItems] = await Promise.all([
+    customerIds.length > 0
+      ? db.select().from(customerProfiles).where(inArray(customerProfiles.id, customerIds))
+      : [],
+    addrIds.length > 0
+      ? db.select().from(addresses).where(inArray(addresses.id, addrIds))
+      : [],
+    orderIds.length > 0
+      ? db
+          .select({ item: orderItems, variant: productVariants, product: products })
+          .from(orderItems)
+          .leftJoin(productVariants, eq(orderItems.productVariantId, productVariants.id))
+          .leftJoin(products, eq(productVariants.productId, products.id))
+          .where(inArray(orderItems.orderId, orderIds))
+      : [],
+  ]);
+
+  const customerMap = new Map(customers.map(c => [c.id, c]));
+  const addrMap = new Map(addrs.map(a => [a.id, a]));
+  type ItemRow = { item: typeof orderItems.$inferSelect; variant: typeof productVariants.$inferSelect | null; product: typeof products.$inferSelect | null };
+  const itemsByOrder = new Map<number, ItemRow[]>();
+  for (const row of allItems) {
+    const oid = row.item.orderId;
+    if (!itemsByOrder.has(oid)) itemsByOrder.set(oid, []);
+    itemsByOrder.get(oid)!.push(row);
+  }
+
+  return rows.map(order => {
+    const customer = order.customerId ? customerMap.get(order.customerId) : null;
+    const shippingAddress = order.shippingAddressId ? addrMap.get(order.shippingAddressId) : null;
+    const items = (itemsByOrder.get(order.id) || []).map(row => ({
+      ...row.item,
+      variant: row.variant,
+      product: row.product,
+    }));
+
+    return {
+      ...order,
+      total: Number(order.totalAmount || 0),
+      customerName: customer ? `${customer.firstName || ''} ${customer.lastName || ''}`.trim() || customer.email : 'Guest Customer',
+      customer: customer ? `${customer.firstName || ''} ${customer.lastName || ''}`.trim() || customer.email : 'Guest Customer',
+      customerEmail: customer ? customer.email : '',
+      customerPhone: customer ? customer.phone : '',
+      shippingAddress,
+      items,
+    };
+  });
 }
 
 export async function updateOrderStatus(id: number, status: typeof orders.$inferInsert.status) {

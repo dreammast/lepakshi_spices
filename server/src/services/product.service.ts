@@ -5,7 +5,9 @@ import {
   findProductVariantsByProductId,
   createProductRecord,
   updateProductRecord,
-  deleteProductRecord
+  deleteProductRecord,
+  updateVariantStockRecord,
+  checkVariantsStock
 } from '../repositories/product.repository.js';
 import { AppError } from '../utils/app-error.js';
 
@@ -33,6 +35,16 @@ export async function updateProduct(id: number, data: any) {
 
 export async function deleteProduct(id: number) {
   return deleteProductRecord(id);
+}
+
+export async function updateVariantStock(variantId: number, stock: number, lowStockThreshold?: number) {
+  const updated = await updateVariantStockRecord(variantId, stock, lowStockThreshold);
+  if (!updated) throw new AppError(404, 'Product variant not found');
+  return updated;
+}
+
+export async function checkStock(variantIds: number[]) {
+  return checkVariantsStock(variantIds);
 }
 
 

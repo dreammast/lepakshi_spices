@@ -66,7 +66,10 @@ export const productsApi = {
   list: () => api.get<any[]>('/products'),
   create: (body: unknown) => api.post<any>('/products', body),
   update: (id: number, body: unknown) => api.put<any>(`/products/${id}`, body),
-  remove: (id: number) => api.delete<any>(`/products/${id}`)
+  remove: (id: number) => api.delete<any>(`/products/${id}`),
+  updateVariantStock: (variantId: number, stock: number, lowStockThreshold?: number) =>
+    api.put<any>(`/products/variants/${variantId}/stock`, { stock, lowStockThreshold }),
+  checkStock: (variantIds: number[]) => api.post<any[]>('/products/stock-check', { variantIds })
 };
 
 export const categoriesApi = {
@@ -120,9 +123,11 @@ export const settingsApi = {
 export const wholesaleApi = {
   listInquiries: () => api.get<any[]>('/admin/wholesale-inquiries'),
   updateInquiryStatus: (id: number, status: string) => api.put<any>(`/admin/wholesale-inquiries/${id}/status`, { status }),
+  deleteInquiry: (id: number) => api.delete<any>(`/admin/wholesale-inquiries/${id}`),
   listQuotations: () => api.get<any[]>('/admin/quotations'),
   createQuotation: (body: unknown) => api.post<any>('/admin/quotations', body),
-  updateQuotation: (id: number, body: unknown) => api.put<any>(`/admin/quotations/${id}`, body)
+  updateQuotation: (id: number, body: unknown) => api.put<any>(`/admin/quotations/${id}`, body),
+  deleteQuotation: (id: number) => api.delete<any>(`/admin/quotations/${id}`)
 };
 
 export const packagingApi = {
