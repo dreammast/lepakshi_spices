@@ -1,5 +1,6 @@
 import { findAllWholesaleInquiries, findWholesaleInquiryById, createWholesaleInquiryRecord, updateWholesaleInquiryStatus, findAllQuotations, findQuotationById, createQuotationRecord, updateQuotationRecord, deleteWholesaleInquiry, deleteQuotation } from '../repositories/wholesale.repository.js';
 import { AppError } from '../utils/app-error.js';
+import { sendEmailSafely, wholesaleInquiryEmailTemplate } from '../mail/send-email.js';
 
 export async function listWholesaleInquiries() { return findAllWholesaleInquiries(); }
 export async function getWholesaleInquiry(id: number) {
@@ -7,8 +8,26 @@ export async function getWholesaleInquiry(id: number) {
   if (!i) throw new AppError(404, 'Inquiry not found');
   return i;
 }
-export async function createWholesaleInquiry(data: Parameters<typeof createWholesaleInquiryRecord>[0]) { return createWholesaleInquiryRecord(data); }
-export async function setInquiryStatus(id: number, status: string) { return updateWholesaleInquiryStatus(id, status); }
+export async function createWholesaleInquiry(data: Parameters<typeof createWholesaleInquiryRecord>[0]) {
+  const id = await createWholesaleInquiryRecord(data);
+  await sendEmailSafely({
+    to: data.email,
+    subject: 'Wholesale request received',
+    html: wholesaleInquiryEmailTemplate(data.contactName, data.companyName, 'received'),
+  });
+  return id;
+}
+export async function setInquiryStatus(id: number, status: string) {
+  const inquiry = await updateWholesaleInquiryStatus(id, status);
+  if (status === 'approved' || status === 'rejected') {
+    await sendEmailSafely({
+      to: inquiry.email,
+      subject: `Wholesale request ${status}`,
+      html: wholesaleInquiryEmailTemplate(inquiry.contactName, inquiry.companyName, status as 'approved' | 'rejected'),
+    });
+  }
+  return inquiry;
+}
 
 export async function listQuotations() { return findAllQuotations(); }
 export async function getQuotation(id: number) {

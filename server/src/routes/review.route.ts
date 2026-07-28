@@ -1,5 +1,7 @@
 import { Router } from 'express';
 import { asyncHandler } from '../middleware/async-handler.js';
+import { validateBody } from '../middleware/validate.middleware.js';
+import { z } from 'zod';
 import { listProductReviewsController, listApprovedReviewsController, listAllReviewsController, createReviewController, updateReviewStatusController, deleteReviewController, listMyReviewsController, updateMyReviewController, deleteMyReviewController } from '../controllers/review.controller.js';
 import { authenticate } from '../middleware/auth.middleware.js';
 
@@ -16,8 +18,12 @@ publicReviewRouter.delete('/:id', authenticate, asyncHandler(deleteMyReviewContr
 
 // Admin routes (mounted at /admin/reviews)
 const adminReviewRouter = Router();
+const reviewStatusSchema = z.object({
+  status: z.enum(['pending', 'approved', 'rejected'])
+});
+
 adminReviewRouter.get('/', asyncHandler(listAllReviewsController));
-adminReviewRouter.put('/:id/status', asyncHandler(updateReviewStatusController));
+adminReviewRouter.put('/:id/status', validateBody(reviewStatusSchema), asyncHandler(updateReviewStatusController));
 adminReviewRouter.delete('/:id', asyncHandler(deleteReviewController));
 
 export { productReviewRouter, publicReviewRouter, adminReviewRouter };

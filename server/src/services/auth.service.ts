@@ -5,6 +5,8 @@ import { customerProfiles } from '../db/schema.js';
 import { createCustomerProfile, findCustomerByEmail, findCustomerById } from '../repositories/auth.repository.js';
 import { signToken } from '../utils/jwt.util.js';
 import { AppError } from '../utils/app-error.js';
+import { sendEmailSafely, verificationEmailTemplate, forgotPasswordOtpTemplate, passwordResetSuccessTemplate, welcomeEmailTemplate } from '../mail/send-email.js';
+import { env } from '../config/env.js';
 
 const SALT_ROUNDS = 10;
 
@@ -39,6 +41,10 @@ export async function registerCustomer(input: {
   if (!customer) {
     throw new AppError(500, 'Failed to create user');
   }
+
+  const name = `${customer.firstName} ${customer.lastName}`.trim() || 'there';
+  await sendEmailSafely({ to: customer.email, subject: 'Welcome to Lepakshi Spices', html: welcomeEmailTemplate(name) });
+  await sendVerificationEmail(customer.email);
 
   const token = signToken({ sub: customer.id, email: customer.email, role: customer.role });
   return { user: sanitizeCustomer(customer), token };
@@ -134,12 +140,10 @@ export async function sendForgotPasswordOtp(email: string) {
     throw new AppError(404, 'No account found with this email address.');
   }
   const { generateOtp } = await import('../services/otp.service.js');
-  const { sendEmail, forgotPasswordOtpTemplate } = await import('../mail/send-email.js');
-
   const { otp } = await generateOtp(email, 'PASSWORD_RESET');
   const name = `${customer.firstName} ${customer.lastName}`.trim() || 'there';
 
-  await sendEmail({
+  await sendEmailSafely({
     to: email,
     subject: 'Reset Your Password - Lepakshi Spices',
     html: forgotPasswordOtpTemplate(name, otp),
@@ -165,14 +169,13 @@ export async function resetPassword(email: string, newPassword: string) {
     .set({ passwordHash, updatedAt: new Date() })
     .where(eq(customerProfiles.id, customer.id));
 
-  const { sendEmail, passwordResetSuccessTemplate } = await import('../mail/send-email.js');
   const name = `${customer.firstName} ${customer.lastName}`.trim() || 'there';
 
-  await sendEmail({
+  await sendEmailSafely({
     to: email,
     subject: 'Password Reset Successful - Lepakshi Spices',
     html: passwordResetSuccessTemplate(name),
-  }).catch(() => {});
+  });
 
   return { message: 'Password has been reset successfully.' };
 }
@@ -242,14 +245,11 @@ export async function sendVerificationEmail(email: string) {
   }
 
   const { generateOtp } = await import('../services/otp.service.js');
-  const { sendEmail, verificationEmailTemplate } = await import('../mail/send-email.js');
-
   const { otp } = await generateOtp(email, 'EMAIL_VERIFICATION');
   const name = `${customer.firstName} ${customer.lastName}`.trim() || 'there';
-  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5174';
-  const verificationUrl = `${frontendUrl}/verify-email?email=${encodeURIComponent(email)}&token=${otp}`;
+  const verificationUrl = `${env.API_PUBLIC_URL.replace(/\/$/, '')}/auth/verify-email?email=${encodeURIComponent(email)}&token=${otp}`;
 
-  await sendEmail({
+  await sendEmailSafely({
     to: email,
     subject: 'Verify Your Email - Lepakshi Spices',
     html: verificationEmailTemplate(name, verificationUrl),

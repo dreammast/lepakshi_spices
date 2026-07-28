@@ -4,6 +4,12 @@ import { dirname, resolve } from 'node:path';
 import { z } from 'zod';
 
 const envPath = resolve(dirname(fileURLToPath(import.meta.url)), '../../../.env');
+function unquote(value: string) {
+  if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+    return value.slice(1, -1);
+  }
+  return value;
+}
 if (existsSync(envPath)) {
   const raw = readFileSync(envPath, 'utf8');
   for (const line of raw.split(/\r?\n/)) {
@@ -12,7 +18,7 @@ if (existsSync(envPath)) {
     const separator = trimmed.indexOf('=');
     if (separator === -1) continue;
     const key = trimmed.slice(0, separator).trim();
-    const value = trimmed.slice(separator + 1).trim();
+    const value = unquote(trimmed.slice(separator + 1).trim());
     if (!(key in process.env)) {
       process.env[key] = value;
     }
@@ -36,13 +42,14 @@ const envSchema = z.object({
   RAZORPAY_KEY_SECRET: z.string().optional(),
   GOOGLE_CLIENT_ID: z.string().optional().default(''),
   GOOGLE_CLIENT_SECRET: z.string().optional().default(''),
-  SMTP_HOST: z.string().optional().default('smtp-relay.brevo.com'),
-  SMTP_PORT: z.string().optional().default('587'),
-  SMTP_USER: z.string().optional().default(''),
-  SMTP_PASS: z.string().optional().default(''),
-  EMAIL_FROM: z.string().optional().default('Lepakshi Spices <noreply@lepakshispices.com>'),
+  SMTP_HOST: z.string().trim().min(1, 'SMTP_HOST is required'),
+  SMTP_PORT: z.coerce.number().int().min(1).max(65535).default(587),
+  SMTP_SECURE: z.enum(['true', 'false']).default('false'),
+  SMTP_USER: z.string().trim().min(1, 'SMTP_USER is required'),
+  SMTP_PASS: z.string().min(1, 'SMTP_PASS is required'),
+  MAIL_FROM: z.string().trim().min(1, 'MAIL_FROM is required'),
   FRONTEND_URL: z.string().optional().default('http://localhost:5174'),
-  BETTER_AUTH_SECRET: z.string().optional().default('lepakshi-better-auth-secret-2026'),
+  API_PUBLIC_URL: z.string().url().default('http://localhost:4000/api'),
 });
 
 const parsedEnv = envSchema.safeParse(process.env);

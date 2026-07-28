@@ -8,7 +8,13 @@ import {
 } from '../repositories/order.repository.js';
 import { AppError } from '../utils/app-error.js';
 import { orders } from '../db/schema.js';
+import { env } from '../config/env.js';
 import { validateCoupon } from './coupon.service.js';
+import { orderConfirmationEmailTemplate, orderStatusEmailTemplate, receiptEmailTemplate, sendEmailSafely } from '../mail/send-email.js';
+
+function canEmailOrder(order: Awaited<ReturnType<typeof findOrderById>>): order is NonNullable<Awaited<ReturnType<typeof findOrderById>>> & { customerEmail: string } {
+  return Boolean(order?.customerEmail);
+}
 
 export async function createOrder(input: CreateOrderInput) {
   if (!input.items?.length) {
@@ -21,7 +27,21 @@ export async function createOrder(input: CreateOrderInput) {
   } else {
     input = { ...input, discountAmount: '0' };
   }
-  return createOrderRecord(input);
+  const order = await createOrderRecord(input);
+  if (canEmailOrder(order)) {
+    const orderUrl = `${env.FRONTEND_URL.replace(/\/$/, '')}/orders/${order.id}`;
+    await sendEmailSafely({
+      to: order.customerEmail,
+      subject: `Order confirmed: ${order.orderNumber}`,
+      html: orderConfirmationEmailTemplate({ ...order, trackingUrl: orderUrl, invoiceUrl: `${orderUrl}?view=invoice` }),
+    });
+    await sendEmailSafely({
+      to: order.customerEmail,
+      subject: `Invoice / receipt for ${order.orderNumber}`,
+      html: receiptEmailTemplate({ ...order, trackingUrl: orderUrl, invoiceUrl: `${orderUrl}?view=invoice` }),
+    });
+  }
+  return order;
 }
 
 export async function listCustomerOrders(customerId: number) {
@@ -45,5 +65,19 @@ export async function setOrderStatus(id: number, status: typeof orders.$inferIns
   if (!order) {
     throw new AppError(404, 'Order not found');
   }
-  return updateOrderStatus(id, status);
+  if (order.status === status) return order;
+  const updated = await updateOrderStatus(id, status);
+  if (!updated) {
+    throw new AppError(404, 'Order not found');
+  }
+  const notificationStatus = status ?? updated.status;
+  if (canEmailOrder(updated) && notificationStatus && ['shipped', 'delivered', 'cancelled'].includes(notificationStatus)) {
+    const orderUrl = `${env.FRONTEND_URL.replace(/\/$/, '')}/orders/${updated.id}`;
+    await sendEmailSafely({
+      to: updated.customerEmail,
+      subject: `Order ${notificationStatus}: ${updated.orderNumber}`,
+      html: orderStatusEmailTemplate({ ...updated, trackingUrl: orderUrl }),
+    });
+  }
+  return updated;
 }

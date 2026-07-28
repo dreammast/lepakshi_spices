@@ -13,6 +13,7 @@ import {
   updateProfileController,
   sendVerificationEmailController,
   verifyEmailController,
+  verifyEmailLinkController,
   googleCallbackController,
   syncFirebaseController,
 } from '../controllers/auth.controller.js';
@@ -99,6 +100,7 @@ router.post('/update-profile', authenticate, validateBody(updateProfileSchema), 
 
 router.post('/send-verification-email', authenticate, asyncHandler(sendVerificationEmailController));
 router.post('/verify-email', validateBody(verifyEmailSchema), asyncHandler(verifyEmailController));
+router.get('/verify-email', asyncHandler(verifyEmailLinkController));
 
 export default router;
 

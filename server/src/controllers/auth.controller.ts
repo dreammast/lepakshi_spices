@@ -17,6 +17,7 @@ import {
 import { sendCreated, sendSuccess } from '../utils/response.util.js';
 import type { AuthenticatedRequest } from '../middleware/auth.middleware.js';
 import { logAudit } from '../utils/audit.js';
+import { env } from '../config/env.js';
 
 export async function registerController(req: Request, res: Response, next: NextFunction) {
   try {
@@ -145,6 +146,18 @@ export async function verifyEmailController(req: Request, res: Response, next: N
     const { email, token } = req.body;
     const result = await verifyEmail(email, token);
     sendSuccess(res, result);
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function verifyEmailLinkController(req: Request, res: Response, next: NextFunction) {
+  try {
+    const email = typeof req.query.email === 'string' ? req.query.email : '';
+    const token = typeof req.query.token === 'string' ? req.query.token : '';
+    if (!email || !token) return res.status(400).send('Invalid verification link.');
+    await verifyEmail(email, token);
+    res.redirect(`${env.FRONTEND_URL.replace(/\/$/, '')}/?emailVerified=1`);
   } catch (error) {
     next(error);
   }

@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { eq, and, gt } from "drizzle-orm";
+import { eq, and, gt, lt, desc } from "drizzle-orm";
 import { db } from "../config/database.js";
 import { emailOtps } from "../db/schema.js";
 
@@ -21,6 +21,7 @@ function hashOtp(otp: string): string {
 type OtpPurpose = "EMAIL_VERIFICATION" | "PASSWORD_RESET" | "LOGIN_VERIFICATION";
 
 export async function generateOtp(email: string, purpose: OtpPurpose) {
+  await cleanupExpiredOtps();
   const recentOtp = await db
     .select()
     .from(emailOtps)
@@ -28,10 +29,11 @@ export async function generateOtp(email: string, purpose: OtpPurpose) {
       and(
         eq(emailOtps.email, email),
         eq(emailOtps.purpose, purpose),
-        eq(emailOtps.verified, false)
+        eq(emailOtps.verified, false),
+        gt(emailOtps.expiresAt, new Date())
       )
     )
-    .orderBy(emailOtps.createdAt)
+    .orderBy(desc(emailOtps.createdAt))
     .limit(1);
 
   if (recentOtp.length > 0) {
@@ -74,7 +76,8 @@ export async function verifyOtp(email: string, otp: string, purpose: OtpPurpose)
         eq(emailOtps.verified, false)
       )
     )
-    .orderBy(emailOtps.createdAt)
+    // Use the most recently issued code so an old expired code cannot shadow it.
+    .orderBy(desc(emailOtps.createdAt))
     .limit(1);
 
   if (records.length === 0) {
@@ -119,5 +122,5 @@ export async function verifyOtp(email: string, otp: string, purpose: OtpPurpose)
 export async function cleanupExpiredOtps() {
   await db
     .delete(emailOtps)
-    .where(gt(emailOtps.expiresAt, new Date()));
+    .where(lt(emailOtps.expiresAt, new Date()));
 }

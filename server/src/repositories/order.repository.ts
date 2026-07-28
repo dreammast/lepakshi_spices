@@ -25,7 +25,9 @@ export async function createOrderRecord(input: CreateOrderInput) {
     const result: any = await tx.update(productVariants)
       .set({ stock: sql`${productVariants.stock} - ${item.quantity}`, updatedAt: now })
       .where(and(eq(productVariants.id, item.productVariantId), gte(productVariants.stock, item.quantity)));
-    if (!result.affectedRows) throw new Error(`Insufficient stock for product variant ${item.productVariantId}`);
+    // Drizzle with mysql2 returns [ResultSetHeader, FieldPacket[]], so affectedRows is at index 0.
+    const affectedRows = Array.isArray(result) ? result[0]?.affectedRows : result?.affectedRows;
+    if (!affectedRows) throw new Error(`Insufficient stock for product variant ${item.productVariantId}`);
   }
 
   const [orderRes] = await tx.insert(orders).values({
@@ -44,17 +46,18 @@ export async function createOrderRecord(input: CreateOrderInput) {
     updatedAt: now
   });
 
+  const newOrderId = orderRes.insertId;
   if (input.items.length > 0) {
     await tx.insert(orderItems).values(
       input.items.map(item => ({
-        orderId,
+        orderId: newOrderId,
         productVariantId: item.productVariantId,
         quantity: item.quantity,
         price: item.price
       }))
     );
   }
-  return orderRes.insertId;
+  return newOrderId;
   });
   return findOrderById(orderId);
 }

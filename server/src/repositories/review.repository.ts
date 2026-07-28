@@ -59,8 +59,11 @@ export async function createReviewRecord(data: {
 }
 
 export async function updateReviewStatus(id: number, status: 'pending' | 'approved' | 'rejected') {
-  const updates: Record<string, any> = { status, updatedAt: new Date() };
-  if (status === 'approved') updates.approvedAt = new Date();
+  const updates: Record<string, any> = {
+    status,
+    updatedAt: new Date(),
+    approvedAt: status === 'approved' ? new Date() : null
+  };
   await db.update(reviews).set(updates).where(eq(reviews.id, id));
   return findReviewById(id);
 }
@@ -77,7 +80,7 @@ export async function findReviewsByCustomerId(customerId: number) {
 export async function updateReviewByCustomer(id: number, customerId: number, data: { rating?: number; title?: string; comment?: string; displayName?: string }) {
   await db
     .update(reviews)
-    .set({ ...data, status: 'pending', updatedAt: new Date() })
+    .set({ ...data, status: 'pending', approvedAt: null, updatedAt: new Date() })
     .where(and(eq(reviews.id, id), eq(reviews.customerId, customerId)));
   return findReviewById(id);
 }

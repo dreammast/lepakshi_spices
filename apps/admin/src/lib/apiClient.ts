@@ -6,6 +6,34 @@ export type ApiResponse<T> = {
   message?: string;
 };
 
+export type CustomerListItem = {
+  id: number;
+  email: string;
+  firstName: string;
+  lastName: string;
+  phone: string | null;
+  role: 'customer' | 'staff' | 'manager' | 'admin';
+  segment: 'new' | 'regular' | 'vip' | 'wholesale';
+  createdAt: string;
+  orderCount: number;
+  ltv: number;
+};
+
+export type CustomerActivity = {
+  id: string;
+  type: string;
+  occurredAt: string;
+  label: string;
+  detail: string;
+};
+
+export type CustomerDetails = CustomerListItem & {
+  addresses: Array<{ id: number; label: string; line1: string; line2: string | null; city: string; state: string; postalCode: string; country: string; isDefault: boolean }>;
+  orders: any[];
+  reviews: any[];
+  activity: CustomerActivity[];
+};
+
 function getAuthToken(): string | null {
   try {
     const adminRaw = localStorage.getItem('spiceora_admin');
@@ -138,8 +166,8 @@ export const packagingApi = {
 };
 
 export const customersApi = {
-  list: () => api.get<any[]>('/admin/customers'),
-  get: (id: number) => api.get<any>(`/admin/customers/${id}`),
+  list: () => api.get<CustomerListItem[]>('/admin/customers'),
+  get: (id: number) => api.get<CustomerDetails>(`/admin/customers/${id}`),
   updateRole: (id: number, role: string) => api.put<any>(`/admin/customers/${id}/role`, { role }),
   updateProfile: (id: number, body: unknown) => api.put<any>(`/admin/customers/${id}/profile`, body)
 };

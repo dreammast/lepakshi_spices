@@ -22,7 +22,7 @@ import {
   PieChart, Pie, Cell,
 } from "recharts";
 import { SmartPricingAssistant } from "./components/SmartPricingAssistant";
-import { authApi, auditApi, categoriesApi, customersApi, ordersApi, couponsApi, campaignsApi, recipesApi, reviewsApi, wholesaleApi, productsApi, dashboardApi, settingsApi, collectionsApi } from "../lib/apiClient";
+import { authApi, auditApi, categoriesApi, customersApi, ordersApi, couponsApi, campaignsApi, recipesApi, reviewsApi, wholesaleApi, productsApi, dashboardApi, settingsApi, collectionsApi, type CustomerDetails, type CustomerListItem } from "../lib/apiClient";
 
 // ─── Brand Tokens ─────────────────────────────────────────────
 const C = {
@@ -75,9 +75,6 @@ const CATEGORY_META = [
 
 type Order = { id: string; customer: string; email: string; items: number; total: number; status: string; date: string; location: string; products: string[] };
 const INIT_ORDERS: Order[] = [];
-
-type Customer = { id: string; name: string; email: string; orders: number; spent: number; joined: string; segment: string; location: string; lastOrder: string; phone: string };
-const INIT_CUSTOMERS: Customer[] = [];
 
 const NOTIFS: any[] = [];
 
@@ -310,6 +307,11 @@ function ImageDropzone({ value, onChange }: { value: string; onChange: (url: str
             <img src={value} alt="Uploaded product" className="max-h-36 mx-auto rounded-xl object-cover border" />
             <p className="text-[10px] text-[#8B7355] truncate max-w-xs mx-auto">{value}</p>
             <p className="text-xs text-[#2D5016] font-semibold underline">Click or drop another file to replace</p>
+          </div>
+        ) : loadError ? (
+          <div className="p-12 text-center">
+            <p className="text-sm font-semibold text-red-700">{loadError}</p>
+            <button onClick={loadCustomersFromApi} className="mt-3 text-xs font-bold text-[#2D5016] hover:underline">Try again</button>
           </div>
         ) : (
           <div className="flex flex-col items-center py-4 space-y-2">
@@ -914,7 +916,6 @@ function ProductsPage() {
         comment: row.review.comment || "",
         title: row.review.title || "",
         status: row.review.status,
-        approved: row.review.status === "approved",
         createdAt: row.review.createdAt,
         customer: row.review.displayName || `${row.customer?.firstName || ""} ${row.customer?.lastName || ""}`.trim() || row.customer?.email || "Customer",
         product: row.product?.name || "Product"
@@ -1417,7 +1418,7 @@ function ProductsPage() {
       {activeSubTab === "reviews" && (
         <Card className="overflow-hidden">
           <div className="p-4 bg-[#FAF8F5] border-b border-[#2C2416]/10 flex gap-2">
-            {["all", "new", "approved", "rejected", "hidden"].map(status => (
+            {["all", "pending", "approved", "rejected"].map(status => (
               <button
                 key={status}
                 onClick={() => setReviewFilter(status)}
@@ -1437,19 +1438,19 @@ function ProductsPage() {
             </thead>
             <tbody className="divide-y divide-[#2C2416]/8">
               {reviews
-                .filter(r => reviewFilter === "all" || r.status === reviewFilter || (reviewFilter === "new" && !r.status))
+                .filter(r => reviewFilter === "all" || r.status === reviewFilter)
                 .map(r => (
                   <tr key={r.id}>
                     <td className="px-5 py-4 max-w-xs italic text-[#2C2416]">"{r.comment}"</td>
-                    <td className="px-5 py-4 font-semibold text-[#2C2416]">{r.name}</td>
+                    <td className="px-5 py-4 font-semibold text-[#2C2416]">{r.customer}</td>
                     <td className="px-5 py-4">{r.product || "General"}</td>
                     <td className="px-5 py-4 text-amber-500 font-bold">{"★".repeat(r.rating)}</td>
                     <td className="px-5 py-4 capitalize">
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${r.status === "approved" || r.approved ? "bg-green-100 text-green-800" : r.status === "rejected" ? "bg-red-100 text-red-800" : "bg-stone-100 text-stone-700"}`}>
-                        {r.status || "new"}
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${r.status === "approved" ? "bg-green-100 text-green-800" : r.status === "rejected" ? "bg-red-100 text-red-800" : "bg-stone-100 text-stone-700"}`}>
+                        {r.status}
                       </span>
                     </td>
-                    <td className="px-5 py-4 text-[#8B7355]">{r.date || "N/A"}</td>
+                    <td className="px-5 py-4 text-[#8B7355]">{r.createdAt ? new Date(r.createdAt).toLocaleDateString() : "N/A"}</td>
                     <td className="px-5 py-4">
                       <div className="flex gap-2">
                         <button onClick={() => handleReviewStatus(r.id, "approved")} className="px-2 py-1 rounded bg-green-50 text-green-700 hover:bg-green-100">Approve</button>
@@ -2171,46 +2172,25 @@ function CollectionsPage() {
 }
 
 function CustomersPage() {
-  const [customers, setCustomers] = useState<any[]>(() => {
-    try {
-      const stored = localStorage.getItem("spiceora_customers");
-      return stored ? JSON.parse(stored) : [];
-    } catch {
-      return [];
-    }
-  });
-
-  const [loading, setLoading] = useState(false);
+  const [customers, setCustomers] = useState<CustomerListItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
-  const [drawer, setDrawer] = useState<any | null>(null);
+  const [drawer, setDrawer] = useState<CustomerListItem | null>(null);
   const [drawerTab, setDrawerTab] = useState<"info" | "orders" | "products" | "timeline">("info");
-  const [customerDetails, setCustomerDetails] = useState<any | null>(null);
+  const [customerDetails, setCustomerDetails] = useState<CustomerDetails | null>(null);
+  const [detailsLoading, setDetailsLoading] = useState(false);
+  const [detailsError, setDetailsError] = useState<string | null>(null);
 
   const loadCustomersFromApi = async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const data = await customersApi.list();
-      if (Array.isArray(data)) {
-        const mapped = data.map((c: any) => ({
-          id: `CUST-${c.id}`,
-          rawId: c.id,
-          name: `${c.firstName || ''} ${c.lastName || ''}`.trim() || c.email,
-          firstName: c.firstName,
-          lastName: c.lastName,
-          email: c.email,
-          phone: c.phone || 'N/A',
-          location: 'India',
-          orders: c.orderCount || 0,
-          ltv: c.ltv || 0,
-          role: c.role || 'customer',
-          segment: c.segment || 'new',
-          createdAt: c.createdAt ? new Date(c.createdAt).toLocaleDateString() : 'N/A'
-        }));
-        setCustomers(mapped);
-        localStorage.setItem("spiceora_customers", JSON.stringify(mapped));
-      }
-    } catch (err) {
-      console.warn("Failed to fetch registered customers from API:", err);
+      setCustomers(data);
+    } catch (err: any) {
+      setCustomers([]);
+      setLoadError(err.message || "Unable to load customer profiles.");
     } finally {
       setLoading(false);
     }
@@ -2221,26 +2201,39 @@ function CustomersPage() {
   }, []);
 
   useEffect(() => {
-    if (!drawer?.rawId) { setCustomerDetails(null); return; }
-    customersApi.get(drawer.rawId).then(setCustomerDetails).catch((error: any) => toast.error(error.message || "Unable to load customer details"));
-  }, [drawer?.rawId]);
+    if (!drawer) { setCustomerDetails(null); setDetailsError(null); return; }
+    setDetailsLoading(true);
+    setDetailsError(null);
+    customersApi.get(drawer.id)
+      .then(setCustomerDetails)
+      .catch((error: any) => {
+        const message = error.message || "Unable to load customer details";
+        setDetailsError(message);
+        toast.error(message);
+      })
+      .finally(() => setDetailsLoading(false));
+  }, [drawer]);
 
   const customerOrders = customerDetails?.orders || [];
   const purchasedProducts = customerOrders.flatMap((order: any) => order.items || []);
-  const customerReviews: any[] = [];
+  const customerReviews = customerDetails?.reviews || [];
 
   const handleRoleChange = async (rawId: number, newRole: string) => {
     try {
       await customersApi.updateRole(rawId, newRole);
-      setCustomers(prev => prev.map(c => c.rawId === rawId ? { ...c, role: newRole } : c));
-      setDrawer((prev: any) => prev ? { ...prev, role: newRole } : prev);
+      setCustomers(prev => prev.map(c => c.id === rawId ? { ...c, role: newRole as CustomerListItem['role'] } : c));
+      setDrawer(prev => prev ? { ...prev, role: newRole as CustomerListItem['role'] } : prev);
       toast.success(`Customer role updated to ${newRole}`);
     } catch (err: any) {
       toast.error(err.message || "Failed to update role");
     }
   };
 
-  const filtered = customers.filter(c => (c.name || '').toLowerCase().includes(query.toLowerCase()) || (c.email || '').toLowerCase().includes(query.toLowerCase()));
+  const filtered = customers.filter(c => {
+    const name = `${c.firstName || ''} ${c.lastName || ''}`.trim();
+    const normalizedQuery = query.toLowerCase();
+    return name.toLowerCase().includes(normalizedQuery) || c.email.toLowerCase().includes(normalizedQuery);
+  });
 
   return (
     <div className="space-y-6 text-left">
@@ -2277,17 +2270,17 @@ function CustomersPage() {
             <tbody className="divide-y divide-[#2C2416]/8">
               {filtered.map(c => (
                 <tr key={c.id} className="hover:bg-[#FAF8F5]/50 transition-colors">
-                  <td className="px-5 py-4 font-mono font-medium text-[#8B7355]">{c.id}</td>
-                  <td className="px-5 py-4 font-semibold text-[#2C2416]">{c.name}</td>
+                  <td className="px-5 py-4 font-mono font-medium text-[#8B7355]">CUST-{c.id}</td>
+                  <td className="px-5 py-4 font-semibold text-[#2C2416]">{`${c.firstName || ''} ${c.lastName || ''}`.trim() || c.email}</td>
                   <td className="px-5 py-4 text-[#2C2416]">{c.email}</td>
-                  <td className="px-5 py-4 text-[#8B7355]">{c.phone}</td>
+                  <td className="px-5 py-4 text-[#8B7355]">{c.phone || '—'}</td>
                   <td className="px-5 py-4 capitalize">
                     <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
                       {c.segment}
                     </span>
                   </td>
-                  <td className="px-5 py-4">{c.orders} orders</td>
-                  <td className="px-5 py-4 font-semibold text-[#2D5016]">₹{c.ltv}</td>
+                  <td className="px-5 py-4">{c.orderCount} orders</td>
+                  <td className="px-5 py-4 font-semibold text-[#2D5016]">₹{Number(c.ltv).toLocaleString('en-IN')}</td>
                   <td className="px-5 py-4">
                     <button onClick={() => setDrawer(c)} className="p-1.5 text-[#8B7355] hover:bg-[#2C2416]/10 rounded-lg transition-colors"><Eye className="w-4 h-4" /></button>
                   </td>
@@ -2315,11 +2308,11 @@ function CustomersPage() {
                 {/* Header */}
                 <div className="flex items-start justify-between border-b border-[#2C2416]/10 pb-4">
                   <div className="flex items-center gap-3">
-                    <Av name={drawer.name} size={48} />
+                    <Av name={`${drawer.firstName || ''} ${drawer.lastName || ''}`.trim() || drawer.email} size={48} />
                     <div>
-                      <p className="font-bold text-base text-[#2C2416]">{drawer.name}</p>
+                      <p className="font-bold text-base text-[#2C2416]">{`${drawer.firstName || ''} ${drawer.lastName || ''}`.trim() || drawer.email}</p>
                       <p className="text-xs text-[#8B7355]">{drawer.email}</p>
-                      <p className="text-[10px] text-[#8B7355] mt-0.5">Joined: {drawer.joined || "N/A"} · {drawer.phone || "No phone"}</p>
+                      <p className="text-[10px] text-[#8B7355] mt-0.5">Joined: {new Date(drawer.createdAt).toLocaleDateString()} · {drawer.phone || "No phone"}</p>
                     </div>
                   </div>
                   <button onClick={() => setDrawer(null)} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-[#FAF8F5] shrink-0"><X className="w-4 h-4" /></button>
@@ -2329,17 +2322,23 @@ function CustomersPage() {
                 <div className="grid grid-cols-3 gap-3">
                   <div className="p-3 bg-[#FAF8F5] rounded-xl border text-center">
                     <p className="text-[10px] text-[#8B7355] uppercase font-bold">Lifetime Value</p>
-                    <p className="font-bold text-sm text-[#2D5016] mt-1">₹{drawer.ltv?.toLocaleString('en-IN')}</p>
+                    <p className="font-bold text-sm text-[#2D5016] mt-1">₹{Number(drawer.ltv).toLocaleString('en-IN')}</p>
                   </div>
                   <div className="p-3 bg-[#FAF8F5] rounded-xl border text-center">
                     <p className="text-[10px] text-[#8B7355] uppercase font-bold">Total Orders</p>
-                    <p className="font-bold text-sm text-[#2C2416] mt-1">{drawer.orders}</p>
+                    <p className="font-bold text-sm text-[#2C2416] mt-1">{drawer.orderCount}</p>
                   </div>
                   <div className="p-3 bg-[#FAF8F5] rounded-xl border text-center">
                     <p className="text-[10px] text-[#8B7355] uppercase font-bold">Avg. Order</p>
-                    <p className="font-bold text-sm text-[#2C2416] mt-1">₹{drawer.orders ? Math.round(drawer.ltv / drawer.orders).toLocaleString('en-IN') : 0}</p>
+                    <p className="font-bold text-sm text-[#2C2416] mt-1">₹{drawer.orderCount ? Math.round(Number(drawer.ltv) / drawer.orderCount).toLocaleString('en-IN') : 0}</p>
                   </div>
                 </div>
+
+                {detailsError && (
+                  <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-700">
+                    {detailsError}
+                  </div>
+                )}
 
                 {/* Sub-tabs */}
                 <div className="flex gap-1.5 bg-[#FAF8F5] p-1 rounded-xl border border-[#2C2416]/10">
@@ -2358,14 +2357,14 @@ function CustomersPage() {
                       <p className="font-bold text-[#2C2416] text-sm mb-2">Contact Information</p>
                       <div className="flex justify-between"><span className="text-[#8B7355]">Phone:</span><span className="font-semibold">{drawer.phone || "N/A"}</span></div>
                       <div className="flex justify-between"><span className="text-[#8B7355]">Email:</span><span className="font-semibold">{drawer.email}</span></div>
-                      <div className="flex justify-between"><span className="text-[#8B7355]">Location:</span><span className="font-semibold">{drawer.location}</span></div>
+                      <div className="flex justify-between"><span className="text-[#8B7355]">Location:</span><span className="font-semibold">{customerDetails?.addresses?.find(address => address.isDefault)?.city || customerDetails?.addresses?.[0]?.city || 'No address saved'}</span></div>
                       <div className="flex justify-between items-center">
                         <span className="text-[#8B7355]">Role:</span>
-                        <select value={drawer.role || 'customer'} onChange={e => handleRoleChange(drawer.rawId, e.target.value)}
+                        <select value={drawer.role || 'customer'} onChange={e => handleRoleChange(drawer.id, e.target.value)}
                           className="px-2 py-1 rounded-lg text-[10px] font-bold border border-[#2C2416]/12 bg-[#FAF8F5] text-[#2C2416] outline-none">
                           <option value="customer">Customer</option>
-                          <option value="wholesale">Wholesale</option>
                           <option value="staff">Staff</option>
+                          <option value="manager">Manager</option>
                           <option value="admin">Admin</option>
                         </select>
                       </div>
@@ -2451,20 +2450,22 @@ function CustomersPage() {
                 {drawerTab === "timeline" && (
                   <div className="space-y-3 text-xs">
                     <p className="font-bold text-sm text-[#2C2416]">Activity Timeline</p>
-                    <div className="relative pl-6 border-l-2 border-[#2D5016]/20 space-y-5">
-                      {[
-                        { label: "Latest Order Delivered", date: "28/12/2024", detail: "Order delivered to " + drawer.location, active: true },
-                        { label: "First Order Placed", date: "24/12/2024", detail: "Placed first order containing Chilli and Garam Masala", active: false },
-                        { label: "Account Registered", date: drawer.joined || "15/03/2025", detail: "Profile verified on Spiceora storefront portal", active: false }
-                      ].map((ev, idx) => (
-                        <div key={idx} className="relative">
-                          <div className={`absolute -left-[30px] top-0.5 w-3.5 h-3.5 rounded-full border-2 border-white ${ev.active ? "bg-[#2D5016]" : "bg-[#2D5016]/30"}`} />
-                          <p className="font-bold text-[#2C2416]">{ev.label}</p>
-                          <p className="text-[10px] text-[#8B7355]">{ev.date}</p>
-                          <p className="text-[11px] text-[#8B7355] mt-0.5">{ev.detail}</p>
-                        </div>
-                      ))}
-                    </div>
+                    {detailsLoading ? (
+                      <p className="text-[#8B7355]">Loading activity…</p>
+                    ) : customerDetails?.activity?.length ? (
+                      <div className="relative pl-6 border-l-2 border-[#2D5016]/20 space-y-5">
+                        {customerDetails.activity.map((event, index) => (
+                          <div key={event.id} className="relative">
+                            <div className={`absolute -left-[30px] top-0.5 w-3.5 h-3.5 rounded-full border-2 border-white ${index === 0 ? "bg-[#2D5016]" : "bg-[#2D5016]/30"}`} />
+                            <p className="font-bold text-[#2C2416]">{event.label}</p>
+                            <p className="text-[10px] text-[#8B7355]">{new Date(event.occurredAt).toLocaleString()}</p>
+                            <p className="text-[11px] text-[#8B7355] mt-0.5">{event.detail}</p>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-[#8B7355] italic">No activity has been recorded for this customer.</p>
+                    )}
                   </div>
                 )}
               </div>

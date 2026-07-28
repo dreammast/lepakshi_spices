@@ -10,6 +10,7 @@ import {
   AlertCircle, AlertTriangle, BookOpen, Tag, Clock, HelpCircle, FileText, Phone
 } from "lucide-react";
 import { authApi, campaignsApi, cartApi, ordersApi, productsApi, categoriesApi, couponsApi, locationApi, recipesApi, reviewsApi, settingsApi, wholesaleInquiryApi, addressesApi, wishlistApi } from "../lib/apiClient";
+import { useAuth } from "../context/AuthContext";
 
 
 // ─── DATA & LIVE API INTEGRATION ──────────────────────────────────────────────────
@@ -1113,7 +1114,7 @@ function Footer() {
           ))}
         </div>
         <div className="border-t border-white/10 pt-6 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <p className="text-xs text-white/35">© 2024 Spiceora. All rights reserved.</p>
+          <p className="text-xs text-white/35">© 2026 Spiceora. All rights reserved.</p>
           <div className="flex items-center gap-3">
             <span className="text-xs text-white/35">Secure payments:</span>
             {["Visa", "Mastercard", "UPI", "Razorpay"].map(p => (
@@ -2775,7 +2776,7 @@ function ProfilePage() {
                             <div key={o.id} className="flex items-center justify-between py-3 border-b border-[#1A1714]/8 last:border-0">
                               <div>
                                 <p className="text-sm font-medium text-[#1A1714]">#{o.id}</p>
-                                <p className="text-xs text-[#7A7064]">{Array.isArray(o.items) ? o.items.join(", ") : o.items}</p>
+                                <p className="text-xs text-[#7A7064]">{Array.isArray(o.items) ? o.items.map((item: any) => item.product?.name || item.variant?.label || "Product").join(", ") : o.items}</p>
                               </div>
                               <div className="text-right">
                                 <span className="text-xs font-semibold px-2 py-1 rounded-full bg-amber-50 text-amber-800">{o.status}</span>
@@ -2840,7 +2841,7 @@ function ProfilePage() {
                                   <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-800">{o.status}</span>
                                 </div>
                                 <p className="text-xs text-[#7A7064]">{o.date}</p>
-                                <p className="text-sm text-[#7A7064] mt-1">{Array.isArray(o.items) ? o.items.join(", ") : o.items}</p>
+                                <p className="text-sm text-[#7A7064] mt-1">{Array.isArray(o.items) ? o.items.map((item: any) => item.product?.name || item.variant?.label || "Product").join(", ") : o.items}</p>
                               </div>
                               <div className="text-right shrink-0">
                                 <p className="font-bold text-[#1A1714]">₹{o.total}</p>
@@ -4841,23 +4842,6 @@ export default function App() {
     }
   }, [user, redirectAfterLogin]);
 
-  // Handle Google sign-in result dispatched from AuthModal
-  useEffect(() => {
-    function handleGoogleAuth(e: Event) {
-      const userData = (e as CustomEvent).detail;
-      if (userData?.token) {
-        setUser(userData);
-        setAuthModalOpen('closed');
-        if (redirectAfterLogin) {
-          setCurrentPage(redirectAfterLogin as Page);
-          setRedirectAfterLogin(null);
-        }
-      }
-    }
-    window.addEventListener('spiceora_google_auth', handleGoogleAuth);
-    return () => window.removeEventListener('spiceora_google_auth', handleGoogleAuth);
-  }, [redirectAfterLogin]);
-
   useEffect(() => {
     const fetchApiData = async () => {
       try {
@@ -5263,57 +5247,17 @@ function AuthModal() {
           <>
             <button
               type="button"
-              onClick={() => {
+              onClick={async () => {
                 setError("");
                 setLoading(true);
-                const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '917080802896-st1ihphek9f5kcseuu0ajjemsnce08ig.apps.googleusercontent.com';
-                const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api';
-                const gsi = (window as any).google?.accounts?.id;
-                if (!gsi) {
-                  setError("Google sign-in is not available. Please try again in a moment.");
+                try {
+                  await loginWithGoogle();
+                  setAuthModalOpen('closed');
+                } catch (err: any) {
+                  setError(err.message || 'Google sign-in failed.');
+                } finally {
                   setLoading(false);
-                  return;
                 }
-                gsi.initialize({
-                  client_id: GOOGLE_CLIENT_ID,
-                  callback: async (response: any) => {
-                    try {
-                      const payload = JSON.parse(atob(response.credential.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
-                      const email: string = payload.email || '';
-                      const name: string = payload.name || '';
-                      const picture: string = payload.picture || '';
-                      const parts = name.trim().split(/\s+/);
-                      const firstName = parts.shift() || email.split('@')[0] || 'User';
-                      const lastName = parts.join(' ') || '';
-                      const res = await fetch(`${API_URL}/auth/sync-oauth`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ email, firstName, lastName, ...(picture ? { avatarUrl: picture } : {}) })
-                      });
-                      const json = await res.json();
-                      if (!res.ok || !json.success || !json.data?.token) {
-                        throw new Error(json.message || 'Google sign-in failed. Please try again.');
-                      }
-                      const u = json.data.user;
-                      const token = json.data.token;
-                      const userData = {
-                        id: u.id,
-                        name: `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.email,
-                        email: u.email,
-                        role: u.role,
-                        token,
-                        isLoggedIn: true
-                      };
-                      localStorage.setItem('spiceora_user', JSON.stringify(userData));
-                      window.dispatchEvent(new CustomEvent('spiceora_google_auth', { detail: userData }));
-                    } catch (err: any) {
-                      setError(err.message || 'Google sign-in failed.');
-                    } finally {
-                      setLoading(false);
-                    }
-                  },
-                });
-                gsi.prompt();
               }}
               className="w-full flex items-center justify-center gap-3 py-3 px-4 border border-[#1A1714]/12 rounded-xl text-sm font-medium text-[#1A1714] hover:bg-[#FAF8F3] transition-all cursor-pointer"
             >
