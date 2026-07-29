@@ -8,6 +8,8 @@ export async function findAddressesByCustomerId(customerId: number) {
 
 export async function createAddressRecord(customerId: number, data: {
   label: string;
+  fullName?: string;
+  phone?: string;
   line1: string;
   line2?: string;
   city: string;
@@ -23,6 +25,8 @@ export async function createAddressRecord(customerId: number, data: {
   const now = new Date();
   const [res] = await db.insert(addresses).values({
     customerId,
+    fullName: data.fullName,
+    phone: data.phone,
     label: data.label,
     line1: data.line1,
     line2: data.line2,
@@ -41,6 +45,8 @@ export async function createAddressRecord(customerId: number, data: {
 
 export async function updateAddressRecord(customerId: number, id: number, data: Partial<{
   label: string;
+  fullName: string;
+  phone: string;
   line1: string;
   line2: string;
   city: string;
