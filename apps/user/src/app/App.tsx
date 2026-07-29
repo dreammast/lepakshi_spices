@@ -7,9 +7,7 @@ import {
   MapPin, CreditCard, Check, Bell, Settings, LogOut, Filter, LayoutGrid,
   List, Share2, Leaf, Award, Truck, RefreshCw, Shield,
   Instagram, Facebook, Twitter, Youtube, Mail, Globe, Zap, CheckCircle,
-  AlertCircle, AlertTriangle, BookOpen, Tag, Clock, HelpCircle, FileText, Phone,
-  Search as SearchIcon, Home, Info, MessageSquare, UserCheck, RefreshCcw, ShieldCheck,
-  RotateCcw, DollarSign, HeadphonesIcon, ChevronUp
+  AlertCircle, AlertTriangle, BookOpen, Tag, Clock, HelpCircle, FileText, Phone
 } from "lucide-react";
 import { authApi, campaignsApi, cartApi, ordersApi, productsApi, categoriesApi, couponsApi, locationApi, recipesApi, reviewsApi, settingsApi, wholesaleInquiryApi, addressesApi, wishlistApi } from "../lib/apiClient";
 import { useAuth } from "../context/AuthContext";
@@ -53,7 +51,7 @@ const PROCESS_STEPS = [
 // ─── TYPES ─────────────────────────────────────────────────────────────────────
 
 type CartItem = { product: Product; quantity: number; selectedWeight: string; price: number; productVariantId?: number };
-type Page = "home" | "shop" | "product" | "cart" | "checkout" | "profile" | "recipes" | "recipe" | "founder" | "bundle" | "wholesale" | "faq" | "shipping-returns" | "privacy-policy";
+type Page = "home" | "shop" | "product" | "cart" | "checkout" | "profile" | "recipes" | "recipe" | "founder" | "bundle" | "wholesale";
 
 function getWeightOptions(product: Product) {
   const retail = product.variants?.length
@@ -143,7 +141,7 @@ function useScrolled(threshold = 20) {
 
 function useSEO(title: string, description: string) {
   useEffect(() => {
-    document.title = `${title} | Lepakshi Spices`;
+    document.title = `${title} | Spiceora Premium Spices`;
     let meta = document.querySelector('meta[name="description"]');
     if (!meta) {
       meta = document.createElement("meta");
@@ -815,7 +813,7 @@ function WhyUs() {
               <span className="text-[#C9920A] text-xs font-semibold tracking-[0.2em] uppercase">Our Promise</span>
               <div className="h-px w-8 bg-[#C9920A]" />
             </div>
-            <h2 className="text-4xl md:text-5xl font-bold text-white mb-4" style={{ fontFamily: "'Bodoni Moda', serif" }}>Why Lepakshi Spices?</h2>
+            <h2 className="text-4xl md:text-5xl font-bold text-white mb-4" style={{ fontFamily: "'Bodoni Moda', serif" }}>Why Spiceora?</h2>
             <p className="text-white/65 text-lg max-w-xl mx-auto">Great food starts with great ingredients. That's a promise, not a tagline.</p>
           </div>
         </Reveal>
@@ -863,10 +861,10 @@ function OurStory() {
                 Born From a Journey<br />Across Spice Routes
               </h2>
               <p className="text-[#7A7064] text-lg leading-relaxed mb-5">
-                Lepakshi Spices began when our founder, Rajan Menon, traveled the spice trail from Kerala to Kashmir and found something troubling: the world's finest spices were leaving India while Indian homes cooked with inferior imports.
+                Spiceora began when our founder, Rajan Menon, traveled the spice trail from Kerala to Kashmir and found something troubling: the world's finest spices were leaving India while Indian homes cooked with inferior imports.
               </p>
               <p className="text-[#7A7064] leading-relaxed mb-8">
-                We built Lepakshi Spices to change that — working directly with 47 farming families across 8 states and 3 countries, bringing you the same grade of spice exported to Michelin-starred restaurants, in your kitchen, at a fair price.
+                We built Spiceora to change that — working directly with 47 farming families across 8 states and 3 countries, bringing you the same grade of spice exported to Michelin-starred restaurants, in your kitchen, at a fair price.
               </p>
               <Btn size="lg" onClick={() => navigate("founder")}>
                 Read Our Full Story <ArrowRight className="w-4 h-4" />
@@ -1033,7 +1031,7 @@ function Newsletter() {
           <div className="w-14 h-14 rounded-2xl bg-[#2A4A3C] flex items-center justify-center mx-auto mb-6">
             <Mail className="w-6 h-6 text-[#C9920A]" />
           </div>
-          <h2 className="text-4xl font-bold text-[#1A1714] mb-4" style={{ fontFamily: "'Bodoni Moda', serif" }}>Join the Lepakshi Spices Circle</h2>
+          <h2 className="text-4xl font-bold text-[#1A1714] mb-4" style={{ fontFamily: "'Bodoni Moda', serif" }}>Join the Spiceora Circle</h2>
           <p className="text-[#7A7064] text-lg mb-10">Recipes, provenance stories, and early access to new arrivals. No spam — ever.</p>
           <AnimatePresence mode="wait">
             {status === "done" ? (
@@ -1041,7 +1039,7 @@ function Newsletter() {
                 className="flex flex-col items-center gap-3 p-6 bg-[#2A4A3C]/8 rounded-2xl">
                 <CheckCircle className="w-10 h-10 text-[#2A4A3C]" />
                 <p className="font-semibold text-[#1A1714]">You're in the circle!</p>
-                <p className="text-sm text-[#7A7064]">Welcome to Lepakshi Spices. Check your inbox for a welcome gift.</p>
+                <p className="text-sm text-[#7A7064]">Welcome to Spiceora. Check your inbox for a welcome gift.</p>
               </motion.div>
             ) : (
               <motion.form onSubmit={submit} className="flex flex-col sm:flex-row gap-3">
@@ -1055,448 +1053,6 @@ function Newsletter() {
         </Reveal>
       </div>
     </section>
-  );
-}
-
-// ─── FAQ PAGE ─────────────────────────────────────────────────────────────────
-
-const FAQ_DATA = [
-  {
-    category: "Ordering",
-    items: [
-      { q: "How do I place an order?", a: "Simply browse our spice collection, select your preferred weight variants, add items to your cart, and proceed to checkout. You can place an order as a guest or create an account for faster checkout. We accept UPI, Cards, Net Banking, and Wallets." },
-      { q: "Can I cancel my order?", a: "Orders can be cancelled within 2 hours of placement, provided they have not been dispatched. Contact our support team with your order number for immediate assistance with cancellations." },
-      { q: "How do I track my order?", a: "Once your order is dispatched, you will receive a tracking link via email and SMS. You can also track your order by visiting your account's Orders section." },
-      { q: "Can I modify my order after placing it?", a: "Order modifications are possible within 1 hour of placement. Please contact our support team immediately with your order number and the changes required." },
-    ]
-  },
-  {
-    category: "Shipping",
-    items: [
-      { q: "How long does delivery take?", a: "We process orders within 24 hours. Standard delivery takes 2–5 business days across India. Express shipping (1–2 days) is available for select pin codes. International delivery takes 7–14 business days depending on the destination." },
-      { q: "Which locations do you deliver to?", a: "We deliver to all 28 states and 8 union territories of India. International shipping is available to select countries including UAE, USA, UK, Canada, Singapore, Australia, and Malaysia." },
-      { q: "Do you offer free shipping?", a: "Yes, we offer free standard shipping on all orders above ₹499. Express shipping is available at a nominal fee starting at ₹49." },
-      { q: "How are spices packed for shipping?", a: "Our spices are packed in nitrogen-flushed, food-grade resealable pouches. Each pouch is sealed in a bubble-wrapped envelope or box to prevent damage during transit." },
-    ]
-  },
-  {
-    category: "Payments",
-    items: [
-      { q: "What payment methods do you accept?", a: "We accept all major payment methods including UPI (GPay, PhonePe, Paytm), Credit/Debit Cards (Visa, Mastercard, RuPay), Net Banking (all major banks), and Digital Wallets (Paytm, Amazon Pay, Mobikwik)." },
-      { q: "Is it safe to pay online?", a: "Absolutely. All transactions are processed through Razorpay, a PCI-DSS compliant payment gateway. Your payment details are encrypted and never stored on our servers." },
-      { q: "Do you accept Cash on Delivery (COD)?", a: "Yes, COD is available for orders up to ₹5,000. A nominal convenience fee of ₹30 applies on COD orders." },
-      { q: "Can I use multiple payment methods for one order?", a: "Currently we support only one payment method per order. You can split your purchase across multiple orders if needed." },
-    ]
-  },
-  {
-    category: "Wholesale",
-    items: [
-      { q: "How can I become a wholesale customer?", a: "Visit our Wholesale page and fill out the B2B sourcing form with your business details. Our wholesale team will contact you within 24 hours with customized pricing based on your volume requirements." },
-      { q: "What is the minimum order quantity for wholesale?", a: "Wholesale orders start from 5kg per product variant. For bulk custom milling and private labeling, minimum order quantity is 25kg per SKU." },
-      { q: "Do you offer private labeling?", a: "Yes, we offer private labeling for bulk orders (50kg+). We can package spices under your brand name with custom labels, barcodes, and FSSAI compliance documentation." },
-    ]
-  },
-  {
-    category: "Returns",
-    items: [
-      { q: "Can I return products?", a: "Due to the nature of food products, we cannot accept returns once the package is opened. However, if you receive a damaged or incorrect item, we offer a full refund or replacement." },
-      { q: "What if I receive a damaged product?", a: "If your package arrives damaged, please take photos and contact us within 48 hours of delivery. We will issue a full refund or send a replacement immediately." },
-      { q: "What if I received the wrong item?", a: "In the rare event that you receive an incorrect product, notify us within 48 hours of delivery. We will arrange a free pickup and dispatch the correct item at no extra cost." },
-      { q: "How long does the refund process take?", a: "Refunds are processed within 3–5 business days after the returned/rejected item is received. The amount is credited to your original payment method within 5–10 business days depending on your bank." },
-    ]
-  },
-  {
-    category: "Account",
-    items: [
-      { q: "How do I reset my password?", a: "Click on 'Forgot Password' on the login page. Enter your registered email address, and we will send you a password reset link. The link expires in 1 hour for security reasons." },
-      { q: "How do I change my password?", a: "Log into your account and go to Profile > Settings. You can update your password from the security section. You will need to enter your current password for verification." },
-      { q: "How do I view my order history?", a: "Log into your account and navigate to Profile > Orders. You can view all your past orders, track current orders, and download invoices from this section." },
-      { q: "Can I delete my account?", a: "Yes, contact our support team with your registered email address to request account deletion. Your personal data will be permanently removed within 7 working days." },
-    ]
-  },
-  {
-    category: "Support",
-    items: [
-      { q: "How can I contact customer support?", a: "You can reach us via email at hello@lepakshispices.in, call us at +91 98765 43210 (Mon–Sat, 9 AM to 7 PM), or chat with us on WhatsApp at the same number." },
-      { q: "What are your working hours?", a: "Our customer support team is available Monday to Saturday, 9:00 AM to 7:00 PM IST. We are closed on Sundays and public holidays." },
-      { q: "Do you have a physical store?", a: "Currently we operate as an online-first brand. However, you can experience our spices at select gourmet stores in Bangalore, Mumbai, and Delhi — check our Store Locator for details." },
-    ]
-  }
-];
-
-function FAQPage() {
-  const { navigate } = useApp();
-  useSEO("Frequently Asked Questions", "Find answers to common questions about ordering, shipping, payments, returns, wholesale, and account management at Lepakshi Spices.");
-
-  const [searchQuery, setSearchQuery] = useState("");
-  const [openItems, setOpenItems] = useState<Set<string>>(new Set());
-
-  const filteredData = FAQ_DATA.map(section => ({
-    ...section,
-    items: section.items.filter(item =>
-      item.q.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.a.toLowerCase().includes(searchQuery.toLowerCase())
-    )
-  })).filter(section => section.items.length > 0);
-
-  const toggleItem = (key: string) => {
-    setOpenItems(prev => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key); else next.add(key);
-      return next;
-    });
-  };
-
-  const totalResults = filteredData.reduce((sum, s) => sum + s.items.length, 0);
-
-  return (
-    <div className="min-h-screen bg-[#FAF8F3] pt-20">
-      <div className="bg-[#2A4A3C] py-12 lg:py-16 px-4">
-        <div className="max-w-7xl mx-auto">
-          <div className="flex items-center gap-2 text-white/55 text-sm mb-3">
-            <button onClick={() => navigate("home")} className="hover:text-white transition-colors">Home</button>
-            <ChevronRight className="w-3.5 h-3.5" />
-            <span className="text-white">FAQ</span>
-          </div>
-          <h1 className="text-3xl lg:text-4xl font-bold text-white mb-3" style={{ fontFamily: "'Bodoni Moda', serif" }}>Frequently Asked Questions</h1>
-          <p className="text-white/60 text-sm max-w-xl">Everything you need to know about ordering from Lepakshi Spices. Can't find what you're looking for? <button onClick={() => navigate("wholesale", { anchor: "wholesale-contact" })} className="text-[#C9920A] hover:underline">Contact us</button>.</p>
-        </div>
-      </div>
-
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="relative mb-8">
-          <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[#7A7064]" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-            placeholder="Search FAQs..."
-            className="w-full bg-white border border-[#1A1714]/10 rounded-2xl pl-11 pr-4 py-3.5 text-sm outline-none focus:border-[#2A4A3C] transition-all"
-            aria-label="Search frequently asked questions"
-          />
-        </div>
-
-        {searchQuery && (
-          <p className="text-sm text-[#7A7064] mb-6">
-            {totalResults} result{totalResults !== 1 ? "s" : ""} found
-          </p>
-        )}
-
-        <div className="space-y-8">
-          {filteredData.map(section => (
-            <div key={section.category}>
-              <h2 className="text-lg font-bold text-[#1A1714] mb-4 flex items-center gap-2" style={{ fontFamily: "'Bodoni Moda', serif" }}>
-                {section.category}
-              </h2>
-              <div className="bg-white rounded-2xl border border-[#1A1714]/8 divide-y divide-[#1A1714]/6 overflow-hidden">
-                {section.items.map((item, idx) => {
-                  const key = `${section.category}-${idx}`;
-                  const isOpen = openItems.has(key);
-                  return (
-                    <div key={key} className="transition-colors hover:bg-[#FAF8F3]/50">
-                      <button
-                        onClick={() => toggleItem(key)}
-                        className="w-full flex items-center justify-between px-5 py-4 text-left cursor-pointer"
-                        aria-expanded={isOpen}
-                        aria-controls={`faq-answer-${key}`}
-                      >
-                        <span className="text-sm font-medium text-[#1A1714] pr-4">{item.q}</span>
-                        <ChevronDown className={`w-4 h-4 text-[#7A7064] shrink-0 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`} />
-                      </button>
-                      <div
-                        id={`faq-answer-${key}`}
-                        role="region"
-                        className={`overflow-hidden transition-all duration-200 ease-in-out ${isOpen ? "max-h-96 opacity-100" : "max-h-0 opacity-0"}`}
-                      >
-                        <div className="px-5 pb-4 text-sm text-[#7A7064] leading-relaxed">{item.a}</div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {filteredData.length === 0 && (
-          <div className="text-center py-16">
-            <HelpCircle className="w-12 h-12 text-[#7A7064]/30 mx-auto mb-4" />
-            <p className="text-[#7A7064] text-sm">No answers found for "{searchQuery}"</p>
-            <button onClick={() => setSearchQuery("")} className="text-[#2A4A3C] font-semibold text-sm hover:underline mt-2 cursor-pointer">Clear search</button>
-          </div>
-        )}
-      </div>
-
-      <Footer />
-    </div>
-  );
-}
-
-// ─── SHIPPING & RETURNS PAGE ──────────────────────────────────────────────────
-
-function ShippingReturnsPage() {
-  const { navigate } = useApp();
-  useSEO("Shipping & Returns Policy", "Learn about Lepakshi Spices shipping policy, delivery timelines, return eligibility, refund process, and replacement policy for premium spices.");
-
-  return (
-    <div className="min-h-screen bg-[#FAF8F3] pt-20">
-      <div className="bg-[#2A4A3C] py-12 lg:py-16 px-4">
-        <div className="max-w-7xl mx-auto">
-          <div className="flex items-center gap-2 text-white/55 text-sm mb-3">
-            <button onClick={() => navigate("home")} className="hover:text-white transition-colors">Home</button>
-            <ChevronRight className="w-3.5 h-3.5" />
-            <span className="text-white">Shipping & Returns</span>
-          </div>
-          <h1 className="text-3xl lg:text-4xl font-bold text-white mb-3" style={{ fontFamily: "'Bodoni Moda', serif" }}>Shipping & Returns</h1>
-          <p className="text-white/60 text-sm max-w-xl">Everything you need to know about how we deliver and handle returns.</p>
-        </div>
-      </div>
-
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-16">
-
-        {/* ── Shipping Policy ── */}
-        <section>
-          <div className="flex items-center gap-3 mb-8">
-            <div className="w-10 h-10 rounded-xl bg-[#2A4A3C]/10 flex items-center justify-center">
-              <Truck className="w-5 h-5 text-[#2A4A3C]" />
-            </div>
-            <div>
-              <h2 className="text-2xl font-bold text-[#1A1714]" style={{ fontFamily: "'Bodoni Moda', serif" }}>Shipping Policy</h2>
-              <p className="text-sm text-[#7A7064]">How we pack and deliver your premium spices</p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {[
-              { icon: Clock, title: "Processing Time", desc: "Orders are processed within 24 hours of placement. All spices are packed fresh in nitrogen-flushed pouches to preserve flavor and aroma." },
-              { icon: Package, title: "Dispatch Time", desc: "Orders are dispatched within 24–48 hours from our warehouse. You will receive a confirmation email with tracking details once dispatched." },
-              { icon: Truck, title: "Delivery Time", desc: "Standard: 2–5 business days across India. Express: 1–2 business days for select pin codes. International: 7–14 business days." },
-              { icon: Shield, title: "Delivery Partners", desc: "We partner with trusted courier services including Blue Dart, Delhivery, and Shiprocket for reliable pan-India and international delivery." },
-              { icon: RefreshCw, title: "Order Tracking", desc: "Track your order in real-time via the tracking link sent to your email and SMS. You can also track from your account's Orders section." },
-              { icon: DollarSign, title: "Shipping Charges", desc: "Free standard shipping on orders above ₹499. Express shipping at ₹49 flat. COD orders include a ₹30 convenience fee." },
-            ].map((item, i) => (
-              <div key={i} className="bg-white rounded-2xl border border-[#1A1714]/8 p-6 hover:shadow-sm transition-shadow">
-                <div className="w-10 h-10 rounded-xl bg-[#2A4A3C]/10 flex items-center justify-center mb-4">
-                  <item.icon className="w-5 h-5 text-[#2A4A3C]" />
-                </div>
-                <h3 className="font-semibold text-[#1A1714] text-sm mb-2">{item.title}</h3>
-                <p className="text-xs text-[#7A7064] leading-relaxed">{item.desc}</p>
-              </div>
-            ))}
-          </div>
-
-          {/* Delivery Timeline */}
-          <div className="mt-10 bg-white rounded-2xl border border-[#1A1714]/8 p-6 lg:p-8">
-            <h3 className="font-bold text-[#1A1714] text-lg mb-6" style={{ fontFamily: "'Bodoni Moda', serif" }}>Estimated Delivery Timeline</h3>
-            <div className="space-y-0">
-              {[
-                { step: "1", title: "Order Placed", desc: "Order confirmed & payment verified", time: "Immediate", icon: CheckCircle },
-                { step: "2", title: "Processing", desc: "Freshly packed in nitrogen-flushed pouches", time: "Within 24 hrs", icon: Package },
-                { step: "3", title: "Dispatched", desc: "Handed over to delivery partner", time: "24–48 hrs", icon: Truck },
-                { step: "4", title: "In Transit", desc: "On its way to your address", time: "1–4 days", icon: MapPin },
-                { step: "5", title: "Delivered", desc: "Enjoy your premium spices!", time: "Arrived!", icon: CheckCircle },
-              ].map((step, i) => (
-                <div key={i} className="flex gap-4 pb-6 relative last:pb-0">
-                  <div className="flex flex-col items-center">
-                    <div className="w-8 h-8 rounded-full bg-[#2A4A3C] text-white flex items-center justify-center text-xs font-bold shrink-0 z-10">
-                      {step.icon === CheckCircle ? <Check className="w-4 h-4" /> : step.step}
-                    </div>
-                    {i < 4 && <div className="w-0.5 flex-1 bg-[#2A4A3C]/15 -mt-0.5" />}
-                  </div>
-                  <div className="pb-2">
-                    <h4 className="font-semibold text-sm text-[#1A1714]">{step.title}</h4>
-                    <p className="text-xs text-[#7A7064] mt-0.5">{step.desc}</p>
-                    <span className="text-[11px] font-medium text-[#2A4A3C] mt-1 inline-block">{step.time}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* ── Returns Policy ── */}
-        <section>
-          <div className="flex items-center gap-3 mb-8">
-            <div className="w-10 h-10 rounded-xl bg-[#C55A20]/10 flex items-center justify-center">
-              <RefreshCcw className="w-5 h-5 text-[#C55A20]" />
-            </div>
-            <div>
-              <h2 className="text-2xl font-bold text-[#1A1714]" style={{ fontFamily: "'Bodoni Moda', serif" }}>Returns & Refunds Policy</h2>
-              <p className="text-sm text-[#7A7064]">Our commitment to your satisfaction</p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            {[
-              { icon: RefreshCcw, title: "Return Eligibility", desc: "Due to food safety regulations, we cannot accept returns of opened packages. Unopened, defective, or damaged items can be returned within 7 days of delivery.", color: "#2A4A3C" },
-              { icon: AlertTriangle, title: "Damaged Products", desc: "If your order arrives damaged, photograph the package and contents, then contact us within 48 hours. We will issue a full refund or replacement immediately.", color: "#C55A20" },
-              { icon: AlertCircle, title: "Wrong Item Received", desc: "If you receive an incorrect product, notify us within 48 hours. We will arrange free pickup and dispatch the correct item at no extra cost to you.", color: "#C9920A" },
-              { icon: DollarSign, title: "Refund Timeline", desc: "Refunds are processed within 3–5 business days after we receive the returned item. Amount reflects in your account within 5–10 business days depending on your payment method and bank.", color: "#2A4A3C" },
-              { icon: RefreshCw, title: "Replacement Process", desc: "Replacements are initiated immediately after we verify the damage or error. The new item is dispatched within 24 hours at no additional cost.", color: "#2A4A3C" },
-              { icon: HeadphonesIcon, title: "Need Help?", desc: "Our support team is available Mon–Sat, 9 AM–7 PM. Call +91 98765 43210 or email hello@lepakshispices.in for assistance with returns or exchanges.", color: "#C55A20" },
-            ].map((item, i) => (
-              <div key={i} className="bg-white rounded-2xl border border-[#1A1714]/8 p-6 hover:shadow-sm transition-shadow">
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-4" style={{ backgroundColor: `${item.color}10` }}>
-                  <item.icon className="w-5 h-5" style={{ color: item.color }} />
-                </div>
-                <h3 className="font-semibold text-[#1A1714] text-sm mb-2">{item.title}</h3>
-                <p className="text-xs text-[#7A7064] leading-relaxed">{item.desc}</p>
-              </div>
-            ))}
-          </div>
-        </section>
-      </div>
-
-      <Footer />
-    </div>
-  );
-}
-
-// ─── PRIVACY POLICY PAGE ─────────────────────────────────────────────────────
-
-function PrivacyPolicyPage() {
-  const { navigate } = useApp();
-  useSEO("Privacy Policy", "Lepakshi Spices privacy policy outlines how we collect, use, and protect your personal information. Learn about your data rights and our security practices.");
-
-  const sections = [
-    {
-      title: "1. Introduction",
-      content: `Lepakshi Spices ("Lepakshi Spices", "we", "our", "us") respects your privacy and is committed to protecting your personal data. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you visit our website or make a purchase.\n\nBy using our website and services, you agree to the collection and use of information in accordance with this policy.`
-    },
-    {
-      title: "2. Information We Collect",
-      content: "We collect the following types of information to process your orders and provide you with the best possible experience:",
-      list: [
-        "Full Name — to personalize your account and delivery",
-        "Email Address — for order confirmations, shipping updates, and account communication",
-        "Phone Number — for delivery coordination and customer support",
-        "Delivery Address — to ship your orders accurately",
-        "Order Information — details of products purchased, quantities, and preferences",
-        "Payment Information — processed securely through Razorpay. We do not store your card or bank details on our servers"
-      ]
-    },
-    {
-      title: "3. How We Use Your Information",
-      content: "Your information is used exclusively for:",
-      list: [
-        "Processing and fulfilling your orders",
-        "Providing customer support and resolving issues",
-        "Sending delivery updates and order status notifications",
-        "Sending marketing communications (only with your explicit consent)",
-        "Maintaining account security and preventing fraud",
-        "Improving our products, website, and services based on usage patterns"
-      ]
-    },
-    {
-      title: "4. Data Protection",
-      content: "We implement industry-standard security measures to protect your personal information, including:\n\n• SSL/TLS encryption for all data transmitted between your browser and our servers\n• Secure token-based authentication for API communications\n• Regular security audits and vulnerability assessments\n• Strict access controls — only authorized personnel can access user data\n• Encrypted storage of sensitive information\n• PCI-DSS compliance through our payment gateway partner Razorpay"
-    },
-    {
-      title: "5. Cookies",
-      content: "We use cookies and similar tracking technologies to enhance your browsing experience:",
-      list: [
-        "Authentication Cookies — to keep you logged into your account securely",
-        "Shopping Cart Cookies — to remember items in your cart between sessions",
-        "Preference Cookies — to remember your language, currency, and display preferences",
-        "Analytics Cookies — to understand how you use our website and improve its performance",
-        "Session Cookies — temporary cookies that expire when you close your browser"
-      ],
-      note: "You can control cookies through your browser settings. Disabling certain cookies may affect website functionality."
-    },
-    {
-      title: "6. Third Party Services",
-      content: "We work with trusted third-party service providers to power our platform. Each provider is carefully vetted and contractually obligated to protect your data:",
-      list: [
-        "Razorpay — Secure payment processing. Your payment data is handled entirely by Razorpay's PCI-DSS compliant infrastructure",
-        "Cloudinary — Image hosting and content delivery network for product images",
-        "Brevo (Sendinblue) — Email communication platform for order updates and marketing emails",
-        "Google Authentication — Optional sign-in via Google. Only your email and name are shared with us when you choose this method",
-        "Delivery Partners (Blue Dart, Delhivery, Shiprocket) — Shipping and logistics, receiving only your name, phone number, and delivery address"
-      ]
-    },
-    {
-      title: "7. Your Rights",
-      content: "As a user, you have the following rights regarding your personal data:",
-      list: [
-        "Access — Request a copy of the personal data we hold about you",
-        "Correction — Update or correct your profile information at any time via your account settings",
-        "Deletion — Request permanent deletion of your account and associated data by contacting our support team",
-        "Opt-Out — Unsubscribe from marketing communications at any time using the link in our emails",
-        "Data Portability — Request your data in a machine-readable format",
-        "Withdraw Consent — Withdraw consent for data processing at any time, subject to legal or contractual restrictions"
-      ]
-    },
-    {
-      title: "8. Policy Updates",
-      content: "We may update this Privacy Policy from time to time to reflect changes in our practices, legal requirements, or operational needs. We will notify you of material changes by:\n\n• Posting the updated policy on this page with a new effective date\n• Sending an email notification for significant changes\n\nWe encourage you to review this policy periodically. Continued use of our services after changes constitutes acceptance of the updated policy."
-    },
-    {
-      title: "9. Contact Information",
-      content: "If you have any questions, concerns, or requests regarding this Privacy Policy or your personal data, please contact us:",
-      contact: true
-    }
-  ];
-
-  return (
-    <div className="min-h-screen bg-[#FAF8F3] pt-20">
-      <div className="bg-[#2A4A3C] py-12 lg:py-16 px-4">
-        <div className="max-w-7xl mx-auto">
-          <div className="flex items-center gap-2 text-white/55 text-sm mb-3">
-            <button onClick={() => navigate("home")} className="hover:text-white transition-colors">Home</button>
-            <ChevronRight className="w-3.5 h-3.5" />
-            <span className="text-white">Privacy Policy</span>
-          </div>
-          <h1 className="text-3xl lg:text-4xl font-bold text-white mb-3" style={{ fontFamily: "'Bodoni Moda', serif" }}>Privacy Policy</h1>
-          <p className="text-white/60 text-sm">Last updated: July 2026</p>
-        </div>
-      </div>
-
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8">
-        {sections.map((section, i) => (
-          <div key={i} className="bg-white rounded-2xl border border-[#1A1714]/8 p-6 lg:p-8">
-            <h2 className="text-xl font-bold text-[#1A1714] mb-4" style={{ fontFamily: "'Bodoni Moda', serif" }}>{section.title}</h2>
-            {section.content.split('\n').map((para, j) => (
-              <p key={j} className="text-sm text-[#7A7064] leading-relaxed mb-3 last:mb-0">{para}</p>
-            ))}
-            {section.list && (
-              <ul className="mt-3 space-y-2">
-                {section.list.map((item, j) => (
-                  <li key={j} className="flex items-start gap-2 text-sm text-[#7A7064]">
-                    <div className="w-1.5 h-1.5 rounded-full bg-[#2A4A3C] mt-1.5 shrink-0" />
-                    <span>{item}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-            {section.note && (
-              <p className="mt-3 text-xs text-[#C9920A] bg-[#C9920A]/5 px-3 py-2 rounded-lg">{section.note}</p>
-            )}
-            {section.contact && (
-              <div className="mt-6 bg-[#FAF8F3] rounded-xl p-5 border border-[#1A1714]/8">
-                <div className="space-y-3">
-                  <div className="flex items-center gap-3">
-                    <Leaf className="w-4 h-4 text-[#2A4A3C]" />
-                    <span className="font-bold text-sm text-[#1A1714]" style={{ fontFamily: "'Bodoni Moda', serif" }}>Lepakshi Spices (Lepakshi Spices)</span>
-                  </div>
-                  <a href="mailto:hello@lepakshispices.in" className="flex items-center gap-3 text-sm text-[#7A7064] hover:text-[#2A4A3C] transition-colors">
-                    <Mail className="w-4 h-4" /> hello@lepakshispices.in
-                  </a>
-                  <a href="tel:+919876543210" className="flex items-center gap-3 text-sm text-[#7A7064] hover:text-[#2A4A3C] transition-colors">
-                    <Phone className="w-4 h-4" /> +91 98765 43210
-                  </a>
-                  <div className="flex items-start gap-3 text-sm text-[#7A7064]">
-                    <MapPin className="w-4 h-4 mt-0.5 shrink-0" />
-                    <span>#42, MG Road, Ashok Nagar, Bangalore, Karnataka 560001, India</span>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
-
-      <Footer />
-    </div>
   );
 }
 
@@ -1516,16 +1072,6 @@ function Footer() {
       navigate("founder");
     } else if (link === "Wholesale & Bulk") {
       navigate("wholesale");
-    } else if (link === "FAQ") {
-      navigate("faq");
-    } else if (link === "Shipping & Returns") {
-      navigate("shipping-returns");
-    } else if (link === "Track Order") {
-      navigate("profile", { tab: "orders" });
-    } else if (link === "Contact Us") {
-      navigate("wholesale", { anchor: "wholesale-contact" });
-    } else if (link === "Privacy Policy") {
-      navigate("privacy-policy");
     } else {
       navigate("shop");
     }
@@ -1540,7 +1086,7 @@ function Footer() {
               <div className="w-7 h-7 rounded-full bg-[#2A4A3C] flex items-center justify-center">
                 <Leaf className="w-3.5 h-3.5 text-[#C9920A]" />
               </div>
-              <span className="text-lg font-bold" style={{ fontFamily: "'Bodoni Moda', serif" }}>Lepakshi Spices</span>
+              <span className="text-lg font-bold" style={{ fontFamily: "'Bodoni Moda', serif" }}>Spiceora</span>
             </button>
             <p className="text-white/50 text-sm leading-relaxed mb-5 max-w-xs">Premium single-origin spices from farm to jar. Traceable, organic, crafted for culinary excellence.</p>
             <div className="flex gap-2">
@@ -1569,7 +1115,7 @@ function Footer() {
           ))}
         </div>
         <div className="border-t border-white/10 pt-6 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <p className="text-xs text-white/35">© 2026 Lepakshi Spices. All rights reserved.</p>
+          <p className="text-xs text-white/35">© 2026 Spiceora. All rights reserved.</p>
           <div className="flex items-center gap-3">
             <span className="text-xs text-white/35">Secure payments:</span>
             {["Visa", "Mastercard", "UPI", "Razorpay"].map(p => (
@@ -3138,7 +2684,7 @@ function ProfilePage() {
   const [supportMsg, setSupportMsg] = useState("");
   const [supportLoading, setSupportLoading] = useState(false);
   const [chatLogs, setChatLogs] = useState([
-    { sender: "agent", text: "Hello! Thank you for contacting Lepakshi Spices. How can we help you today?", time: "09:30 AM" }
+    { sender: "agent", text: "Hello! Thank you for contacting Spiceora. How can we help you today?", time: "09:30 AM" }
   ]);
 
   const tabs = [
@@ -3201,7 +2747,7 @@ function ProfilePage() {
                     {(user?.name || "Member").split(" ").map((n: string) => n[0]).join("")}
                   </span>
                 </div>
-                <h3 className="font-semibold text-[#1A1714]">{user?.name || "Lepakshi Spices Member"}</h3>
+                <h3 className="font-semibold text-[#1A1714]">{user?.name || "Spiceora Member"}</h3>
                 <p className="text-xs text-[#7A7064]">{user?.email || "Member"}</p>
                 <div className="mt-2"><Badge color="green">Active Account</Badge></div>
               </div>
@@ -3600,7 +3146,7 @@ function ProfilePage() {
                     <div className="p-4 bg-[#2A4A3C]/5 border-b border-[#1A1714]/8 flex items-center gap-3">
                       <div className="w-10 h-10 rounded-full bg-[#2A4A3C] flex items-center justify-center text-[#C9920A] font-serif font-bold">S</div>
                       <div>
-                        <h4 className="text-sm font-semibold text-[#1A1714]">Lepakshi Spices Direct Support</h4>
+                        <h4 className="text-sm font-semibold text-[#1A1714]">Spiceora Direct Support</h4>
                         <p className="text-[10px] text-[#7A7064]">Active · Sourcing Team Response</p>
                       </div>
                     </div>
@@ -3663,7 +3209,7 @@ function renderIngredient(ing: string, navigate: any, productsList: any[] = []) 
     let productList = productsList;
     if (!productList || productList.length === 0) {
       try {
-        const stored = localStorage.getItem("Lepakshi Spices_products");
+        const stored = localStorage.getItem("spiceora_products");
         productList = stored ? JSON.parse(stored) : [];
       } catch (e) {
         productList = [];
@@ -3830,7 +3376,7 @@ function InstagramGallery() {
               <div className="h-px w-8 bg-[#C9920A]" />
             </div>
             <h2 className="text-4xl font-bold text-[#1A1714] mb-3" style={{ fontFamily: "'Bodoni Moda', serif" }}>On the Gram</h2>
-            <p className="text-[#7A7064] text-sm max-w-md mx-auto">Follow our sourcing travels and culinary journey at <strong className="text-[#2A4A3C]">@lepakshispices</strong></p>
+            <p className="text-[#7A7064] text-sm max-w-md mx-auto">Follow our sourcing travels and culinary journey at <strong className="text-[#2A4A3C]">@spiceoraspices</strong></p>
           </div>
         </Reveal>
 
@@ -3898,7 +3444,7 @@ function BulkOrderSection() {
         <Reveal>
           <h2 className="text-3xl lg:text-4xl font-bold mb-4" style={{ fontFamily: "'Bodoni Moda', serif" }}>Bulk Sourcing & Wholesale Inquiry</h2>
           <p className="text-white/70 text-sm max-w-xl mx-auto mb-8 leading-relaxed">
-            Are you a chef, restaurant owner, distributor, or food brand owner looking for premium-grade, single-origin spices? Partner with Lepakshi Spices for consistent, lab-tested wholesale supplies.
+            Are you a chef, restaurant owner, distributor, or food brand owner looking for premium-grade, single-origin spices? Partner with Spiceora for consistent, lab-tested wholesale supplies.
           </p>
           <Btn variant="secondary" size="lg" onClick={() => navigate("wholesale")} className="bg-[#C9920A] hover:bg-[#A87800] border-0 text-white font-semibold">
             Request Wholesale Rates
@@ -3974,7 +3520,7 @@ function BulkOrderSection() {
 
 function RecipesPage() {
   const { navigate, recipes } = useApp();
-  useSEO("Artisan Recipes", "Learn how to cook with Lepakshi Spices premium spices. View step-by-step cooking instructions for traditional and modern recipes.");
+  useSEO("Artisan Recipes", "Learn how to cook with Spiceora premium spices. View step-by-step cooking instructions for traditional and modern recipes.");
   const [difficulty, setDifficulty] = useState("all");
 
   const filtered = recipes.filter((r: any) => difficulty === "all" || r.difficulty.toLowerCase() === difficulty.toLowerCase());
@@ -3988,7 +3534,7 @@ function RecipesPage() {
             <ChevronRight className="w-3.5 h-3.5" />
             <span className="text-white">Recipes</span>
           </div>
-          <h1 className="text-3xl font-bold text-white" style={{ fontFamily: "'Bodoni Moda', serif" }}>Lepakshi Spices Kitchen</h1>
+          <h1 className="text-3xl font-bold text-white" style={{ fontFamily: "'Bodoni Moda', serif" }}>Spiceora Kitchen</h1>
           <p className="text-white/60 text-sm mt-1">Immersive recipes crafted to highlight premium, single-origin spices</p>
         </div>
       </div>
@@ -4160,7 +3706,7 @@ function RecipeDetailPage({ recipe }: { recipe: any }) {
 
 function FounderPage() {
   const { navigate, cmsSettings } = useApp();
-  useSEO("Our Story & Sourcing", "Learn about Lepakshi Spices founding journey, Rajan Menon's travel logs along the Indian spice route, and our direct trade cooperative partnerships.");
+  useSEO("Our Story & Sourcing", "Learn about Spiceora's founding journey, Rajan Menon's travel logs along the Indian spice route, and our direct trade cooperative partnerships.");
   const [activeYear, setActiveYear] = useState("2018");
   const timeline = [
     { year: "2018", title: "The Journey Begins", desc: "Our founder, Rajan Menon, sets out along the ancient Indian spice route, documenting family farms from Kerala's pepper coast to the saffron valleys of Kashmir." },
@@ -4183,7 +3729,7 @@ function FounderPage() {
             Our Story & Sourcing Philosophy
           </h1>
           <p className="text-white/80 text-base max-w-2xl mx-auto leading-relaxed">
-            At Lepakshi Spices, we believe that premium cooking begins with transparency, respect for heritage, and absolute purity. Meet our team and discover our sourcing travel roots.
+            At Spiceora, we believe that premium cooking begins with transparency, respect for heritage, and absolute purity. Meet our team and discover our sourcing travel roots.
           </p>
         </div>
       </div>
@@ -4210,7 +3756,7 @@ function FounderPage() {
                 Rajan Menon's Spice Route Travel Log
               </h2>
               <p className="text-sm text-[#7A7064] leading-relaxed mb-6 whitespace-pre-line">
-                {cmsSettings?.about?.founderStory || `"In 2018, I spent six months traveling across India's micro-climates. I met fourth-generation farmers cultivating green cardamom in Cardamom Hills, true Ceylon cinnamon bark-peelers in Sri Lanka, and farmers picking saffron threads under cold Kashmir skies.\n\nI was shocked to discover that while the finest A-grade exports left our shores for Michelin-starred kitchens globally, local households were consumed with dust-heavy, chemical-packed commercial spices. We started Lepakshi Spices to restore direct access to single-origin purity."`}
+                {cmsSettings?.about?.founderStory || `"In 2018, I spent six months traveling across India's micro-climates. I met fourth-generation farmers cultivating green cardamom in Cardamom Hills, true Ceylon cinnamon bark-peelers in Sri Lanka, and farmers picking saffron threads under cold Kashmir skies.\n\nI was shocked to discover that while the finest A-grade exports left our shores for Michelin-starred kitchens globally, local households were consumed with dust-heavy, chemical-packed commercial spices. We started Spiceora to restore direct access to single-origin purity."`}
               </p>
 
               <div className="grid grid-cols-2 gap-4">
@@ -4443,7 +3989,7 @@ function BundleBuilderPage() {
                 <div className="flex justify-between items-start">
                   <div className="flex gap-1.5">
                     <div className="w-3 h-3 rounded-full bg-[#2A4A3C]" />
-                    <span className="text-[9px] font-bold uppercase tracking-widest text-[#1A1714]/40 font-mono">Lepakshi Spices Gift Box</span>
+                    <span className="text-[9px] font-bold uppercase tracking-widest text-[#1A1714]/40 font-mono">Spiceora Gift Box</span>
                   </div>
                   <span className="text-[10px] font-bold text-[#1A1714]/60 font-mono">{size === "trio" ? "3 slots" : "5 slots"}</span>
                 </div>
@@ -4536,12 +4082,12 @@ function WholesalePage() {
 
   useEffect(() => {
     try {
-      const storedContact = localStorage.getItem("Lepakshi Spices_contact_settings");
+      const storedContact = localStorage.getItem("spiceora_contact_settings");
       if (storedContact) {
         setCmsContact(JSON.parse(storedContact));
       }
 
-      const storedProducts = localStorage.getItem("Lepakshi Spices_pdf_products");
+      const storedProducts = localStorage.getItem("spiceora_pdf_products");
       if (storedProducts) {
         const parsed = JSON.parse(storedProducts);
         if (Array.isArray(parsed) && parsed.length > 0) {
@@ -4556,7 +4102,7 @@ function WholesalePage() {
         }
       }
 
-      const storedTemplate = localStorage.getItem("Lepakshi Spices_pdf_template");
+      const storedTemplate = localStorage.getItem("spiceora_pdf_template");
       if (storedTemplate) {
         const parsed = JSON.parse(storedTemplate);
 
@@ -4643,7 +4189,7 @@ function WholesalePage() {
       doc.setFont("Helvetica", "bold");
       doc.setFontSize(26);
       doc.setTextColor(secondary[0], secondary[1], secondary[2]);
-      doc.text("Lepakshi Spices", 20, 24);
+      doc.text("SPICEORA", 20, 24);
 
       doc.setFont("Helvetica", "normal");
       doc.setFontSize(9);
@@ -4755,7 +4301,7 @@ function WholesalePage() {
       doc.setFont("Helvetica", "bold");
       doc.setFontSize(14);
       doc.setTextColor(255, 255, 255);
-      doc.text("Lepakshi Spices B2B PRODUCT CATALOG", 20, 16);
+      doc.text("SPICEORA B2B PRODUCT CATALOG", 20, 16);
 
       doc.setFont("Helvetica", "bold");
       doc.setFontSize(13);
@@ -4831,7 +4377,7 @@ function WholesalePage() {
       doc.setFont("Helvetica", "bold");
       doc.setFontSize(9.5);
       doc.setTextColor(primary[0], primary[1], primary[2]);
-      doc.text("Lepakshi Spices Sourcing Desk Support Team", 25, rowY + 6);
+      doc.text("Spiceora Sourcing Desk Support Team", 25, rowY + 6);
 
       doc.setFont("Helvetica", "normal");
       doc.setFontSize(8.5);
@@ -4845,7 +4391,7 @@ function WholesalePage() {
       doc.text("Page 2 of 2", 100, 280);
 
       const cleanBusinessName = (formData.businessName || "Partner").trim().replace(/\s+/g, "_");
-      const filename = `Lepakshi Spices_Wholesale_Catalog_${cleanBusinessName}.pdf`;
+      const filename = `SPICEORA_Wholesale_Catalog_${cleanBusinessName}.pdf`;
       doc.save(filename);
 
       logAnalyticsEvent("Catalog Download Completed", { filename });
@@ -4917,7 +4463,7 @@ function WholesalePage() {
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_right,rgba(201,146,10,0.15),transparent_60%)]" />
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
           <div className="max-w-3xl">
-            <span className="text-[#C9920A] text-xs font-bold tracking-[0.2em] uppercase block mb-3">Lepakshi Spices Global B2B</span>
+            <span className="text-[#C9920A] text-xs font-bold tracking-[0.2em] uppercase block mb-3">Spiceora Global B2B</span>
             <h1 className="text-4xl lg:text-5xl font-bold mb-6" style={{ fontFamily: "'Bodoni Moda', serif" }}>
               Direct Farm Sourcing & Bulk Spice Supply
             </h1>
@@ -4979,7 +4525,7 @@ function WholesalePage() {
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12">
 
             {/* Direct Channels Sidebar */}
-            <div className="lg:col-span-4 space-y-6" id="wholesale-contact">
+            <div className="lg:col-span-4 space-y-6">
               <div className="bg-white rounded-3xl border border-[#1A1714]/8 p-6 lg:p-8">
                 <h3 className="font-bold text-[#1A1714] text-lg mb-6" style={{ fontFamily: "'Bodoni Moda', serif" }}>
                   Connect with Sales Desk
@@ -5260,7 +4806,7 @@ export default function App() {
 
   const [cmsSettings, setCmsSettings] = useState(() => {
     try {
-      const stored = localStorage.getItem("Lepakshi Spices_homepage_cms");
+      const stored = localStorage.getItem("spiceora_homepage_cms");
       return stored ? JSON.parse(stored) : {
         hero: { headline: "", subheadline: "", buttonText: "", buttonLink: "", image: "" },
         cta: { headline: "", description: "", buttonText: "", buttonLink: "", image: "" },
@@ -5303,22 +4849,14 @@ export default function App() {
 
   const { user, logout, login, signup, resetPassword: forgotPassword } = useAuth();
   const [authModalOpen, setAuthModalOpen] = useState<'login' | 'signup' | 'forgot' | 'closed'>('closed');
-  const [redirectAfterLogin, setRedirectAfterLogin] = useState<{ page: string; data?: any } | null>(null);
+  const [redirectAfterLogin, setRedirectAfterLogin] = useState<string | null>(null);
   const [users, setUsers] = useState<any[]>([]);
 
 
   // Automatically process redirectAfterLogin when user logs in
   useEffect(() => {
     if (user && redirectAfterLogin) {
-      setCurrentPage(redirectAfterLogin.page as Page);
-      if (redirectAfterLogin.data) {
-        if (redirectAfterLogin.page === "profile") {
-          setProfileData(redirectAfterLogin.data);
-        }
-        if (redirectAfterLogin.page === "wholesale") {
-          setWholesaleData(redirectAfterLogin.data);
-        }
-      }
+      setCurrentPage(redirectAfterLogin as Page);
       setRedirectAfterLogin(null);
       setAuthModalOpen("closed");
     }
@@ -5349,7 +4887,7 @@ export default function App() {
           name: row.review.displayName || `${row.customer?.firstName || ""} ${row.customer?.lastName || ""}`.trim() || "Verified customer",
           text: row.review.comment || "",
           rating: row.review.rating,
-          product: row.product?.name || "Lepakshi Spices product",
+          product: row.product?.name || "Spiceora product",
           role: "Verified customer"
         })));
         if (homepageCms?.value) setCmsSettings(homepageCms.value);
@@ -5360,7 +4898,7 @@ export default function App() {
     fetchApiData();
     campaignsApi.active().then(setCampaigns).catch(() => setCampaigns([]));
 
-    const stored = localStorage.getItem("Lepakshi Spices_recently_viewed");
+    const stored = localStorage.getItem("spiceora_recently_viewed");
     if (stored) {
       try { setRecentlyViewed(JSON.parse(stored)); } catch (e) { }
     }
@@ -5410,7 +4948,7 @@ export default function App() {
     setRecentlyViewed(prev => {
       const filtered = prev.filter(x => x !== id);
       const updated = [id, ...filtered].slice(0, 4);
-      localStorage.setItem("Lepakshi Spices_recently_viewed", JSON.stringify(updated));
+      localStorage.setItem("spiceora_recently_viewed", JSON.stringify(updated));
       return updated;
     });
   }
@@ -5421,12 +4959,12 @@ export default function App() {
   function navigate(page: string, data?: any) {
     const isUserLoggedIn = Boolean(user);
     if (page === "profile" && !isUserLoggedIn) {
-      setRedirectAfterLogin({ page: "profile", data });
+      setRedirectAfterLogin("profile");
       setAuthModalOpen("login");
       return;
     }
     if (page === "checkout" && !isUserLoggedIn) {
-      setRedirectAfterLogin({ page: "checkout", data });
+      setRedirectAfterLogin("checkout");
       setAuthModalOpen("login");
       return;
     }
@@ -5447,7 +4985,7 @@ export default function App() {
       logAnalyticsEvent("Navigate to Shop", { category: data?.category || "all" });
       setCurrentPage("shop");
       window.scrollTo({ top: 0, behavior: "smooth" });
-    } else if (["home", "cart", "checkout", "profile", "recipes", "founder", "bundle", "wholesale", "faq", "shipping-returns", "privacy-policy"].includes(page)) {
+    } else if (["home", "cart", "checkout", "profile", "recipes", "founder", "bundle", "wholesale"].includes(page)) {
       logAnalyticsEvent(`Navigate to ${page.toUpperCase()}`, {});
       if (page === "profile" && data) {
         setProfileData(data);
@@ -5569,9 +5107,6 @@ export default function App() {
             {currentPage === "founder" && <FounderPage />}
             {currentPage === "bundle" && <BundleBuilderPage />}
             {currentPage === "wholesale" && <WholesalePage />}
-            {currentPage === "faq" && <FAQPage />}
-            {currentPage === "shipping-returns" && <ShippingReturnsPage />}
-            {currentPage === "privacy-policy" && <PrivacyPolicyPage />}
           </motion.main>
         </AnimatePresence>
         <AnimatePresence>
@@ -5700,7 +5235,7 @@ function AuthModal() {
           <div className="w-7 h-7 rounded-full bg-[#2A4A3C] flex items-center justify-center">
             <Leaf className="w-3.5 h-3.5 text-[#C9920A]" />
           </div>
-          <span className="text-lg font-bold" style={{ fontFamily: "'Bodoni Moda', serif" }}>Lepakshi Spices</span>
+          <span className="text-lg font-bold" style={{ fontFamily: "'Bodoni Moda', serif" }}>Spiceora</span>
         </div>
 
         <h2 className="text-2xl font-bold text-[#1A1714] mb-2" style={{ fontFamily: "'Bodoni Moda', serif" }}>
@@ -5710,7 +5245,7 @@ function AuthModal() {
         </h2>
         <p className="text-xs text-[#7A7064] mb-6 font-medium">
           {mode === 'login' && "Sign in to access your orders, wishlist, and seamless checkout."}
-          {mode === 'signup' && "Join Lepakshi Spices to track orders and save your favorite premium spices."}
+          {mode === 'signup' && "Join Spiceora to track orders and save your favorite premium spices."}
           {mode === 'forgot' && "Enter your email address and we'll send you recovery details."}
         </p>
 
@@ -5862,5 +5397,3 @@ function AuthModal() {
     </div>
   );
 }
-
-
