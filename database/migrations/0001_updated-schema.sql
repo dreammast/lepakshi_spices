@@ -477,6 +477,7 @@ ALTER TABLE `quotations` ADD `packaging_type` varchar(128);--> statement-breakpo
 ALTER TABLE `quotations` ADD `delivery_method` varchar(128);--> statement-breakpoint
 ALTER TABLE `quotations` ADD `notes` text;--> statement-breakpoint
 ALTER TABLE `quotations` ADD `valid_until` datetime;--> statement-breakpoint
+ALTER TABLE `orders` ADD `shipping_address` text;--> statement-breakpoint
 ALTER TABLE `reviews` ADD `title` varchar(255);--> statement-breakpoint
 ALTER TABLE `reviews` ADD `display_name` varchar(128);--> statement-breakpoint
 ALTER TABLE `reviews` ADD `is_featured` boolean DEFAULT false NOT NULL;--> statement-breakpoint

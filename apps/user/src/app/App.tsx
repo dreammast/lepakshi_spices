@@ -398,11 +398,12 @@ function Header() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16 lg:h-20">
           {/* Logo */}
-          <button onClick={() => navigate("home")} className="flex items-center gap-2.5 focus:outline-none group">
-            <div className="w-8 h-8 rounded-full bg-[#2A4A3C] flex items-center justify-center group-hover:scale-105 transition-transform">
-              <Leaf className="w-4 h-4 text-[#C9920A]" />
-            </div>
-            <span className="text-xl font-bold tracking-tight text-[#1A1714]" style={{ fontFamily: "'Bodoni Moda', serif" }}>Spiceora</span>
+          <button onClick={() => navigate("home")} className="flex items-center focus:outline-none group" aria-label="Go to homepage">
+            <img
+              src="/spices_logo.png"
+              alt="Lepakshi Spices"
+              className="h-11 sm:h-13 lg:h-16 w-auto object-contain group-hover:scale-105 transition-transform duration-200"
+            />
           </button>
 
           {/* Nav desktop */}
@@ -2643,6 +2644,7 @@ function CheckoutPage() {
           throw new Error(`Some items had limited stock. Quantities have been adjusted. Please review and try again.`);
         }
         const orderItems = items.map(({ productVariantId, quantity, price }) => ({ productVariantId, quantity, price }));
+<<<<<<< HEAD
         const savedAddr = await addressesApi.create({
           label: addr.name,
           fullName: addr.name,
@@ -2655,6 +2657,28 @@ function CheckoutPage() {
         }).catch(() => null);
         const shippingAddressId = savedAddr?.id;
         const order = await ordersApi.create({ items: orderItems, shippingAddressId, couponCode: couponCode || undefined, discountAmount: discount });
+=======
+        const orderPayload: any = {
+          items: orderItems,
+          couponCode: couponCode || undefined,
+          discountAmount: discount,
+        };
+        if (savedAddressId) {
+          orderPayload.shippingAddressId = savedAddressId;
+        }
+        if (addr && addr.line1) {
+          orderPayload.shippingAddress = {
+            name: addr.name || undefined,
+            phone: addr.phone || undefined,
+            line1: addr.line1,
+            city: addr.city,
+            state: addr.state,
+            postalCode: addr.pin,
+            country: "India",
+          };
+        }
+        const order = await ordersApi.create(orderPayload);
+>>>>>>> 09c85d75796270ece1f84dbabd16accfa6f751ed
         setPlacedOrder(order);
         await cartApi.clear();
         clearCart();

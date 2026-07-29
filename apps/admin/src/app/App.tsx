@@ -73,7 +73,17 @@ const CATEGORY_META = [
   { name: "Spice Blends", icon: Flame, color: C.green, faint: C.greenFaint, description: "Roasted masala blends and chilli powders" },
 ];
 
-type Order = { id: string; customer: string; email: string; items: number; total: number; status: string; date: string; location: string; products: string[] };
+type OrderShippingAddress = {
+  name?: string;
+  phone?: string;
+  line1: string;
+  line2?: string;
+  city: string;
+  state: string;
+  postalCode: string;
+  country?: string;
+};
+type Order = { id: string; customer: string; email: string; items: number; total: number; status: string; date: string; shippingAddress: OrderShippingAddress | null; products: string[] };
 const INIT_ORDERS: Order[] = [];
 
 const NOTIFS: any[] = [];
@@ -117,6 +127,32 @@ function Counter({ to, prefix = "", suffix = "" }: { to: number; prefix?: string
     return () => cancelAnimationFrame(r.current);
   }, [to]);
   return <>{prefix}{val.toLocaleString()}{suffix}</>;
+}
+
+function formatShippingAddress(address: OrderShippingAddress | null | undefined) {
+  if (!address) return "";
+  return [
+    address.name,
+    address.phone,
+    address.line1,
+    address.line2,
+    `${address.city}, ${address.state} - ${address.postalCode}`,
+    address.country,
+  ].filter(Boolean).join(" | ");
+}
+
+function normalizeAdminOrderAddress(address: any): OrderShippingAddress | null {
+  if (!address) return null;
+  return {
+    name: address.name || undefined,
+    phone: address.phone || undefined,
+    line1: address.line1 || "",
+    line2: address.line2 || undefined,
+    city: address.city || "",
+    state: address.state || "",
+    postalCode: address.postalCode || "",
+    country: address.country || undefined,
+  };
 }
 
 function Av({ name, size = 36, g }: { name?: string | null; size?: number; g?: string }) {
@@ -1628,23 +1664,22 @@ function ProductsPage() {
               <div className="flex justify-end gap-3 pt-3 border-t">
                 <button onClick={() => setCatModalOpen(false)} className="px-4 py-2 border rounded-xl text-xs text-[#8B7355] hover:bg-stone-50">
                   Cancel
-                </button>
-                <Btn icon={Save} onClick={handleSaveCategory}>{editingCat ? "Update Category" : "Create Category"}</Btn>
-              </div>
-            </motion.div>
-          </div>
-        )}
+                  </button>
+                  <Btn icon={Save} onClick={handleSaveCategory}>{editingCat ? "Update Category" : "Create Category"}</Btn>
+                </div>
+              </motion.div>
+            </div>
+          )}
       </AnimatePresence>
     </div>
   );
 }
 
 function OrdersPage() {
-  const [orders, setOrders] = useState<any[]>(INIT_ORDERS);
-
+  const [orders, setOrders] = useState<Order[]>(INIT_ORDERS);
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [drawerTarget, setDrawerTarget] = useState<any | null>(null);
+  const [drawerTarget, setDrawerTarget] = useState<Order | null>(null);
   const [updating, setUpdating] = useState(false);
   const [loading, setLoading] = useState(false);
   const [hasError, setHasError] = useState(false);
@@ -1654,24 +1689,32 @@ function OrdersPage() {
   const loadOrders = async () => {
     setLoading(true);
     try {
-      const data = await ordersApi.adminList();
-      setOrders(data.map((order: any) => ({
-        ...order,
+      const response = await ordersApi.adminList();
+      const ordersList = Array.isArray(response) ? response : Array.isArray((response as any)?.data) ? (response as any).data : [];
+      setOrders(ordersList.map((order: any) => ({
         id: String(order.id),
         customer: order.customerName || order.customer || "Customer",
         email: order.customerEmail || "",
         items: order.items?.length || 0,
         total: Number(order.totalAmount ?? order.total ?? 0),
+        status: order.status || "pending",
         date: order.placedAt ? new Date(order.placedAt).toLocaleDateString() : "",
+<<<<<<< HEAD
         location: "",
         products: (order.items || []).map((item: any) => item.product?.name || item.variant?.label || "Product"),
         shippingAddress: order.shippingAddress || null
+=======
+        shippingAddress: normalizeAdminOrderAddress(order.shippingAddress),
+        products: (order.items || []).map((item: any) => item.product?.name || item.variant?.label || "Product")
+>>>>>>> 09c85d75796270ece1f84dbabd16accfa6f751ed
       })));
-    } catch (error: any) { toast.error(error.message || "Unable to load orders"); }
-    finally { setLoading(false); }
+    } catch (error: any) {
+      toast.error(error.message || "Unable to load orders");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  // Reset page on search/filter changes
   useEffect(() => {
     setCurrentPage(1);
   }, [query, statusFilter]);
@@ -1689,17 +1732,20 @@ function OrdersPage() {
       await ordersApi.updateStatus(Number(orderId), nextStatus);
       setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: nextStatus } : o));
       if (drawerTarget && drawerTarget.id === orderId) {
-        setDrawerTarget((prev: any) => ({ ...prev, status: nextStatus }));
+        setDrawerTarget((prev: Order | null) => (prev ? { ...prev, status: nextStatus } : prev));
       }
       toast.success(`Order ${orderId} updated to ${nextStatus}`);
       fireDashboardRefresh();
-    } catch (error: any) { toast.error(error.message || "Unable to update order"); }
-    finally { setUpdating(false); }
+    } catch (error: any) {
+      toast.error(error.message || "Unable to update order");
+    } finally {
+      setUpdating(false);
+    }
   };
 
   const handleExportCSV = () => {
-    const headers = ["Order ID", "Customer", "Date", "Items", "Total", "Status", "Location"];
-    const rows = orders.map(o => [o.id, o.customer, o.date, o.items, o.total, o.status, o.location]);
+    const headers = ["Order ID", "Customer", "Date", "Items", "Total", "Status", "Shipping Address"];
+    const rows = orders.map(o => [o.id, o.customer, o.date, o.items, o.total, o.status, formatShippingAddress(o.shippingAddress)]);
     const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
     const link = document.createElement("a");
     link.setAttribute("href", encodeURI(csvContent));
@@ -1711,8 +1757,8 @@ function OrdersPage() {
   };
 
   const filtered = orders
-    .filter(o => statusFilter === "all" || o.status.toLowerCase() === statusFilter.toLowerCase())
-    .filter(o => o.id.toLowerCase().includes(query.toLowerCase()) || o.customer.toLowerCase().includes(query.toLowerCase()));
+    .filter(o => statusFilter === "all" || (o.status || "").toLowerCase() === statusFilter.toLowerCase())
+    .filter(o => (o.id || "").toLowerCase().includes(query.toLowerCase()) || (o.customer || "").toLowerCase().includes(query.toLowerCase()));
 
   const totalPages = Math.ceil(filtered.length / itemsPerPage) || 1;
   const paginated = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
@@ -1877,8 +1923,15 @@ function OrdersPage() {
                     <p className="text-[10px] font-bold text-[#8B7355] uppercase tracking-widest mb-2">Customer Profile</p>
                     <p className="text-sm font-semibold text-[#2C2416]">{drawerTarget.customer}</p>
                     {drawerTarget.customerEmail && <p className="text-xs text-[#8B7355]">{drawerTarget.customerEmail}</p>}
+<<<<<<< HEAD
                     <p className="text-xs text-[#8B7355]">
                       Phone: {drawerTarget.shippingAddress?.phone || drawerTarget.customerPhone || "Not specified"}
+=======
+                    {drawerTarget.customerPhone && <p className="text-xs text-[#8B7355]">Phone: {drawerTarget.customerPhone}</p>}
+                    <p className="text-xs text-[#8B7355] mt-1.5 pt-1.5 border-t border-[#2C2416]/6">
+                      <span className="font-semibold text-[#2C2416]">Shipping Address:</span>{" "}
+                      {formatShippingAddress(drawerTarget.shippingAddress) || "Not specified"}
+>>>>>>> 09c85d75796270ece1f84dbabd16accfa6f751ed
                     </p>
                     <div className="mt-1.5 pt-1.5 border-t border-[#2C2416]/6 text-xs text-[#8B7355]">
                       <span className="font-semibold text-[#2C2416]">Shipping Address:</span>

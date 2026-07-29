@@ -1,15 +1,58 @@
 import { desc, eq, and, gte, sql, inArray } from 'drizzle-orm';
 import { db } from '../config/database.js';
 import { orderItems, orders, productVariants, products, customerProfiles, addresses } from '../db/schema.js';
+import { createAddressRecord } from './address.repository.js';
 
 export type CreateOrderInput = {
   customerId: number;
   items: { productVariantId: number; quantity: number; price: string }[];
   shippingAddressId?: number;
   billingAddressId?: number;
+  shippingAddress?: {
+    name?: string;
+    phone?: string;
+    line1: string;
+    line2?: string;
+    city: string;
+    state: string;
+    postalCode: string;
+    country?: string;
+  };
   couponCode?: string;
   discountAmount?: string;
 };
+
+type ShippingAddressSnapshot = {
+  name?: string;
+  phone?: string;
+  line1: string;
+  line2?: string;
+  city: string;
+  state: string;
+  postalCode: string;
+  country?: string;
+};
+
+function normalizeShippingAddress(address: ShippingAddressSnapshot | string | null | undefined) {
+  if (!address) return null;
+  if (typeof address === 'string') {
+    try {
+      return JSON.parse(address) as ShippingAddressSnapshot;
+    } catch {
+      return null;
+    }
+  }
+  return {
+    name: address.name || undefined,
+    phone: address.phone || undefined,
+    line1: address.line1,
+    line2: address.line2 || undefined,
+    city: address.city,
+    state: address.state,
+    postalCode: address.postalCode,
+    country: address.country || 'India',
+  };
+}
 
 function generateOrderNumber() {
   return `ORD-${Date.now()}-${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`;
@@ -20,44 +63,79 @@ export async function createOrderRecord(input: CreateOrderInput) {
   const discount = Number(input.discountAmount || 0);
   const now = new Date();
 
+  let shippingAddressId = input.shippingAddressId;
+  const shippingAddressSnapshot = normalizeShippingAddress(input.shippingAddress);
+  let shippingAddressSnapshotFromRecord = null;
+  if (shippingAddressId && !shippingAddressSnapshot) {
+    const [existingAddress] = await db.select().from(addresses).where(eq(addresses.id, shippingAddressId));
+    shippingAddressSnapshotFromRecord = existingAddress
+      ? {
+          name: existingAddress.label || undefined,
+          phone: undefined,
+          line1: existingAddress.line1,
+          line2: existingAddress.line2 || undefined,
+          city: existingAddress.city,
+          state: existingAddress.state,
+          postalCode: existingAddress.postalCode,
+          country: existingAddress.country || 'India',
+        }
+      : null;
+  }
+  const finalShippingAddressSnapshot = shippingAddressSnapshot || shippingAddressSnapshotFromRecord;
+  if (!shippingAddressId && input.shippingAddress) {
+    const createdAddr = await createAddressRecord(input.customerId, {
+      label: input.shippingAddress.name || 'Shipping Address',
+      line1: input.shippingAddress.line1,
+      line2: input.shippingAddress.line2,
+      city: input.shippingAddress.city,
+      state: input.shippingAddress.state,
+      postalCode: input.shippingAddress.postalCode,
+      country: input.shippingAddress.country || 'India',
+      isDefault: true
+    });
+    if (createdAddr) {
+      shippingAddressId = createdAddr.id;
+    }
+  }
+
   const orderId = await db.transaction(async (tx) => {
-  for (const item of input.items) {
-    const result: any = await tx.update(productVariants)
-      .set({ stock: sql`${productVariants.stock} - ${item.quantity}`, updatedAt: now })
-      .where(and(eq(productVariants.id, item.productVariantId), gte(productVariants.stock, item.quantity)));
-    // Drizzle with mysql2 returns [ResultSetHeader, FieldPacket[]], so affectedRows is at index 0.
-    const affectedRows = Array.isArray(result) ? result[0]?.affectedRows : result?.affectedRows;
-    if (!affectedRows) throw new Error(`Insufficient stock for product variant ${item.productVariantId}`);
-  }
+    for (const item of input.items) {
+      const result: any = await tx.update(productVariants)
+        .set({ stock: sql`${productVariants.stock} - ${item.quantity}`, updatedAt: now })
+        .where(and(eq(productVariants.id, item.productVariantId), gte(productVariants.stock, item.quantity)));
+      const affectedRows = Array.isArray(result) ? result[0]?.affectedRows : result?.affectedRows;
+      if (!affectedRows) throw new Error(`Insufficient stock for product variant ${item.productVariantId}`);
+    }
 
-  const [orderRes] = await tx.insert(orders).values({
-    orderNumber: generateOrderNumber(),
-    customerId: input.customerId,
-    subtotalAmount: String(totalAmount),
-    discountAmount: String(discount),
-    taxAmount: '0',
-    shippingAmount: '0',
-    totalAmount: String(Math.max(0, totalAmount - discount)),
-    status: 'pending',
-    couponCode: input.couponCode,
-    shippingAddressId: input.shippingAddressId,
-    billingAddressId: input.billingAddressId,
-    placedAt: now,
-    updatedAt: now
-  });
+    const [orderRes] = await tx.insert(orders).values({
+      orderNumber: generateOrderNumber(),
+      customerId: input.customerId,
+      subtotalAmount: String(totalAmount),
+      discountAmount: String(discount),
+      taxAmount: '0',
+      shippingAmount: '0',
+      totalAmount: String(Math.max(0, totalAmount - discount)),
+      status: 'pending',
+      couponCode: input.couponCode,
+      shippingAddressId: shippingAddressId,
+      shippingAddress: finalShippingAddressSnapshot ? JSON.stringify(finalShippingAddressSnapshot) : null,
+      billingAddressId: input.billingAddressId,
+      placedAt: now,
+      updatedAt: now
+    });
 
-  const newOrderId = orderRes.insertId;
-  if (input.items.length > 0) {
-    await tx.insert(orderItems).values(
-      input.items.map(item => ({
-        orderId: newOrderId,
-        productVariantId: item.productVariantId,
-        quantity: item.quantity,
-        price: item.price
-      }))
-    );
-  }
-  return newOrderId;
+    const newOrderId = orderRes.insertId;
+    if (input.items.length > 0) {
+      await tx.insert(orderItems).values(
+        input.items.map(item => ({
+          orderId: newOrderId,
+          productVariantId: item.productVariantId,
+          quantity: item.quantity,
+          price: item.price
+        }))
+      );
+    }
+    return newOrderId;
   });
   return findOrderById(orderId);
 }
@@ -82,6 +160,13 @@ export async function findOrderById(id: number) {
   let shippingAddress = null;
   if (order.shippingAddressId) {
     const [addr] = await db.select().from(addresses).where(eq(addresses.id, order.shippingAddressId));
+    if (addr) {
+      shippingAddress = addr;
+    }
+  } else if (order.shippingAddress) {
+    shippingAddress = normalizeShippingAddress(order.shippingAddress);
+  } else if (order.customerId) {
+    const [addr] = await db.select().from(addresses).where(eq(addresses.customerId, order.customerId));
     if (addr) {
       shippingAddress = addr;
     }
@@ -152,6 +237,17 @@ async function hydrateOrders(rows: (typeof orders.$inferSelect)[]) {
       : [],
   ]);
 
+  const fallbackCustomerAddrs = new Map<number, typeof addresses.$inferSelect>();
+  const customersWithoutAddr = customerIds.filter(cid => !rows.some(r => r.customerId === cid && r.shippingAddressId));
+  if (customersWithoutAddr.length > 0) {
+    const defaultAddrs = await db.select().from(addresses).where(inArray(addresses.customerId, customersWithoutAddr));
+    for (const a of defaultAddrs) {
+      if (!fallbackCustomerAddrs.has(a.customerId) || a.isDefault) {
+        fallbackCustomerAddrs.set(a.customerId, a);
+      }
+    }
+  }
+
   const customerMap = new Map(customers.map(c => [c.id, c]));
   const addrMap = new Map(addrs.map(a => [a.id, a]));
   type ItemRow = { item: typeof orderItems.$inferSelect; variant: typeof productVariants.$inferSelect | null; product: typeof products.$inferSelect | null };
@@ -164,7 +260,10 @@ async function hydrateOrders(rows: (typeof orders.$inferSelect)[]) {
 
   return rows.map(order => {
     const customer = order.customerId ? customerMap.get(order.customerId) : null;
-    const shippingAddress = order.shippingAddressId ? addrMap.get(order.shippingAddressId) : null;
+    const snapshotAddress = normalizeShippingAddress(order.shippingAddress as any);
+    const shippingAddress = order.shippingAddressId
+      ? addrMap.get(order.shippingAddressId) || snapshotAddress
+      : (snapshotAddress || (order.customerId ? fallbackCustomerAddrs.get(order.customerId) || null : null));
     const items = (itemsByOrder.get(order.id) || []).map(row => ({
       ...row.item,
       variant: row.variant,
