@@ -283,7 +283,7 @@ function ImageDropzone({ value, onChange }: { value: string; onChange: (url: str
       reader.onload = async (e) => {
         const base64 = e.target?.result as string;
         try {
-          const stored = localStorage.getItem("spiceora_admin");
+          const stored = localStorage.getItem("Lepakshi Spices_admin");
           const token = stored ? JSON.parse(stored).token : null;
           const res = await fetch("http://localhost:4000/api/upload", {
             method: "POST",
@@ -416,15 +416,14 @@ function Sidebar({ page, setPage, collapsed, setCollapsed, onLogout }: {
       className="fixed left-0 top-0 h-full z-40 flex flex-col overflow-hidden"
       style={{ backgroundColor: C.greenDark }}>
       <div className="flex items-center h-16 px-4 shrink-0" style={{ borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
-        <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
-          style={{ background: `linear-gradient(135deg, ${C.yellow}, #E8C030)` }}>
-          <Leaf className="w-5 h-5 text-white" />
+        <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 overflow-hidden bg-white/10">
+          <img src="/spices_logo.png" alt="Lepakshi Spices" className="w-full h-full object-contain p-1" />
         </div>
         <AnimatePresence>
           {!collapsed && (
             <motion.div initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -8 }}
               transition={{ duration: 0.14 }} className="ml-3 overflow-hidden whitespace-nowrap">
-              <p className="font-semibold text-sm leading-none text-white" style={{ fontFamily: "'Playfair Display', serif" }}>Spiceora BOS</p>
+              <p className="font-semibold text-sm leading-none text-white" style={{ fontFamily: "'Playfair Display', serif" }}>Lepakshi Spices BOS</p>
               <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.4)" }}>Business Operations</p>
             </motion.div>
           )}
@@ -901,7 +900,7 @@ function ProductsPage() {
   // Products state
   const [products, setProducts] = useState<any[]>(() => {
     try {
-      const stored = localStorage.getItem("spiceora_products");
+      const stored = localStorage.getItem("Lepakshi Spices_products");
       return stored ? JSON.parse(stored).map(normalizeAdminPrices) : INIT_PRODUCTS;
     } catch {
       return INIT_PRODUCTS;
@@ -911,7 +910,7 @@ function ProductsPage() {
   // Categories state
   const [categories, setCategories] = useState<any[]>(() => {
     try {
-      const stored = localStorage.getItem("spiceora_categories");
+      const stored = localStorage.getItem("Lepakshi Spices_categories");
       return stored ? JSON.parse(stored) : [];
     } catch {
       return [];
@@ -927,7 +926,7 @@ function ProductsPage() {
         if (Array.isArray(dataP)) {
           const normalizedProducts = dataP.map(normalizeAdminPrices);
           setProducts(normalizedProducts);
-          localStorage.setItem("spiceora_products", JSON.stringify(normalizedProducts));
+          localStorage.setItem("Lepakshi Spices_products", JSON.stringify(normalizedProducts));
         }
       }
       const resC = await fetch("http://localhost:4000/api/categories");
@@ -942,7 +941,7 @@ function ProductsPage() {
             description: c.description || "",
             imageUrl: c.imageUrl || ""
           })));
-          localStorage.setItem("spiceora_categories", JSON.stringify(dataC));
+          localStorage.setItem("Lepakshi Spices_categories", JSON.stringify(dataC));
         }
       }
       const reviewRows = await reviewsApi.adminList();
@@ -968,7 +967,7 @@ function ProductsPage() {
   // Reviews state
   const [reviews, setReviews] = useState<any[]>(() => {
     try {
-      const stored = localStorage.getItem("spiceora_testimonials");
+      const stored = localStorage.getItem("Lepakshi Spices_testimonials");
       return stored ? JSON.parse(stored) : [];
     } catch {
       return [];
@@ -1054,15 +1053,15 @@ function ProductsPage() {
   };
 
   useEffect(() => {
-    localStorage.setItem("spiceora_products", JSON.stringify(products));
+    localStorage.setItem("Lepakshi Spices_products", JSON.stringify(products));
   }, [products]);
 
   useEffect(() => {
-    localStorage.setItem("spiceora_categories", JSON.stringify(categories));
+    localStorage.setItem("Lepakshi Spices_categories", JSON.stringify(categories));
   }, [categories]);
 
   useEffect(() => {
-    localStorage.setItem("spiceora_testimonials", JSON.stringify(reviews));
+    localStorage.setItem("Lepakshi Spices_testimonials", JSON.stringify(reviews));
   }, [reviews]);
 
   // Pricing Assistant calculation
@@ -1743,7 +1742,7 @@ function OrdersPage() {
     const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
     const link = document.createElement("a");
     link.setAttribute("href", encodeURI(csvContent));
-    link.setAttribute("download", `spiceora_orders_export_${Date.now()}.csv`);
+    link.setAttribute("download", `Lepakshi Spices_orders_export_${Date.now()}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -1962,7 +1961,7 @@ function OrdersPage() {
 function CategoriesPage() {
   const [categories, setCategories] = useState<any[]>(() => {
     try {
-      const stored = localStorage.getItem("spiceora_categories");
+      const stored = localStorage.getItem("Lepakshi Spices_categories");
       return stored ? JSON.parse(stored) : [];
     } catch {
       return [];
@@ -1971,7 +1970,7 @@ function CategoriesPage() {
 
   const [products] = useState<any[]>(() => {
     try {
-      const stored = localStorage.getItem("spiceora_products");
+      const stored = localStorage.getItem("Lepakshi Spices_products");
       return stored ? JSON.parse(stored) : [];
     } catch { return []; }
   });
@@ -1983,7 +1982,7 @@ function CategoriesPage() {
   const [viewProductsFor, setViewProductsFor] = useState<any | null>(null);
 
   useEffect(() => {
-    localStorage.setItem("spiceora_categories", JSON.stringify(categories));
+    localStorage.setItem("Lepakshi Spices_categories", JSON.stringify(categories));
   }, [categories]);
 
   const handleEdit = (cat: any) => {
@@ -2925,7 +2924,7 @@ function SettingsPage() {
                       </div>
                     </>
                   )}
-                  {tab === "branding" && [["Brand Name", "Spiceora"], ["Tagline", "Purest Spices, Directly From Farms"], ["Primary Color", "#2D5016"], ["Accent Color", "#D4921A"]].map(([label, val]) => (
+                  {tab === "branding" && [["Brand Name", "Lepakshi Spices"], ["Tagline", "Purest Spices, Directly From Farms"], ["Primary Color", "#2D5016"], ["Accent Color", "#D4921A"]].map(([label, val]) => (
                     <div key={label}>
                       <label className="block text-sm font-medium mb-1.5" style={{ color: C.charcoal }}>{label}</label>
                       <input defaultValue={val} className="w-full px-3.5 py-2.5 rounded-xl text-sm outline-none" style={{ backgroundColor: "#F0EDE8", border: "1.5px solid transparent", color: C.charcoal }} />
@@ -3194,7 +3193,7 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
 
   const addAuditLog = (action: string, details: string) => {
     try {
-      const stored = localStorage.getItem("spiceora_audit_logs");
+      const stored = localStorage.getItem("Lepakshi Spices_audit_logs");
       const logs = stored ? JSON.parse(stored) : [];
       logs.unshift({
         time: new Date().toLocaleDateString('en-IN') + " " + new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
@@ -3202,7 +3201,7 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
         user: "Arjun Kumar (Admin)",
         details
       });
-      localStorage.setItem("spiceora_audit_logs", JSON.stringify(logs));
+      localStorage.setItem("Lepakshi Spices_audit_logs", JSON.stringify(logs));
     } catch (e) {
       console.error(e);
     }
@@ -3226,7 +3225,7 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
   // ── Inline Quote Builder Helpers ───────────────────────────────
   const getQuotations = (): any[] => {
     try {
-      const stored = localStorage.getItem("spiceora_quotations");
+      const stored = localStorage.getItem("Lepakshi Spices_quotations");
       return stored ? JSON.parse(stored) : [];
     } catch { return []; }
   };
@@ -3339,10 +3338,10 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
       source: "Converted B2B Quotation (" + quote.id + ")"
     };
     try {
-      const storedOrders = localStorage.getItem("spiceora_orders");
+      const storedOrders = localStorage.getItem("Lepakshi Spices_orders");
       const list = storedOrders ? JSON.parse(storedOrders) : [];
       list.unshift(newOrder);
-      localStorage.setItem("spiceora_orders", JSON.stringify(list));
+      localStorage.setItem("Lepakshi Spices_orders", JSON.stringify(list));
       // Update quote status
       const updatedQ = { ...quote, status: "converted", timeline: [...(quote.timeline || []), { time: dateStr, event: `Converted to Order ${orderId}` }] };
       saveQuotation(updatedQ);
@@ -3386,7 +3385,7 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
       const secondary: [number, number, number] = [201, 146, 10];
       doc.setFillColor(...primary); doc.rect(0, 0, 210, 40, "F");
       doc.setFont("Helvetica", "bold"); doc.setFontSize(24); doc.setTextColor(...secondary);
-      doc.text("SPICEORA", 15, 20);
+      doc.text("Lepakshi Spices", 15, 20);
       doc.setFont("Helvetica", "normal"); doc.setFontSize(9); doc.setTextColor(255, 255, 255);
       doc.text("PREMIUM WHOLESALE SPICE SOURCING", 15, 27);
       doc.setFont("Helvetica", "bold"); doc.setFontSize(14); doc.setTextColor(...secondary);
@@ -3395,7 +3394,7 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
       doc.text(`Quote No: ${q.id}`, 130, 27); doc.text(`Date: ${q.date}`, 130, 32);
       doc.setFillColor(250, 248, 243); doc.rect(0, 40, 210, 25, "F");
       doc.setFont("Helvetica", "bold"); doc.setFontSize(8.5); doc.setTextColor(26, 23, 20);
-      doc.text("Spiceora Sourcing Desk Gate 2, Guntur Industrial Area, AP, India", 15, 48);
+      doc.text("Lepakshi Spices Sourcing Desk Gate 2, Guntur Industrial Area, AP, India", 15, 48);
       doc.text("Support Desk: +91 9390645710  |  Email: dreammasterorigin@gmail.com", 15, 53);
       let cy = 78;
       doc.setFont("Helvetica", "bold"); doc.setFontSize(11); doc.setTextColor(...primary);
@@ -3452,7 +3451,7 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
       (q.termsList || []).forEach((t: string) => { doc.text(`• ${t}`, 18, payY); payY += 4.5; });
       doc.setFont("Helvetica", "normal"); doc.setFontSize(8); doc.setTextColor(122, 112, 100);
       doc.text("Page 1 of 1", 100, 285);
-      doc.save(`SPICEORA_Quotation_${q.id}_${q.businessName.replace(/\s+/g, "_")}.pdf`);
+      doc.save(`Lepakshi Spices_Quotation_${q.id}_${q.businessName.replace(/\s+/g, "_")}.pdf`);
       toast.success("Quotation PDF generated");
     } catch (e) { console.error(e); toast.error("Failed to generate PDF."); }
   };
@@ -3614,7 +3613,7 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
         terms: "Terms: Ex-works / F.O.B dispatch. Sample kits available on request."
       };
       try {
-        const storedTemplate = localStorage.getItem("spiceora_pdf_template");
+        const storedTemplate = localStorage.getItem("Lepakshi Spices_pdf_template");
         if (storedTemplate) {
           const parsed = JSON.parse(storedTemplate);
           const colorMap: Record<string, number[]> = {
@@ -3633,7 +3632,7 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
       // Load products prices
       let productsData: any[] = [];
       try {
-        const storedProducts = localStorage.getItem("spiceora_pdf_products");
+        const storedProducts = localStorage.getItem("Lepakshi Spices_pdf_products");
         if (storedProducts) {
           const parsed = JSON.parse(storedProducts);
           if (Array.isArray(parsed) && parsed.length > 0) {
@@ -3661,7 +3660,7 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
       doc.setFont("Helvetica", "bold");
       doc.setFontSize(26);
       doc.setTextColor(secondary[0], secondary[1], secondary[2]);
-      doc.text("SPICEORA", 20, 24);
+      doc.text("Lepakshi Spices", 20, 24);
 
       doc.setFont("Helvetica", "normal");
       doc.setFontSize(9);
@@ -3772,7 +3771,7 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
       doc.setFont("Helvetica", "bold");
       doc.setFontSize(14);
       doc.setTextColor(255, 255, 255);
-      doc.text("SPICEORA B2B PRODUCT CATALOG", 20, 16);
+      doc.text("Lepakshi Spices B2B PRODUCT CATALOG", 20, 16);
 
       doc.setFont("Helvetica", "bold");
       doc.setFontSize(13);
@@ -3845,12 +3844,12 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
       doc.setFont("Helvetica", "bold");
       doc.setFontSize(9.5);
       doc.setTextColor(primary[0], primary[1], primary[2]);
-      doc.text("Spiceora Sourcing Desk Support Team", 25, rowY + 6);
+      doc.text("Lepakshi Spices Sourcing Desk Support Team", 25, rowY + 6);
 
       // Load contacts dynamically
       let contactInfo = { whatsapp: "9390645710", email: "dreammasterorigin@gmail.com" };
       try {
-        const storedContact = localStorage.getItem("spiceora_contact_settings");
+        const storedContact = localStorage.getItem("Lepakshi Spices_contact_settings");
         if (storedContact) {
           const parsedContact = JSON.parse(storedContact);
           contactInfo.whatsapp = parsedContact.whatsapp || contactInfo.whatsapp;
@@ -3877,12 +3876,12 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
       }
 
       const cleanBusinessName = (inq.businessName || "Partner").trim().replace(/\s+/g, "_");
-      const filename = `SPICEORA_Wholesale_Catalog_${cleanBusinessName}.pdf`;
+      const filename = `Lepakshi Spices_Wholesale_Catalog_${cleanBusinessName}.pdf`;
       doc.save(filename);
 
       // Save PDF to history log
       try {
-        const storedHistory = localStorage.getItem("spiceora_pdf_history");
+        const storedHistory = localStorage.getItem("Lepakshi Spices_pdf_history");
         const historyList = storedHistory ? JSON.parse(storedHistory) : [];
         historyList.unshift({
           id: "PDF-" + Math.floor(Math.random() * 90000 + 10000),
@@ -3893,7 +3892,7 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
           volume: inq.volume,
           generatedBy: "Admin / Sales Agent"
         });
-        localStorage.setItem("spiceora_pdf_history", JSON.stringify(historyList));
+        localStorage.setItem("Lepakshi Spices_pdf_history", JSON.stringify(historyList));
       } catch (err) {
         console.error("PDF history save failed:", err);
       }
@@ -4583,10 +4582,10 @@ function QuotationManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
   // Check for prefilled wholesale inquiry lead redirected from WholesalePage
   useEffect(() => {
     try {
-      const prefill = localStorage.getItem("spiceora_prefilled_quote_lead");
+      const prefill = localStorage.getItem("Lepakshi Spices_prefilled_quote_lead");
       if (prefill) {
         const lead = JSON.parse(prefill);
-        localStorage.removeItem("spiceora_prefilled_quote_lead");
+        localStorage.removeItem("Lepakshi Spices_prefilled_quote_lead");
 
         const qtyMap: Record<string, number> = {
           "5kg": 1, "10kg": 1, "15kg": 1, "25kg": 1
@@ -4637,7 +4636,7 @@ function QuotationManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
   const saveQuotations = (updated: any[]) => {
     setQuotations(updated);
     try {
-      localStorage.setItem("spiceora_quotations", JSON.stringify(updated));
+      localStorage.setItem("Lepakshi Spices_quotations", JSON.stringify(updated));
     } catch (e) {
       console.error(e);
     }
@@ -4645,7 +4644,7 @@ function QuotationManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
 
   const addAuditLog = (action: string, details: string) => {
     try {
-      const stored = localStorage.getItem("spiceora_audit_logs");
+      const stored = localStorage.getItem("Lepakshi Spices_audit_logs");
       const logs = stored ? JSON.parse(stored) : [];
       logs.unshift({
         time: new Date().toLocaleDateString('en-IN') + " " + new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
@@ -4653,7 +4652,7 @@ function QuotationManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
         user: "Arjun Kumar (Admin)",
         details
       });
-      localStorage.setItem("spiceora_audit_logs", JSON.stringify(logs));
+      localStorage.setItem("Lepakshi Spices_audit_logs", JSON.stringify(logs));
     } catch (e) {
       console.error(e);
     }
@@ -4876,10 +4875,10 @@ function QuotationManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
 
     // Save to orders db
     try {
-      const storedOrders = localStorage.getItem("spiceora_orders");
+      const storedOrders = localStorage.getItem("Lepakshi Spices_orders");
       const list = storedOrders ? JSON.parse(storedOrders) : [];
       list.unshift(newOrder);
-      localStorage.setItem("spiceora_orders", JSON.stringify(list));
+      localStorage.setItem("Lepakshi Spices_orders", JSON.stringify(list));
 
       // Update quote status
       handleUpdateStatusSingle(quote.id, "converted");
@@ -4927,7 +4926,7 @@ function QuotationManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
         terms: "Terms: Ex-works / F.O.B Guntur yard dispatch."
       };
       try {
-        const storedTemplate = localStorage.getItem("spiceora_pdf_template");
+        const storedTemplate = localStorage.getItem("Lepakshi Spices_pdf_template");
         if (storedTemplate) {
           const parsed = JSON.parse(storedTemplate);
           const colorMap: Record<string, number[]> = {
@@ -4952,7 +4951,7 @@ function QuotationManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
       doc.setFont("Helvetica", "bold");
       doc.setFontSize(24);
       doc.setTextColor(secondary[0], secondary[1], secondary[2]);
-      doc.text("SPICEORA", 15, 20);
+      doc.text("Lepakshi Spices", 15, 20);
 
       doc.setFont("Helvetica", "normal");
       doc.setFontSize(9);
@@ -4977,7 +4976,7 @@ function QuotationManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
       doc.setFont("Helvetica", "bold");
       doc.setFontSize(8.5);
       doc.setTextColor(26, 23, 20);
-      doc.text("Spiceora Sourcing Desk Gate 2, Guntur Industrial Area, AP, India", 15, 48);
+      doc.text("Lepakshi Spices Sourcing Desk Gate 2, Guntur Industrial Area, AP, India", 15, 48);
       doc.text("Support Desk: +91 9390645710  |  Email: dreammasterorigin@gmail.com", 15, 53);
 
       // Customer Profiles
@@ -5134,7 +5133,7 @@ function QuotationManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
       doc.setFont("Helvetica", "normal");
       doc.setFontSize(7.5);
       doc.setTextColor(122, 112, 100);
-      doc.text("Spiceora Global B2B Division", 145, payY + 9);
+      doc.text("Lepakshi Spices Global B2B Division", 145, payY + 9);
 
       // Watermark
       if (template.watermark) {
@@ -5151,7 +5150,7 @@ function QuotationManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
       doc.text("Page 1 of 1", 100, 285);
 
       const cleanBiz = q.businessName.trim().replace(/\s+/g, "_");
-      doc.save(`SPICEORA_Quotation_${q.id}_${cleanBiz}.pdf`);
+      doc.save(`Lepakshi Spices_Quotation_${q.id}_${cleanBiz}.pdf`);
       toast.success("Quotation PDF generated", { description: `Downloaded successfully.` });
 
       // Update activity logs
@@ -5178,7 +5177,7 @@ function QuotationManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
   };
 
   const handleShareQuoteLink = (q: any) => {
-    navigator.clipboard.writeText(`https://spiceora.in/quote/view/${q.id}`);
+    navigator.clipboard.writeText(`https://lepakshispices.in/quote/view/${q.id}`);
     toast.success("Quote link copied to clipboard!");
   };
 
@@ -5777,7 +5776,7 @@ function ProductCatalogCMSPage() {
 
   // CMS 1: Company Profile states
   const [companyProfile, setCompanyProfile] = useState(() => {
-    const saved = localStorage.getItem("spiceora_catalog_settings");
+    const saved = localStorage.getItem("Lepakshi Spices_catalog_settings");
     return saved ? JSON.parse(saved) : {
       name: "",
       logoUrl: "",
@@ -5790,7 +5789,7 @@ function ProductCatalogCMSPage() {
 
   // CMS 2: Contact Details states
   const [contactSettings, setContactSettings] = useState(() => {
-    const saved = localStorage.getItem("spiceora_contact_settings");
+    const saved = localStorage.getItem("Lepakshi Spices_contact_settings");
     return saved ? JSON.parse(saved) : {
       whatsapp: "",
       phone: "",
@@ -5803,13 +5802,13 @@ function ProductCatalogCMSPage() {
 
   // CMS 3: PDF Product pricing states (5 basic spices)
   const [catalogProducts, setCatalogProducts] = useState<any[]>(() => {
-    const saved = localStorage.getItem("spiceora_pdf_products");
+    const saved = localStorage.getItem("Lepakshi Spices_pdf_products");
     return saved ? JSON.parse(saved) : [];
   });
 
   // CMS 4: Bulk Packaging states
   const [bulkPackaging, setBulkPackaging] = useState(() => {
-    const saved = localStorage.getItem("spiceora_bulk_packaging");
+    const saved = localStorage.getItem("Lepakshi Spices_bulk_packaging");
     return saved ? JSON.parse(saved) : {
       p5kg: false, p10kg: false, p15kg: false, p25kg: false,
       customOptions: "",
@@ -5822,7 +5821,7 @@ function ProductCatalogCMSPage() {
 
   // CMS 5: PDF Style template manager states
   const [pdfTemplate, setPdfTemplate] = useState(() => {
-    const saved = localStorage.getItem("spiceora_pdf_template");
+    const saved = localStorage.getItem("Lepakshi Spices_pdf_template");
     return saved ? JSON.parse(saved) : {
       headerVisible: true,
       footerVisible: true,
@@ -5837,7 +5836,7 @@ function ProductCatalogCMSPage() {
   // PDF Generation History logs
   const [pdfHistory, setPdfHistory] = useState<any[]>(() => {
     try {
-      const saved = localStorage.getItem("spiceora_pdf_history");
+      const saved = localStorage.getItem("Lepakshi Spices_pdf_history");
       return saved ? JSON.parse(saved) : [];
     } catch {
       return [];
@@ -5945,7 +5944,7 @@ function ProductCatalogCMSPage() {
       doc.setFont("Helvetica", "bold");
       doc.setFontSize(26);
       doc.setTextColor(secondary[0], secondary[1], secondary[2]);
-      doc.text("SPICEORA", 20, 24);
+      doc.text("Lepakshi Spices", 20, 24);
 
       doc.setFont("Helvetica", "normal");
       doc.setFontSize(9);
@@ -6018,7 +6017,7 @@ function ProductCatalogCMSPage() {
       doc.setFont("Helvetica", "bold");
       doc.setFontSize(14);
       doc.setTextColor(255, 255, 255);
-      doc.text("SPICEORA B2B PRODUCT CATALOG", 20, 16);
+      doc.text("Lepakshi Spices B2B PRODUCT CATALOG", 20, 16);
 
       doc.setFont("Helvetica", "bold");
       doc.setFontSize(13);
@@ -6091,7 +6090,7 @@ function ProductCatalogCMSPage() {
       doc.setFont("Helvetica", "bold");
       doc.setFontSize(9.5);
       doc.setTextColor(primary[0], primary[1], primary[2]);
-      doc.text("Spiceora Sourcing Desk Support Team", 25, rowY + 6);
+      doc.text("Lepakshi Spices Sourcing Desk Support Team", 25, rowY + 6);
 
       doc.setFont("Helvetica", "normal");
       doc.setFontSize(8.5);
@@ -6111,7 +6110,7 @@ function ProductCatalogCMSPage() {
         doc.text(pdfTemplate.watermark, 30, 250, null, 45);
       }
 
-      doc.save("SPICEORA_Product_Catalog_Preview.pdf");
+      doc.save("Lepakshi Spices_Product_Catalog_Preview.pdf");
       toast.success("Catalog PDF preview downloaded successfully");
     } catch (e) {
       console.error(e);
@@ -6853,7 +6852,7 @@ function CouponsPage() {
 function CampaignsPage() {
   const [alertBanner, setAlertBanner] = useState(() => {
     try {
-      const stored = localStorage.getItem("spiceora_campaign_alert");
+      const stored = localStorage.getItem("Lepakshi Spices_campaign_alert");
       return stored ? JSON.parse(stored) : { enabled: false, text: "" };
     } catch {
       return { enabled: false, text: "" };
@@ -6862,7 +6861,7 @@ function CampaignsPage() {
 
   const [modalOffer, setModalOffer] = useState(() => {
     try {
-      const stored = localStorage.getItem("spiceora_campaign_popup");
+      const stored = localStorage.getItem("Lepakshi Spices_campaign_popup");
       return stored ? JSON.parse(stored) : { enabled: false, title: "", description: "" };
     } catch {
       return { enabled: false, title: "", description: "" };
@@ -7330,7 +7329,7 @@ function AdminLogin({ onLogin }: { onLogin: () => void }) {
     e.preventDefault(); setLoading(true); setError("");
     try {
       const result = await authApi.adminLogin(username.trim(), password);
-      localStorage.setItem("spiceora_admin", JSON.stringify(result));
+      localStorage.setItem("Lepakshi Spices_admin", JSON.stringify(result));
       onLogin();
     } catch (err) { setError(err instanceof Error ? err.message : "Unable to sign in"); }
     finally { setLoading(false); }
@@ -7346,7 +7345,7 @@ function AdminLogin({ onLogin }: { onLogin: () => void }) {
 }
 
 export default function App() {
-  const [authenticated, setAuthenticated] = useState(() => Boolean(localStorage.getItem("spiceora_admin")));
+  const [authenticated, setAuthenticated] = useState(() => Boolean(localStorage.getItem("Lepakshi Spices_admin")));
   const [page, setPage] = useState("dashboard");
   const [collapsed, setCollapsed] = useState(false);
   const [bellOpen, setBellOpen] = useState(false);
@@ -7354,7 +7353,7 @@ export default function App() {
   const [cmdSearch, setCmdSearch] = useState("");
   const [darkMode, setDarkMode] = useState(() => {
     try {
-      return localStorage.getItem("spiceora_dark_mode") === "true";
+      return localStorage.getItem("Lepakshi Spices_dark_mode") === "true";
     } catch {
       return false;
     }
@@ -7393,7 +7392,7 @@ export default function App() {
   const toggleDarkMode = () => {
     setDarkMode(prev => {
       const next = !prev;
-      localStorage.setItem("spiceora_dark_mode", String(next));
+      localStorage.setItem("Lepakshi Spices_dark_mode", String(next));
       return next;
     });
   };
@@ -7488,3 +7487,5 @@ export default function App() {
     </div>
   );
 }
+
+
