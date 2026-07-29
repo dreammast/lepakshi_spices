@@ -283,7 +283,7 @@ function ImageDropzone({ value, onChange }: { value: string; onChange: (url: str
       reader.onload = async (e) => {
         const base64 = e.target?.result as string;
         try {
-          const stored = localStorage.getItem("Lepakshi Spices_admin");
+          const stored = localStorage.getItem("spiceora_admin");
           const token = stored ? JSON.parse(stored).token : null;
           const res = await fetch("http://localhost:4000/api/upload", {
             method: "POST",
@@ -1698,14 +1698,8 @@ function OrdersPage() {
         total: Number(order.totalAmount ?? order.total ?? 0),
         status: order.status || "pending",
         date: order.placedAt ? new Date(order.placedAt).toLocaleDateString() : "",
-<<<<<<< HEAD
-        location: "",
-        products: (order.items || []).map((item: any) => item.product?.name || item.variant?.label || "Product"),
-        shippingAddress: order.shippingAddress || null
-=======
         shippingAddress: normalizeAdminOrderAddress(order.shippingAddress),
         products: (order.items || []).map((item: any) => item.product?.name || item.variant?.label || "Product")
->>>>>>> 09c85d75796270ece1f84dbabd16accfa6f751ed
       })));
     } catch (error: any) {
       toast.error(error.message || "Unable to load orders");
@@ -1922,29 +1916,11 @@ function OrdersPage() {
                     <p className="text-[10px] font-bold text-[#8B7355] uppercase tracking-widest mb-2">Customer Profile</p>
                     <p className="text-sm font-semibold text-[#2C2416]">{drawerTarget.customer}</p>
                     {drawerTarget.customerEmail && <p className="text-xs text-[#8B7355]">{drawerTarget.customerEmail}</p>}
-<<<<<<< HEAD
-                    <p className="text-xs text-[#8B7355]">
-                      Phone: {drawerTarget.shippingAddress?.phone || drawerTarget.customerPhone || "Not specified"}
-=======
                     {drawerTarget.customerPhone && <p className="text-xs text-[#8B7355]">Phone: {drawerTarget.customerPhone}</p>}
                     <p className="text-xs text-[#8B7355] mt-1.5 pt-1.5 border-t border-[#2C2416]/6">
                       <span className="font-semibold text-[#2C2416]">Shipping Address:</span>{" "}
                       {formatShippingAddress(drawerTarget.shippingAddress) || "Not specified"}
->>>>>>> 09c85d75796270ece1f84dbabd16accfa6f751ed
                     </p>
-                    <div className="mt-1.5 pt-1.5 border-t border-[#2C2416]/6 text-xs text-[#8B7355]">
-                      <span className="font-semibold text-[#2C2416]">Shipping Address:</span>
-                      {drawerTarget.shippingAddress ? (
-                        <div className="mt-1 leading-relaxed">
-                          <p>{drawerTarget.shippingAddress.fullName ? `${drawerTarget.shippingAddress.fullName}, ` : ""}{drawerTarget.shippingAddress.line1}{drawerTarget.shippingAddress.line2 ? `, ${drawerTarget.shippingAddress.line2}` : ""}</p>
-                          <p>{drawerTarget.shippingAddress.city}, {drawerTarget.shippingAddress.state}</p>
-                          <p>{drawerTarget.shippingAddress.postalCode}</p>
-                        </div>
-                      ) : (
-                        <span>{" "}{drawerTarget.location || "Not specified"}</span>
-                      )}
-                    </div>
-
                   </div>
 
                   <div>
@@ -7352,7 +7328,7 @@ function AdminLogin({ onLogin }: { onLogin: () => void }) {
     e.preventDefault(); setLoading(true); setError("");
     try {
       const result = await authApi.adminLogin(username.trim(), password);
-      localStorage.setItem("Lepakshi Spices_admin", JSON.stringify(result));
+      localStorage.setItem("spiceora_admin", JSON.stringify(result));
       onLogin();
     } catch (err) { setError(err instanceof Error ? err.message : "Unable to sign in"); }
     finally { setLoading(false); }
@@ -7368,7 +7344,7 @@ function AdminLogin({ onLogin }: { onLogin: () => void }) {
 }
 
 export default function App() {
-  const [authenticated, setAuthenticated] = useState(() => Boolean(localStorage.getItem("Lepakshi Spices_admin")));
+  const [authenticated, setAuthenticated] = useState(() => Boolean(localStorage.getItem("spiceora_admin")));
   const [page, setPage] = useState("dashboard");
   const [collapsed, setCollapsed] = useState(false);
   const [bellOpen, setBellOpen] = useState(false);
@@ -7376,7 +7352,7 @@ export default function App() {
   const [cmdSearch, setCmdSearch] = useState("");
   const [darkMode, setDarkMode] = useState(() => {
     try {
-      return localStorage.getItem("Lepakshi Spices_dark_mode") === "true";
+      return localStorage.getItem("spiceora_dark_mode") === "true";
     } catch {
       return false;
     }
@@ -7415,7 +7391,7 @@ export default function App() {
   const toggleDarkMode = () => {
     setDarkMode(prev => {
       const next = !prev;
-      localStorage.setItem("Lepakshi Spices_dark_mode", String(next));
+      localStorage.setItem("spiceora_dark_mode", String(next));
       return next;
     });
   };

@@ -141,7 +141,7 @@ function useScrolled(threshold = 20) {
 
 function useSEO(title: string, description: string) {
   useEffect(() => {
-    document.title = `${title} | Spiceora Premium Spices`;
+    document.title = `${title} | Lepakshi Spices Premium Spices`;
     let meta = document.querySelector('meta[name="description"]');
     if (!meta) {
       meta = document.createElement("meta");
@@ -813,7 +813,7 @@ function WhyUs() {
               <span className="text-[#C9920A] text-xs font-semibold tracking-[0.2em] uppercase">Our Promise</span>
               <div className="h-px w-8 bg-[#C9920A]" />
             </div>
-            <h2 className="text-4xl md:text-5xl font-bold text-white mb-4" style={{ fontFamily: "'Bodoni Moda', serif" }}>Why Spiceora?</h2>
+            <h2 className="text-4xl md:text-5xl font-bold text-white mb-4" style={{ fontFamily: "'Bodoni Moda', serif" }}>Why Lepakshi Spices?</h2>
             <p className="text-white/65 text-lg max-w-xl mx-auto">Great food starts with great ingredients. That's a promise, not a tagline.</p>
           </div>
         </Reveal>
@@ -861,10 +861,10 @@ function OurStory() {
                 Born From a Journey<br />Across Spice Routes
               </h2>
               <p className="text-[#7A7064] text-lg leading-relaxed mb-5">
-                Spiceora began when our founder, Rajan Menon, traveled the spice trail from Kerala to Kashmir and found something troubling: the world's finest spices were leaving India while Indian homes cooked with inferior imports.
+                Lepakshi Spices began when our founder, Rajan Menon, traveled the spice trail from Kerala to Kashmir and found something troubling: the world's finest spices were leaving India while Indian homes cooked with inferior imports.
               </p>
               <p className="text-[#7A7064] leading-relaxed mb-8">
-                We built Spiceora to change that — working directly with 47 farming families across 8 states and 3 countries, bringing you the same grade of spice exported to Michelin-starred restaurants, in your kitchen, at a fair price.
+                We built Lepakshi Spices to change that — working directly with 47 farming families across 8 states and 3 countries, bringing you the same grade of spice exported to Michelin-starred restaurants, in your kitchen, at a fair price.
               </p>
               <Btn size="lg" onClick={() => navigate("founder")}>
                 Read Our Full Story <ArrowRight className="w-4 h-4" />
@@ -1031,7 +1031,7 @@ function Newsletter() {
           <div className="w-14 h-14 rounded-2xl bg-[#2A4A3C] flex items-center justify-center mx-auto mb-6">
             <Mail className="w-6 h-6 text-[#C9920A]" />
           </div>
-          <h2 className="text-4xl font-bold text-[#1A1714] mb-4" style={{ fontFamily: "'Bodoni Moda', serif" }}>Join the Spiceora Circle</h2>
+          <h2 className="text-4xl font-bold text-[#1A1714] mb-4" style={{ fontFamily: "'Bodoni Moda', serif" }}>Join the Lepakshi Spices Circle</h2>
           <p className="text-[#7A7064] text-lg mb-10">Recipes, provenance stories, and early access to new arrivals. No spam — ever.</p>
           <AnimatePresence mode="wait">
             {status === "done" ? (
@@ -1039,7 +1039,7 @@ function Newsletter() {
                 className="flex flex-col items-center gap-3 p-6 bg-[#2A4A3C]/8 rounded-2xl">
                 <CheckCircle className="w-10 h-10 text-[#2A4A3C]" />
                 <p className="font-semibold text-[#1A1714]">You're in the circle!</p>
-                <p className="text-sm text-[#7A7064]">Welcome to Spiceora. Check your inbox for a welcome gift.</p>
+                <p className="text-sm text-[#7A7064]">Welcome to Lepakshi Spices. Check your inbox for a welcome gift.</p>
               </motion.div>
             ) : (
               <motion.form onSubmit={submit} className="flex flex-col sm:flex-row gap-3">
@@ -1086,7 +1086,7 @@ function Footer() {
               <div className="w-7 h-7 rounded-full bg-[#2A4A3C] flex items-center justify-center">
                 <Leaf className="w-3.5 h-3.5 text-[#C9920A]" />
               </div>
-              <span className="text-lg font-bold" style={{ fontFamily: "'Bodoni Moda', serif" }}>Spiceora</span>
+              <span className="text-lg font-bold" style={{ fontFamily: "'Bodoni Moda', serif" }}>Lepakshi Spices</span>
             </button>
             <p className="text-white/50 text-sm leading-relaxed mb-5 max-w-xs">Premium single-origin spices from farm to jar. Traceable, organic, crafted for culinary excellence.</p>
             <div className="flex gap-2">
@@ -1115,7 +1115,7 @@ function Footer() {
           ))}
         </div>
         <div className="border-t border-white/10 pt-6 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <p className="text-xs text-white/35">© 2026 Spiceora. All rights reserved.</p>
+          <p className="text-xs text-white/35">© 2026 Lepakshi Spices. All rights reserved.</p>
           <div className="flex items-center gap-3">
             <span className="text-xs text-white/35">Secure payments:</span>
             {["Visa", "Mastercard", "UPI", "Razorpay"].map(p => (
@@ -2190,20 +2190,6 @@ function CheckoutPage() {
           throw new Error(`Some items had limited stock. Quantities have been adjusted. Please review and try again.`);
         }
         const orderItems = items.map(({ productVariantId, quantity, price }) => ({ productVariantId, quantity, price }));
-<<<<<<< HEAD
-        const savedAddr = await addressesApi.create({
-          label: addr.name,
-          fullName: addr.name,
-          phone: addr.phone,
-          line1: addr.line1,
-          city: addr.city,
-          state: addr.state,
-          postalCode: addr.pin,
-          country: "India"
-        }).catch(() => null);
-        const shippingAddressId = savedAddr?.id;
-        const order = await ordersApi.create({ items: orderItems, shippingAddressId, couponCode: couponCode || undefined, discountAmount: discount });
-=======
         const orderPayload: any = {
           items: orderItems,
           couponCode: couponCode || undefined,
@@ -2224,7 +2210,6 @@ function CheckoutPage() {
           };
         }
         const order = await ordersApi.create(orderPayload);
->>>>>>> 09c85d75796270ece1f84dbabd16accfa6f751ed
         setPlacedOrder(order);
         await cartApi.clear();
         clearCart();
@@ -2699,7 +2684,7 @@ function ProfilePage() {
   const [supportMsg, setSupportMsg] = useState("");
   const [supportLoading, setSupportLoading] = useState(false);
   const [chatLogs, setChatLogs] = useState([
-    { sender: "agent", text: "Hello! Thank you for contacting Spiceora. How can we help you today?", time: "09:30 AM" }
+    { sender: "agent", text: "Hello! Thank you for contacting Lepakshi Spices. How can we help you today?", time: "09:30 AM" }
   ]);
 
   const tabs = [
@@ -2762,7 +2747,7 @@ function ProfilePage() {
                     {(user?.name || "Member").split(" ").map((n: string) => n[0]).join("")}
                   </span>
                 </div>
-                <h3 className="font-semibold text-[#1A1714]">{user?.name || "Spiceora Member"}</h3>
+                <h3 className="font-semibold text-[#1A1714]">{user?.name || "Lepakshi Spices Member"}</h3>
                 <p className="text-xs text-[#7A7064]">{user?.email || "Member"}</p>
                 <div className="mt-2"><Badge color="green">Active Account</Badge></div>
               </div>
@@ -3161,7 +3146,7 @@ function ProfilePage() {
                     <div className="p-4 bg-[#2A4A3C]/5 border-b border-[#1A1714]/8 flex items-center gap-3">
                       <div className="w-10 h-10 rounded-full bg-[#2A4A3C] flex items-center justify-center text-[#C9920A] font-serif font-bold">S</div>
                       <div>
-                        <h4 className="text-sm font-semibold text-[#1A1714]">Spiceora Direct Support</h4>
+                        <h4 className="text-sm font-semibold text-[#1A1714]">Lepakshi Spices Direct Support</h4>
                         <p className="text-[10px] text-[#7A7064]">Active · Sourcing Team Response</p>
                       </div>
                     </div>
@@ -3224,7 +3209,7 @@ function renderIngredient(ing: string, navigate: any, productsList: any[] = []) 
     let productList = productsList;
     if (!productList || productList.length === 0) {
       try {
-        const stored = localStorage.getItem("spiceora_products");
+        const stored = localStorage.getItem("Lepakshi Spices_products");
         productList = stored ? JSON.parse(stored) : [];
       } catch (e) {
         productList = [];
@@ -3391,7 +3376,7 @@ function InstagramGallery() {
               <div className="h-px w-8 bg-[#C9920A]" />
             </div>
             <h2 className="text-4xl font-bold text-[#1A1714] mb-3" style={{ fontFamily: "'Bodoni Moda', serif" }}>On the Gram</h2>
-            <p className="text-[#7A7064] text-sm max-w-md mx-auto">Follow our sourcing travels and culinary journey at <strong className="text-[#2A4A3C]">@spiceoraspices</strong></p>
+            <p className="text-[#7A7064] text-sm max-w-md mx-auto">Follow our sourcing travels and culinary journey at <strong className="text-[#2A4A3C]">@lepakshispices</strong></p>
           </div>
         </Reveal>
 
@@ -3459,7 +3444,7 @@ function BulkOrderSection() {
         <Reveal>
           <h2 className="text-3xl lg:text-4xl font-bold mb-4" style={{ fontFamily: "'Bodoni Moda', serif" }}>Bulk Sourcing & Wholesale Inquiry</h2>
           <p className="text-white/70 text-sm max-w-xl mx-auto mb-8 leading-relaxed">
-            Are you a chef, restaurant owner, distributor, or food brand owner looking for premium-grade, single-origin spices? Partner with Spiceora for consistent, lab-tested wholesale supplies.
+            Are you a chef, restaurant owner, distributor, or food brand owner looking for premium-grade, single-origin spices? Partner with Lepakshi Spices for consistent, lab-tested wholesale supplies.
           </p>
           <Btn variant="secondary" size="lg" onClick={() => navigate("wholesale")} className="bg-[#C9920A] hover:bg-[#A87800] border-0 text-white font-semibold">
             Request Wholesale Rates
@@ -3535,7 +3520,7 @@ function BulkOrderSection() {
 
 function RecipesPage() {
   const { navigate, recipes } = useApp();
-  useSEO("Artisan Recipes", "Learn how to cook with Spiceora premium spices. View step-by-step cooking instructions for traditional and modern recipes.");
+  useSEO("Artisan Recipes", "Learn how to cook with Lepakshi Spices premium spices. View step-by-step cooking instructions for traditional and modern recipes.");
   const [difficulty, setDifficulty] = useState("all");
 
   const filtered = recipes.filter((r: any) => difficulty === "all" || r.difficulty.toLowerCase() === difficulty.toLowerCase());
@@ -3549,7 +3534,7 @@ function RecipesPage() {
             <ChevronRight className="w-3.5 h-3.5" />
             <span className="text-white">Recipes</span>
           </div>
-          <h1 className="text-3xl font-bold text-white" style={{ fontFamily: "'Bodoni Moda', serif" }}>Spiceora Kitchen</h1>
+          <h1 className="text-3xl font-bold text-white" style={{ fontFamily: "'Bodoni Moda', serif" }}>Lepakshi Spices Kitchen</h1>
           <p className="text-white/60 text-sm mt-1">Immersive recipes crafted to highlight premium, single-origin spices</p>
         </div>
       </div>
@@ -3721,7 +3706,7 @@ function RecipeDetailPage({ recipe }: { recipe: any }) {
 
 function FounderPage() {
   const { navigate, cmsSettings } = useApp();
-  useSEO("Our Story & Sourcing", "Learn about Spiceora's founding journey, Rajan Menon's travel logs along the Indian spice route, and our direct trade cooperative partnerships.");
+  useSEO("Our Story & Sourcing", "Learn about Lepakshi Spices's founding journey, Rajan Menon's travel logs along the Indian spice route, and our direct trade cooperative partnerships.");
   const [activeYear, setActiveYear] = useState("2018");
   const timeline = [
     { year: "2018", title: "The Journey Begins", desc: "Our founder, Rajan Menon, sets out along the ancient Indian spice route, documenting family farms from Kerala's pepper coast to the saffron valleys of Kashmir." },
@@ -3744,7 +3729,7 @@ function FounderPage() {
             Our Story & Sourcing Philosophy
           </h1>
           <p className="text-white/80 text-base max-w-2xl mx-auto leading-relaxed">
-            At Spiceora, we believe that premium cooking begins with transparency, respect for heritage, and absolute purity. Meet our team and discover our sourcing travel roots.
+            At Lepakshi Spices, we believe that premium cooking begins with transparency, respect for heritage, and absolute purity. Meet our team and discover our sourcing travel roots.
           </p>
         </div>
       </div>
@@ -3771,7 +3756,7 @@ function FounderPage() {
                 Rajan Menon's Spice Route Travel Log
               </h2>
               <p className="text-sm text-[#7A7064] leading-relaxed mb-6 whitespace-pre-line">
-                {cmsSettings?.about?.founderStory || `"In 2018, I spent six months traveling across India's micro-climates. I met fourth-generation farmers cultivating green cardamom in Cardamom Hills, true Ceylon cinnamon bark-peelers in Sri Lanka, and farmers picking saffron threads under cold Kashmir skies.\n\nI was shocked to discover that while the finest A-grade exports left our shores for Michelin-starred kitchens globally, local households were consumed with dust-heavy, chemical-packed commercial spices. We started Spiceora to restore direct access to single-origin purity."`}
+                {cmsSettings?.about?.founderStory || `"In 2018, I spent six months traveling across India's micro-climates. I met fourth-generation farmers cultivating green cardamom in Cardamom Hills, true Ceylon cinnamon bark-peelers in Sri Lanka, and farmers picking saffron threads under cold Kashmir skies.\n\nI was shocked to discover that while the finest A-grade exports left our shores for Michelin-starred kitchens globally, local households were consumed with dust-heavy, chemical-packed commercial spices. We started Lepakshi Spices to restore direct access to single-origin purity."`}
               </p>
 
               <div className="grid grid-cols-2 gap-4">
@@ -4004,7 +3989,7 @@ function BundleBuilderPage() {
                 <div className="flex justify-between items-start">
                   <div className="flex gap-1.5">
                     <div className="w-3 h-3 rounded-full bg-[#2A4A3C]" />
-                    <span className="text-[9px] font-bold uppercase tracking-widest text-[#1A1714]/40 font-mono">Spiceora Gift Box</span>
+                    <span className="text-[9px] font-bold uppercase tracking-widest text-[#1A1714]/40 font-mono">Lepakshi Spices Gift Box</span>
                   </div>
                   <span className="text-[10px] font-bold text-[#1A1714]/60 font-mono">{size === "trio" ? "3 slots" : "5 slots"}</span>
                 </div>
@@ -4097,12 +4082,12 @@ function WholesalePage() {
 
   useEffect(() => {
     try {
-      const storedContact = localStorage.getItem("spiceora_contact_settings");
+      const storedContact = localStorage.getItem("Lepakshi Spices_contact_settings");
       if (storedContact) {
         setCmsContact(JSON.parse(storedContact));
       }
 
-      const storedProducts = localStorage.getItem("spiceora_pdf_products");
+      const storedProducts = localStorage.getItem("Lepakshi Spices_pdf_products");
       if (storedProducts) {
         const parsed = JSON.parse(storedProducts);
         if (Array.isArray(parsed) && parsed.length > 0) {
@@ -4117,7 +4102,7 @@ function WholesalePage() {
         }
       }
 
-      const storedTemplate = localStorage.getItem("spiceora_pdf_template");
+      const storedTemplate = localStorage.getItem("Lepakshi Spices_pdf_template");
       if (storedTemplate) {
         const parsed = JSON.parse(storedTemplate);
 
@@ -4204,7 +4189,7 @@ function WholesalePage() {
       doc.setFont("Helvetica", "bold");
       doc.setFontSize(26);
       doc.setTextColor(secondary[0], secondary[1], secondary[2]);
-      doc.text("SPICEORA", 20, 24);
+      doc.text("Lepakshi Spices", 20, 24);
 
       doc.setFont("Helvetica", "normal");
       doc.setFontSize(9);
@@ -4316,7 +4301,7 @@ function WholesalePage() {
       doc.setFont("Helvetica", "bold");
       doc.setFontSize(14);
       doc.setTextColor(255, 255, 255);
-      doc.text("SPICEORA B2B PRODUCT CATALOG", 20, 16);
+      doc.text("Lepakshi Spices B2B PRODUCT CATALOG", 20, 16);
 
       doc.setFont("Helvetica", "bold");
       doc.setFontSize(13);
@@ -4392,7 +4377,7 @@ function WholesalePage() {
       doc.setFont("Helvetica", "bold");
       doc.setFontSize(9.5);
       doc.setTextColor(primary[0], primary[1], primary[2]);
-      doc.text("Spiceora Sourcing Desk Support Team", 25, rowY + 6);
+      doc.text("Lepakshi Spices Sourcing Desk Support Team", 25, rowY + 6);
 
       doc.setFont("Helvetica", "normal");
       doc.setFontSize(8.5);
@@ -4406,7 +4391,7 @@ function WholesalePage() {
       doc.text("Page 2 of 2", 100, 280);
 
       const cleanBusinessName = (formData.businessName || "Partner").trim().replace(/\s+/g, "_");
-      const filename = `SPICEORA_Wholesale_Catalog_${cleanBusinessName}.pdf`;
+      const filename = `Lepakshi Spices_Wholesale_Catalog_${cleanBusinessName}.pdf`;
       doc.save(filename);
 
       logAnalyticsEvent("Catalog Download Completed", { filename });
@@ -4478,7 +4463,7 @@ function WholesalePage() {
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_right,rgba(201,146,10,0.15),transparent_60%)]" />
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
           <div className="max-w-3xl">
-            <span className="text-[#C9920A] text-xs font-bold tracking-[0.2em] uppercase block mb-3">Spiceora Global B2B</span>
+            <span className="text-[#C9920A] text-xs font-bold tracking-[0.2em] uppercase block mb-3">Lepakshi Spices Global B2B</span>
             <h1 className="text-4xl lg:text-5xl font-bold mb-6" style={{ fontFamily: "'Bodoni Moda', serif" }}>
               Direct Farm Sourcing & Bulk Spice Supply
             </h1>
@@ -4821,7 +4806,7 @@ export default function App() {
 
   const [cmsSettings, setCmsSettings] = useState(() => {
     try {
-      const stored = localStorage.getItem("spiceora_homepage_cms");
+      const stored = localStorage.getItem("Lepakshi Spices_homepage_cms");
       return stored ? JSON.parse(stored) : {
         hero: { headline: "", subheadline: "", buttonText: "", buttonLink: "", image: "" },
         cta: { headline: "", description: "", buttonText: "", buttonLink: "", image: "" },
@@ -4902,7 +4887,7 @@ export default function App() {
           name: row.review.displayName || `${row.customer?.firstName || ""} ${row.customer?.lastName || ""}`.trim() || "Verified customer",
           text: row.review.comment || "",
           rating: row.review.rating,
-          product: row.product?.name || "Spiceora product",
+          product: row.product?.name || "Lepakshi Spices product",
           role: "Verified customer"
         })));
         if (homepageCms?.value) setCmsSettings(homepageCms.value);
@@ -4913,7 +4898,7 @@ export default function App() {
     fetchApiData();
     campaignsApi.active().then(setCampaigns).catch(() => setCampaigns([]));
 
-    const stored = localStorage.getItem("spiceora_recently_viewed");
+    const stored = localStorage.getItem("Lepakshi Spices_recently_viewed");
     if (stored) {
       try { setRecentlyViewed(JSON.parse(stored)); } catch (e) { }
     }
@@ -4963,7 +4948,7 @@ export default function App() {
     setRecentlyViewed(prev => {
       const filtered = prev.filter(x => x !== id);
       const updated = [id, ...filtered].slice(0, 4);
-      localStorage.setItem("spiceora_recently_viewed", JSON.stringify(updated));
+      localStorage.setItem("Lepakshi Spices_recently_viewed", JSON.stringify(updated));
       return updated;
     });
   }
@@ -5250,7 +5235,7 @@ function AuthModal() {
           <div className="w-7 h-7 rounded-full bg-[#2A4A3C] flex items-center justify-center">
             <Leaf className="w-3.5 h-3.5 text-[#C9920A]" />
           </div>
-          <span className="text-lg font-bold" style={{ fontFamily: "'Bodoni Moda', serif" }}>Spiceora</span>
+          <span className="text-lg font-bold" style={{ fontFamily: "'Bodoni Moda', serif" }}>Lepakshi Spices</span>
         </div>
 
         <h2 className="text-2xl font-bold text-[#1A1714] mb-2" style={{ fontFamily: "'Bodoni Moda', serif" }}>
@@ -5260,7 +5245,7 @@ function AuthModal() {
         </h2>
         <p className="text-xs text-[#7A7064] mb-6 font-medium">
           {mode === 'login' && "Sign in to access your orders, wishlist, and seamless checkout."}
-          {mode === 'signup' && "Join Spiceora to track orders and save your favorite premium spices."}
+          {mode === 'signup' && "Join Lepakshi Spices to track orders and save your favorite premium spices."}
           {mode === 'forgot' && "Enter your email address and we'll send you recovery details."}
         </p>
 
@@ -5412,3 +5397,4 @@ function AuthModal() {
     </div>
   );
 }
+
