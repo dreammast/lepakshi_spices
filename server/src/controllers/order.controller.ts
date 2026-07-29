@@ -14,6 +14,7 @@ export async function createOrderController(req: AuthenticatedRequest, res: Resp
       items: req.body.items,
       shippingAddressId: req.body.shippingAddressId,
       billingAddressId: req.body.billingAddressId,
+      shippingAddress: req.body.shippingAddress,
       couponCode: req.body.couponCode,
       discountAmount: req.body.discountAmount
     });

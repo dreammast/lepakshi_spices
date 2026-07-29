@@ -224,6 +224,7 @@ export const orders = mysqlTable('orders', {
   couponCode: varchar('coupon_code', { length: 64 }),
   customerNote: text('customer_note'),
   shippingAddressId: int('shipping_address_id'),
+  shippingAddress: text('shipping_address'),
   billingAddressId: int('billing_address_id'),
   placedAt: datetime('placed_at').notNull(),
   deliveredAt: datetime('delivered_at'),

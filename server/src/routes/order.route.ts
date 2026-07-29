@@ -19,6 +19,16 @@ const createOrderSchema = z.object({
   })).min(1),
   shippingAddressId: z.number().int().optional(),
   billingAddressId: z.number().int().optional(),
+  shippingAddress: z.object({
+    name: z.string().optional(),
+    phone: z.string().optional(),
+    line1: z.string(),
+    line2: z.string().optional(),
+    city: z.string(),
+    state: z.string(),
+    postalCode: z.string(),
+    country: z.string().optional()
+  }).optional(),
   couponCode: z.string().optional(),
   discountAmount: z.union([z.string(), z.number()]).optional()
 });

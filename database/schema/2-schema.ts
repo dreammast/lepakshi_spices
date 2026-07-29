@@ -219,6 +219,7 @@ export const orders = mysqlTable('orders', {
   couponCode: varchar('coupon_code', { length: 32 }),
   discountAmount: decimal('discount_amount', { precision: 12, scale: 2 }).notNull().default('0'),
   shippingAddressId: int('shipping_address_id'),
+  shippingAddress: text('shipping_address'),
   billingAddressId: int('billing_address_id'),
   placedAt: datetime('placed_at').notNull(),
   updatedAt: datetime('updated_at').notNull()
