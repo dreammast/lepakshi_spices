@@ -150,6 +150,8 @@ export const addresses = mysqlTable('addresses', {
   id: serial('id').primaryKey(),
   customerId: int('customer_id').notNull(),
   label: varchar('label', { length: 80 }).notNull(),
+  fullName: varchar('full_name', { length: 128 }),
+  phone: varchar('phone', { length: 32 }),
   line1: varchar('line_1', { length: 255 }).notNull(),
   line2: varchar('line_2', { length: 255 }),
   city: varchar('city', { length: 128 }).notNull(),

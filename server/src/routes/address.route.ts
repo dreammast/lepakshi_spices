@@ -15,6 +15,8 @@ router.use(authenticate);
 
 const addressSchema = z.object({
   label: z.string().min(1),
+  fullName: z.string().optional(),
+  phone: z.string().optional(),
   line1: z.string().min(1),
   line2: z.string().optional(),
   city: z.string().min(1),

@@ -2643,7 +2643,18 @@ function CheckoutPage() {
           throw new Error(`Some items had limited stock. Quantities have been adjusted. Please review and try again.`);
         }
         const orderItems = items.map(({ productVariantId, quantity, price }) => ({ productVariantId, quantity, price }));
-        const order = await ordersApi.create({ items: orderItems, couponCode: couponCode || undefined, discountAmount: discount });
+        const savedAddr = await addressesApi.create({
+          label: addr.name,
+          fullName: addr.name,
+          phone: addr.phone,
+          line1: addr.line1,
+          city: addr.city,
+          state: addr.state,
+          postalCode: addr.pin,
+          country: "India"
+        }).catch(() => null);
+        const shippingAddressId = savedAddr?.id;
+        const order = await ordersApi.create({ items: orderItems, shippingAddressId, couponCode: couponCode || undefined, discountAmount: discount });
         setPlacedOrder(order);
         await cartApi.clear();
         clearCart();

@@ -1664,7 +1664,8 @@ function OrdersPage() {
         total: Number(order.totalAmount ?? order.total ?? 0),
         date: order.placedAt ? new Date(order.placedAt).toLocaleDateString() : "",
         location: "",
-        products: (order.items || []).map((item: any) => item.product?.name || item.variant?.label || "Product")
+        products: (order.items || []).map((item: any) => item.product?.name || item.variant?.label || "Product"),
+        shippingAddress: order.shippingAddress || null
       })));
     } catch (error: any) { toast.error(error.message || "Unable to load orders"); }
     finally { setLoading(false); }
@@ -1876,15 +1877,21 @@ function OrdersPage() {
                     <p className="text-[10px] font-bold text-[#8B7355] uppercase tracking-widest mb-2">Customer Profile</p>
                     <p className="text-sm font-semibold text-[#2C2416]">{drawerTarget.customer}</p>
                     {drawerTarget.customerEmail && <p className="text-xs text-[#8B7355]">{drawerTarget.customerEmail}</p>}
-                    {drawerTarget.customerPhone && <p className="text-xs text-[#8B7355]">Phone: {drawerTarget.customerPhone}</p>}
-                    <p className="text-xs text-[#8B7355] mt-1.5 pt-1.5 border-t border-[#2C2416]/6">
-                      <span className="font-semibold text-[#2C2416]">Shipping Address:</span>{" "}
-                      {drawerTarget.shippingAddress ? (
-                        `${drawerTarget.shippingAddress.line1}${drawerTarget.shippingAddress.line2 ? ', ' + drawerTarget.shippingAddress.line2 : ''}, ${drawerTarget.shippingAddress.city}, ${drawerTarget.shippingAddress.state} - ${drawerTarget.shippingAddress.postalCode}`
-                      ) : (
-                        drawerTarget.location || "Not specified"
-                      )}
+                    <p className="text-xs text-[#8B7355]">
+                      Phone: {drawerTarget.shippingAddress?.phone || drawerTarget.customerPhone || "Not specified"}
                     </p>
+                    <div className="mt-1.5 pt-1.5 border-t border-[#2C2416]/6 text-xs text-[#8B7355]">
+                      <span className="font-semibold text-[#2C2416]">Shipping Address:</span>
+                      {drawerTarget.shippingAddress ? (
+                        <div className="mt-1 leading-relaxed">
+                          <p>{drawerTarget.shippingAddress.fullName ? `${drawerTarget.shippingAddress.fullName}, ` : ""}{drawerTarget.shippingAddress.line1}{drawerTarget.shippingAddress.line2 ? `, ${drawerTarget.shippingAddress.line2}` : ""}</p>
+                          <p>{drawerTarget.shippingAddress.city}, {drawerTarget.shippingAddress.state}</p>
+                          <p>{drawerTarget.shippingAddress.postalCode}</p>
+                        </div>
+                      ) : (
+                        <span>{" "}{drawerTarget.location || "Not specified"}</span>
+                      )}
+                    </div>
 
                   </div>
 
