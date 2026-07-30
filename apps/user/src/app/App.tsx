@@ -1645,18 +1645,22 @@ function ProductPage({ product }: { product: any }) {
  </div>
 
  <div className="mb-4">
- {isProductOOS ? (
- <div className="flex items-center gap-2 text-red-600">
- <AlertCircle className="w-4 h-4" />
- <span className="text-sm font-semibold">Out of Stock for this size</span>
- </div>
- ) : selectedVariantStock <= selectedThreshold ? (
- <div className="flex items-center gap-2 text-amber-600">
- <AlertTriangle className="w-4 h-4" />
- <span className="text-sm font-semibold">Only {selectedVariantStock} {selectedVariantStock === 1 ? 'item' : 'items'} left in stock!</span>
- </div>
+ {weightTab === "retail" ? (
+   isProductOOS ? (
+   <div className="flex items-center gap-2 text-red-600">
+   <AlertCircle className="w-4 h-4" />
+   <span className="text-sm font-semibold">Out of Stock for this size</span>
+   </div>
+   ) : selectedVariantStock <= selectedThreshold ? (
+   <div className="flex items-center gap-2 text-amber-600">
+   <AlertTriangle className="w-4 h-4" />
+   <span className="text-sm font-semibold">Only {selectedVariantStock} {selectedVariantStock === 1 ? 'item' : 'items'} left in stock!</span>
+   </div>
+   ) : (
+   <span className="text-sm text-[#7A7064]">{selectedVariantStock} in stock</span>
+   )
  ) : (
- <span className="text-sm text-[#7A7064]">{selectedVariantStock} in stock</span>
+   <span className="text-sm text-[#7A7064]">Wholesale quote available for this pack size.</span>
  )}
  </div>
 
