@@ -1,9 +1,10 @@
 import { Router } from 'express';
 import { asyncHandler } from '../middleware/async-handler.js';
-import { listWholesaleInquiriesController, createWholesaleInquiryController, updateInquiryStatusController, deleteWholesaleInquiryController, listQuotationsController, createQuotationController, updateQuotationController, deleteQuotationController } from '../controllers/wholesale.controller.js';
+import { listWholesaleInquiriesController, createWholesaleInquiryController, updateInquiryStatusController, deleteWholesaleInquiryController, listQuotationsController, createQuotationController, updateQuotationController, deleteQuotationController, listWholesaleCatalogueController } from '../controllers/wholesale.controller.js';
 
 const publicRouter = Router();
 publicRouter.post('/', asyncHandler(createWholesaleInquiryController));
+publicRouter.get('/catalogue', asyncHandler(listWholesaleCatalogueController));
 
 const adminRouter = Router();
 // The current admin frontend does not yet establish an admin JWT session.

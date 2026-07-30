@@ -1,6 +1,7 @@
 import { findAllWholesaleInquiries, findWholesaleInquiryById, createWholesaleInquiryRecord, updateWholesaleInquiryStatus, findAllQuotations, findQuotationById, createQuotationRecord, updateQuotationRecord, deleteWholesaleInquiry, deleteQuotation } from '../repositories/wholesale.repository.js';
 import { AppError } from '../utils/app-error.js';
 import { sendEmailSafely, wholesaleInquiryEmailTemplate } from '../mail/send-email.js';
+import { listProducts } from './product.service.js';
 
 export async function listWholesaleInquiries() { return findAllWholesaleInquiries(); }
 export async function getWholesaleInquiry(id: number) {
@@ -39,3 +40,6 @@ export async function createQuotation(data: Parameters<typeof createQuotationRec
 export async function updateQuotation(id: number, data: Record<string, any>) { return updateQuotationRecord(id, data); }
 export async function removeWholesaleInquiry(id: number) { return deleteWholesaleInquiry(id); }
 export async function removeQuotation(id: number) { return deleteQuotation(id); }
+export async function listWholesaleCatalogueData() {
+  return listProducts();
+}
