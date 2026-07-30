@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { asyncHandler } from '../middleware/async-handler.js';
 import { validateBody } from '../middleware/validate.middleware.js';
 import { z } from 'zod';
-import { listAdminOrdersController, updateOrderStatusController } from '../controllers/order.controller.js';
+import { listAdminOrdersController, updateOrderStatusController, verifyOrderPaymentController } from '../controllers/order.controller.js';
 
 const router = Router();
 
@@ -14,5 +14,6 @@ const updateStatusSchema = z.object({
 // endpoints available to that UI until the admin authentication screen is added.
 router.get('/', asyncHandler(listAdminOrdersController));
 router.put('/:id/status', validateBody(updateStatusSchema), asyncHandler(updateOrderStatusController));
+router.put('/:id/verify-payment', asyncHandler(verifyOrderPaymentController));
 
 export default router;

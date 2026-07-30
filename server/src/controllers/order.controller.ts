@@ -1,5 +1,5 @@
 import type { NextFunction, Response } from 'express';
-import { createOrder, getOrder, listAdminOrders, listCustomerOrders, setOrderStatus } from '../services/order.service.js';
+import { createOrder, getOrder, listAdminOrders, listCustomerOrders, setOrderStatus, verifyOrderPayment } from '../services/order.service.js';
 import { sendCreated, sendSuccess } from '../utils/response.util.js';
 import type { AuthenticatedRequest } from '../middleware/auth.middleware.js';
 import { AppError } from '../utils/app-error.js';
@@ -64,6 +64,16 @@ export async function getOrderController(req: AuthenticatedRequest, res: Respons
       throw new AppError(403, 'Forbidden');
     }
     sendSuccess(res, order);
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function verifyOrderPaymentController(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+  try {
+    const adminName = req.body.adminName || 'Admin';
+    const order = await verifyOrderPayment(Number(req.params.id), adminName);
+    sendSuccess(res, order, 'Order payment verified successfully');
   } catch (error) {
     next(error);
   }

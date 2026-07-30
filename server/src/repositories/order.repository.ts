@@ -297,3 +297,17 @@ export async function updateOrderStatus(id: number, status: typeof orders.$infer
   await db.update(orders).set({ status, updatedAt: new Date() }).where(eq(orders.id, id));
   return findOrderById(id);
 }
+
+export async function verifyOrderPaymentInDb(id: number, adminName: string) {
+  await db.update(orders)
+    .set({
+      paymentStatus: 'verified',
+      status: 'processing',
+      paymentVerifiedAt: new Date(),
+      paymentVerifiedBy: adminName,
+      updatedAt: new Date()
+    })
+    .where(eq(orders.id, id));
+  return findOrderById(id);
+}
+

@@ -4,13 +4,14 @@ import {
   findOrderById,
   findOrdersByCustomerId,
   updateOrderStatus,
+  verifyOrderPaymentInDb,
   type CreateOrderInput
 } from '../repositories/order.repository.js';
 import { AppError } from '../utils/app-error.js';
 import { orders } from '../db/schema.js';
 import { env } from '../config/env.js';
 import { validateCoupon } from './coupon.service.js';
-import { orderConfirmationEmailTemplate, orderStatusEmailTemplate, receiptEmailTemplate, sendEmailSafely } from '../mail/send-email.js';
+import { orderConfirmationEmailTemplate, orderStatusEmailTemplate, receiptEmailTemplate, paymentVerifiedEmailTemplate, sendEmailSafely } from '../mail/send-email.js';
 
 function canEmailOrder(order: Awaited<ReturnType<typeof findOrderById>>): order is NonNullable<Awaited<ReturnType<typeof findOrderById>>> & { customerEmail: string } {
   return Boolean(order?.customerEmail);
@@ -102,6 +103,29 @@ export async function setOrderStatus(id: number, status: typeof orders.$inferIns
       to: updated.customerEmail,
       subject: `Order ${notificationStatus}: ${updated.orderNumber}`,
       html: orderStatusEmailTemplate({ ...updated, trackingUrl: orderUrl }),
+    });
+  }
+  return updated;
+}
+
+export async function verifyOrderPayment(id: number, adminName: string) {
+  const order = await findOrderById(id);
+  if (!order) {
+    throw new AppError(404, 'Order not found');
+  }
+  if (order.paymentStatus === 'verified') {
+    return order;
+  }
+  const updated = await verifyOrderPaymentInDb(id, adminName);
+  if (!updated) {
+    throw new AppError(404, 'Order not found');
+  }
+  if (canEmailOrder(updated)) {
+    const orderUrl = `${env.FRONTEND_URL.replace(/\/$/, '')}/orders/${updated.id}`;
+    await sendEmailSafely({
+      to: updated.customerEmail,
+      subject: `Payment Verified for Order ${updated.orderNumber}`,
+      html: paymentVerifiedEmailTemplate({ ...updated, trackingUrl: orderUrl }),
     });
   }
   return updated;

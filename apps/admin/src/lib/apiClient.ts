@@ -172,7 +172,6 @@ export const customersApi = {
   updateProfile: (id: number, body: unknown) => api.put<any>(`/admin/customers/${id}/profile`, body)
 };
 
-
 export const auditApi = {
   list: (filters?: Record<string, string>) => {
     const params = new URLSearchParams(filters).toString();
@@ -183,7 +182,9 @@ export const auditApi = {
 export const ordersApi = {
   adminList: () => api.get<any[]>('/admin/orders'),
   updateStatus: (id: number, status: string) =>
-    api.put<any>(`/admin/orders/${id}/status`, { status })
+    api.put<any>(`/admin/orders/${id}/status`, { status }),
+  verifyPayment: (id: number, adminName = 'Admin') =>
+    api.put<any>(`/admin/orders/${id}/verify-payment`, { adminName })
 };
 
 export const dashboardApi = {

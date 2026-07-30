@@ -3010,8 +3010,8 @@ function ProfilePage() {
  <p className="text-xs text-[#7A7064]"><span className="font-semibold text-[#1A1714]">Payment Method:</span> {trackingOrder.paymentMethod?.toLowerCase() === 'upi' ? 'UPI Payment (Scan & Pay)' : trackingOrder.paymentMethod?.toLowerCase() === 'cod' ? 'Cash on Delivery' : trackingOrder.paymentMethod}</p>
  <p className="text-xs text-[#7A7064]"><span className="font-semibold text-[#1A1714]">Payment Status:</span> {
  trackingOrder.paymentMethod?.toLowerCase() === 'upi' && trackingOrder.paymentStatus === 'pending'
- ? 'Pending Verification'
- : trackingOrder.paymentStatus === 'paid' ? 'Paid' : trackingOrder.paymentStatus === 'pending' ? 'Pending' : trackingOrder.paymentStatus
+  ? 'Pending Verification'
+  : trackingOrder.paymentStatus === 'verified' ? 'Verified' : trackingOrder.paymentStatus === 'paid' ? 'Paid' : trackingOrder.paymentStatus === 'pending' ? 'Pending' : trackingOrder.paymentStatus
  }</p>
  {trackingOrder.customerNote && trackingOrder.customerNote.includes('UPI_UTR:') && (
  <p className="text-xs text-[#7A7064]"><span className="font-semibold text-[#1A1714]">UTR / Transaction ID:</span> <span className="font-mono text-[#2A4A3C] bg-[#2A4A3C]/5 px-1.5 py-0.5 rounded">{

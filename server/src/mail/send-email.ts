@@ -60,6 +60,8 @@ type OrderEmailData = {
   status?: string;
   trackingUrl?: string | null;
   invoiceUrl?: string | null;
+  paymentMethod?: string | null;
+  shippingAddress?: any;
   items: Array<{
     quantity: number;
     price: string;
@@ -67,6 +69,26 @@ type OrderEmailData = {
     variant?: { label?: string | null } | null;
   }>;
 };
+
+function formatAddress(addr: any) {
+  if (!addr) return 'No shipping address provided';
+  if (typeof addr === 'string') {
+    try {
+      addr = JSON.parse(addr);
+    } catch {
+      return escapeHtml(addr);
+    }
+  }
+  const lines = [
+    addr.name,
+    addr.phone ? `Phone: ${addr.phone}` : null,
+    addr.line1,
+    addr.line2,
+    [addr.city, addr.state, addr.postalCode].filter(Boolean).join(', '),
+    addr.country
+  ].filter(Boolean);
+  return lines.map(line => escapeHtml(line)).join('<br>');
+}
 
 function orderItemsHtml(order: OrderEmailData) {
   return `<table style="width:100%;border-collapse:collapse;font-size:14px"><tbody>${order.items
@@ -78,10 +100,77 @@ function orderItemsHtml(order: OrderEmailData) {
 }
 
 export function orderConfirmationEmailTemplate(order: OrderEmailData) {
-  return emailLayout(
-    'Order confirmed',
-    `<p>Hi ${escapeHtml(order.customerName)},</p><p>Thank you for your order <strong>${escapeHtml(order.orderNumber)}</strong>. We'll let you know when it ships.</p>${orderItemsHtml(order)}<p style="font-size:18px;font-weight:bold;text-align:right">Total: ${formatMoney(order.total, order.currency || 'INR')}</p>${order.trackingUrl ? `<p style="text-align:right"><a href="${escapeHtml(order.trackingUrl)}" style="color:#2A4A3C;font-weight:600">Track your order</a></p>` : ''}`,
-  );
+  const pm = String(order.paymentMethod || '').toLowerCase();
+  const isUpi = pm === 'upi';
+  const isCod = pm === 'cod';
+
+  let paymentMethodLabel = 'UPI Payment';
+  if (isCod) paymentMethodLabel = 'Cash on Delivery';
+
+  const orderStatus = String(order.status || 'pending').toLowerCase();
+  let statusLabel = 'Pending';
+  if (isUpi && orderStatus === 'pending') {
+    statusLabel = 'Pending Verification';
+  } else {
+    statusLabel = orderStatus.charAt(0).toUpperCase() + orderStatus.slice(1);
+  }
+
+  let paymentAlertHtml = '';
+  if (isUpi) {
+    paymentAlertHtml = `
+      <div style="background-color:#FFF9E6; border:1px solid #FFEBAA; border-radius:8px; padding:16px; margin:20px 0; color:#856404; font-size:14px; text-align:left;">
+        <strong>Payment Status: Pending Verification</strong><br>
+        Your payment details have been received and are pending verification by our team. Please note that your order will be processed only after the payment has been successfully verified.
+      </div>
+    `;
+  } else if (isCod) {
+    paymentAlertHtml = `
+      <div style="background-color:#EBF5E6; border:1px solid #D2E7C4; border-radius:8px; padding:16px; margin:20px 0; color:#2D5016; font-size:14px; text-align:left;">
+        <strong>Amount Payable on Delivery: ${formatMoney(order.total, order.currency || 'INR')}</strong><br>
+        Please ensure the payment is made directly to the delivery agent upon successful delivery.
+      </div>
+    `;
+  }
+
+  const formattedAddress = formatAddress(order.shippingAddress);
+
+  const htmlContent = `
+    <p>Hi ${escapeHtml(order.customerName)},</p>
+    <p>Thank you for your order with Lepakshi Spices! Below are the details of your order:</p>
+    
+    ${paymentAlertHtml}
+
+    <div style="background-color:#FAF8F3; border-radius:12px; padding:20px; margin:20px 0; border:1px solid rgba(26,23,20,0.08); text-align:left;">
+      <table style="width:100%; border-collapse:collapse; font-size:13px; color:#3d3832;">
+        <tr>
+          <td style="padding:6px 0; font-weight:bold; width:130px; vertical-align:top;">Order ID:</td>
+          <td style="padding:6px 0; font-family:monospace; vertical-align:top;">${escapeHtml(order.orderNumber)}</td>
+        </tr>
+        <tr>
+          <td style="padding:6px 0; font-weight:bold; vertical-align:top;">Order Status:</td>
+          <td style="padding:6px 0; vertical-align:top;">${escapeHtml(statusLabel)}</td>
+        </tr>
+        <tr>
+          <td style="padding:6px 0; font-weight:bold; vertical-align:top;">Payment Method:</td>
+          <td style="padding:6px 0; vertical-align:top;">${escapeHtml(paymentMethodLabel)}</td>
+        </tr>
+        <tr>
+          <td style="padding:6px 0; font-weight:bold; vertical-align:top;">Shipping Address:</td>
+          <td style="padding:6px 0; line-height:1.4; vertical-align:top;">${formattedAddress}</td>
+        </tr>
+      </table>
+    </div>
+
+    <h3 style="border-bottom:2px solid #2A4A3C; padding-bottom:8px; color:#2A4A3C; font-family:Georgia,serif; font-size:16px; text-align:left; margin-top:28px;">Order Summary</h3>
+    ${orderItemsHtml(order)}
+    
+    <div style="margin-top:20px; text-align:right;">
+      <p style="font-size:18px; font-weight:bold; margin:0 0 16px;">Total: ${formatMoney(order.total, order.currency || 'INR')}</p>
+      ${order.trackingUrl ? `<p style="margin:0;"><a href="${escapeHtml(order.trackingUrl)}" style="display:inline-block; background-color:#2A4A3C; color:#ffffff; padding:10px 20px; border-radius:8px; text-decoration:none; font-weight:600; font-size:13px;">Track your order</a></p>` : ''}
+    </div>
+  `;
+
+  return emailLayout('Order confirmed', htmlContent);
 }
 
 export function receiptEmailTemplate(order: OrderEmailData) {
@@ -231,3 +320,48 @@ export function passwordResetSuccessTemplate(name: string) {
 </body>
 </html>`;
 }
+
+export function paymentVerifiedEmailTemplate(order: OrderEmailData) {
+  const formattedAddress = formatAddress(order.shippingAddress);
+  const htmlContent = `
+    <p>Hi ${escapeHtml(order.customerName)},</p>
+    <p>We are pleased to inform you that your UPI payment for order <strong>${escapeHtml(order.orderNumber)}</strong> has been successfully verified! Your order is now being processed.</p>
+    
+    <div style="background-color:#EBF5E6; border:1px solid #D2E7C4; border-radius:8px; padding:16px; margin:20px 0; color:#2D5016; font-size:14px; text-align:left;">
+      <strong>Payment Status: Verified</strong><br>
+      Thank you for making the payment. Our team has confirmed your transaction ID/UTR.
+    </div>
+
+    <div style="background-color:#FAF8F3; border-radius:12px; padding:20px; margin:20px 0; border:1px solid rgba(26,23,20,0.08); text-align:left;">
+      <table style="width:100%; border-collapse:collapse; font-size:13px; color:#3d3832;">
+        <tr>
+          <td style="padding:6px 0; font-weight:bold; width:130px; vertical-align:top;">Order ID:</td>
+          <td style="padding:6px 0; font-family:monospace; vertical-align:top;">${escapeHtml(order.orderNumber)}</td>
+        </tr>
+        <tr>
+          <td style="padding:6px 0; font-weight:bold; vertical-align:top;">Order Status:</td>
+          <td style="padding:6px 0; vertical-align:top;">Processing</td>
+        </tr>
+        <tr>
+          <td style="padding:6px 0; font-weight:bold; vertical-align:top;">Payment Method:</td>
+          <td style="padding:6px 0; vertical-align:top;">UPI Payment</td>
+        </tr>
+        <tr>
+          <td style="padding:6px 0; font-weight:bold; vertical-align:top;">Shipping Address:</td>
+          <td style="padding:6px 0; line-height:1.4; vertical-align:top;">${formattedAddress}</td>
+        </tr>
+      </table>
+    </div>
+
+    <h3 style="border-bottom:2px solid #2A4A3C; padding-bottom:8px; color:#2A4A3C; font-family:Georgia,serif; font-size:16px; text-align:left; margin-top:28px;">Order Summary</h3>
+    ${orderItemsHtml(order)}
+    
+    <div style="margin-top:20px; text-align:right;">
+      <p style="font-size:18px; font-weight:bold; margin:0 0 16px;">Total: ${formatMoney(order.total, order.currency || 'INR')}</p>
+      ${order.trackingUrl ? `<p style="margin:0;"><a href="${escapeHtml(order.trackingUrl)}" style="display:inline-block; background-color:#2A4A3C; color:#ffffff; padding:10px 20px; border-radius:8px; text-decoration:none; font-weight:600; font-size:13px;">Track your order</a></p>` : ''}
+    </div>
+  `;
+
+  return emailLayout('Payment verified successfully', htmlContent);
+}
+
