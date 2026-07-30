@@ -86,7 +86,7 @@ type OrderShippingAddress = {
  country?: string;
 };
 type OrderItemDetail = { productName: string; variantLabel: string; quantity: number; price: number };
-type Order = { id: string; customer: string; email: string; customerEmail: string; customerPhone: string; items: number; itemDetails: OrderItemDetail[]; subtotal: number; discount: number; tax: number; shipping: number; total: number; status: string; date: string; shippingAddress: OrderShippingAddress | null; paymentMethod: string; paymentStatus: string };
+type Order = { id: string; customer: string; email: string; customerEmail: string; customerPhone: string; items: number; itemDetails: OrderItemDetail[]; subtotal: number; discount: number; tax: number; shipping: number; total: number; status: string; date: string; shippingAddress: OrderShippingAddress | null; paymentMethod: string; paymentStatus: string; upiTransactionId?: string; payerName?: string; };
 const INIT_ORDERS: Order[] = [];
 
 const NOTIFS: any[] = [];
@@ -1716,6 +1716,14 @@ function OrdersPage() {
  shippingAddress: normalizeAdminOrderAddress(order.shippingAddress),
  paymentMethod: order.paymentMethod || "",
  paymentStatus: order.paymentStatus || "pending",
+ upiTransactionId: (() => {
+  const m = (order.customerNote || "").match(/UPI_UTR:([^|]+)/);
+  return m ? m[1].trim() : undefined;
+  })(),
+  payerName: (() => {
+  const m = (order.customerNote || "").match(/PAYER:(.+)/);
+  return m ? m[1].trim() : undefined;
+  })(),
  })));
  } catch (error: any) {
  toast.error(error.message || "Unable to load orders");
@@ -1862,10 +1870,10 @@ function OrdersPage() {
  <td className="px-5 py-4">{o.items} items</td>
  <td className="px-5 py-4 font-semibold text-[#2C2416]">₹{o.total}</td>
  <td className="px-5 py-4">
- <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-medium uppercase ${o.status === "delivered" ? "bg-green-50 text-green-700" : o.status === "pending" ? "bg-amber-50 text-amber-700" : "bg-blue-50 text-blue-700"}`}>
- {o.status}
- </span>
- </td>
+  <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-medium uppercase ${o.status === "delivered" ? "bg-green-50 text-green-700" : (o.status === "pending" || (o.paymentMethod?.toLowerCase() === 'upi' && o.paymentStatus === 'pending')) ? "bg-amber-50 text-amber-700" : "bg-blue-50 text-blue-700"}`}>
+  {o.paymentMethod?.toLowerCase() === 'upi' && o.paymentStatus === 'pending' && o.status === 'pending' ? 'Pending Verification' : o.status}
+  </span>
+  </td>
  <td className="px-5 py-4">
  <button className="p-1.5 text-[#8B7355] hover:bg-[#2C2416]/10 rounded-lg transition-colors"><Eye className="w-4 h-4" /></button>
  </td>
@@ -1935,17 +1943,37 @@ function OrdersPage() {
  {drawerTarget.customerPhone && <p className="text-xs text-[#8B7355]">{drawerTarget.customerPhone}</p>}
  <div className="mt-2 space-y-0.5">
  {(() => {
- const pm = drawerTarget.paymentMethod?.toLowerCase();
- const pmLabel = pm === 'cod' ? 'Cash on Delivery' : pm === 'card' ? 'Credit/Debit Card' : pm === 'upi' ? 'UPI' : pm === 'netbanking' ? 'Net Banking' : pm === 'wallet' ? 'Wallet' : pm || '';
- const ps = drawerTarget.paymentStatus?.toLowerCase();
- const psColors: Record<string,string> = { paid:'text-[#2D5016]', pending:'text-[#A87800]', failed:'text-[#C94040]' };
- return (
- <>
- {pmLabel && <p className="text-xs text-[#8B7355]"><span className="font-semibold text-[#2C2416]">Payment Method:</span> {pmLabel}</p>}
- {ps && <p className={`text-xs font-semibold ${psColors[ps] || 'text-[#8B7355]'}`}>{ps === 'paid' ? 'Paid' : ps === 'pending' ? 'Pending' : ps === 'failed' ? 'Failed' : ps}</p>}
- </>
- );
- })()}
+  const pm = drawerTarget.paymentMethod?.toLowerCase();
+  const pmLabel = pm === 'cod' ? 'Cash on Delivery' : pm === 'card' ? 'Credit/Debit Card' : pm === 'upi' ? 'UPI' : pm === 'netbanking' ? 'Net Banking' : pm === 'wallet' ? 'Wallet' : pm || '';
+  const ps = drawerTarget.paymentStatus?.toLowerCase();
+  const psColors: Record<string,string> = { paid:'text-[#2D5016]', pending:'text-[#A87800]', failed:'text-[#C94040]' };
+  return (
+  <>
+  {pmLabel && <p className="text-xs text-[#8B7355]"><span className="font-semibold text-[#2C2416]">Payment Method:</span> {pmLabel}</p>}
+  {ps && <p className={`text-xs font-semibold ${psColors[ps] || 'text-[#8B7355]'}`}>{ps === 'paid' ? 'Paid' : ps === 'pending' ? 'Pending' : ps === 'failed' ? 'Failed' : ps}</p>}
+  {/* UPI payment details */}
+  {pm === 'upi' ? (
+  <div className="mt-2 pt-2 border-t border-[#2C2416]/6 space-y-1">
+  <p className="text-[10px] font-bold text-[#8B7355] uppercase tracking-widest">UPI Payment Details</p>
+  <p className="text-xs text-[#8B7355]">
+  <span className="font-semibold text-[#2C2416]">UTR / Transaction ID:</span>{" "}
+  {drawerTarget.upiTransactionId
+  ? <span className="font-mono text-[#2D5016] bg-[#EBF5E6] px-1.5 py-0.5 rounded">{drawerTarget.upiTransactionId}</span>
+  : <span className="text-[#C94040]">Not recorded</span>}
+  </p>
+  <p className="text-xs text-[#8B7355]">
+  <span className="font-semibold text-[#2C2416]">Payer Name:</span>{" "}
+  {drawerTarget.payerName || <span className="text-[#C94040]">Not recorded</span>}
+  </p>
+  </div>
+  ) : pm === 'cod' ? (
+  <div className="mt-2 pt-2 border-t border-[#2C2416]/6">
+  <p className="text-xs text-[#8B7355]"><span className="font-semibold text-[#2C2416]">UTR / Transaction ID:</span> N/A (Cash on Delivery)</p>
+  </div>
+  ) : null}
+  </>
+  );
+  })()}
  </div>
  {drawerTarget.shippingAddress && (
  <div className="mt-2 pt-2 border-t border-[#2C2416]/6 text-xs text-[#8B7355] space-y-0.5">

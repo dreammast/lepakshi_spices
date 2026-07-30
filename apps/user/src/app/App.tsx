@@ -1203,10 +1203,15 @@ function Footer() {
  </button>
  <p className="text-white/50 text-sm leading-relaxed mb-5 max-w-xs">Premium single-origin spices from farm to jar. Traceable, organic, crafted for culinary excellence.</p>
  <div className="flex gap-2">
- {[Instagram, Facebook, Twitter, Youtube].map((Icon, i) => (
- <button key={i} className="w-8 h-8 rounded-full bg-white/8 flex items-center justify-center hover:bg-[#C9920A]/25 transition-colors">
+ {[
+ { Icon: Instagram, href: "https://www.instagram.com/lepakshi_spices?igsh=ZHM0dHIyZnpxZ2Rn" },
+ { Icon: Facebook, href: "https://www.facebook.com" },
+ { Icon: Twitter, href: "https://www.twitter.com" },
+ { Icon: Youtube, href: "https://www.youtube.com" },
+ ].map(({ Icon, href }, i) => (
+ <a key={i} href={href} target="_blank" rel="noopener noreferrer" className="w-8 h-8 rounded-full bg-white/8 flex items-center justify-center hover:bg-[#C9920A]/25 transition-colors">
  <Icon className="w-3.5 h-3.5 text-white/60" />
- </button>
+ </a>
  ))}
  </div>
  </div>
@@ -1228,10 +1233,10 @@ function Footer() {
  ))}
  </div>
  <div className="border-t border-white/10 pt-6 flex flex-col sm:flex-row items-center justify-between gap-3">
- <p className="text-xs text-white/35">Â© 2026 Lepakshi Spices. All rights reserved.</p>
+ <p className="text-xs text-white/35">© 2026 Lepakshi Spices. All rights reserved.</p>
  <div className="flex items-center gap-3">
  <span className="text-xs text-white/35">Secure payments:</span>
- {["Visa", "Mastercard", "UPI", "Razorpay"].map(p => (
+ {["UPI", "COD"].map(p => (
  <span key={p} className="text-xs text-white/45 bg-white/8 px-2 py-1 rounded font-medium">{p}</span>
  ))}
  </div>
@@ -1266,7 +1271,7 @@ function RecentlyViewedHomepage() {
 }
 
 function HomePage() {
- useSEO("Single-Origin Premium Spices", "Discover organic, farm-direct single-origin A-grade premium spices slow ground under 35Â°C for maximum flavor and aroma.");
+ useSEO("Single-Origin Premium Spices", "Discover organic, farm-direct single-origin A-grade premium spices slow ground under 35°C for maximum flavor and aroma.");
  return (
  <>
  <Hero />
@@ -2176,19 +2181,17 @@ function CheckoutPage() {
  const { navigate, cart, logAnalyticsEvent, discount, couponCode, clearCart, refreshOrders, setOrders } = useApp();
  const [step, setStep] = useState(0);
  const [delivery, setDelivery] = useState("standard");
- const [payment, setPayment] = useState("card");
+ const [payment, setPayment] = useState("upi");
  const [loading, setLoading] = useState(false);
- const [cardNum, setCardNum] = useState("");
- const [cardExpiry, setCardExpiry] = useState("");
- const [cardCvv, setCardCvv] = useState("");
- const [cardName, setCardName] = useState("");
- const [upiId, setUpiId] = useState("");
+ const [upiTransactionId, setUpiTransactionId] = useState("");
+ const [payerName, setPayerName] = useState("");
  const [addr, setAddr] = useState({ name: "", phone: "", line1: "", city: "", state: "", pin: "" });
  const [savedAddressId, setSavedAddressId] = useState<number | undefined>();
  const [locatingCheckout, setLocatingCheckout] = useState(false);
  const [errors, setErrors] = useState<any>({});
  const [placedOrder, setPlacedOrder] = useState<any>(null);
  const [orderError, setOrderError] = useState("");
+ const COD_MINIMUM = 1000;
 
  useEffect(() => {
  addressesApi.list().then((list: any[]) => {
@@ -2250,32 +2253,23 @@ function CheckoutPage() {
  } else if (step === 1) {
  setStep(2);
  } else if (step === 2) {
- if (payment === "card") {
+ if (payment === "upi") {
  const newErrors: any = {};
- if (!cardNum.trim() || cardNum.replace(/\s/g, "").length !== 16) {
- newErrors.cardNum = "Enter a valid 16-digit card number.";
+ if (!upiTransactionId.trim()) {
+ newErrors.upiTransactionId = "Transaction ID (UTR) is required after making the UPI payment.";
+ } else if (!/^[A-Za-z0-9]{10,22}$/.test(upiTransactionId.trim())) {
+ newErrors.upiTransactionId = "Enter a valid 10-22 character UTR/Transaction ID.";
  }
- if (!cardExpiry.trim() || !/^\d{2}\s*\/\s*\d{2}$/.test(cardExpiry)) {
- newErrors.expiry = "Use MM/YY format.";
+ if (!payerName.trim()) {
+ newErrors.payerName = "Payer name is required.";
  }
- if (!cardCvv.trim() || cardCvv.length !== 3) {
- newErrors.cvv = "CVV must be 3 digits.";
- }
- if (!cardName.trim()) {
- newErrors.cardName = "Cardholder Name is required.";
- }
-
  if (Object.keys(newErrors).length > 0) {
  setErrors(newErrors);
  return;
  }
- } else if (payment === "upi") {
- const newErrors: any = {};
- if (!upiId.trim() || !/^[\w.-]+@[\w.-]+$/.test(upiId.trim())) {
- newErrors.upiId = "Enter a valid UPI ID (e.g. name@upi).";
- }
- if (Object.keys(newErrors).length > 0) {
- setErrors(newErrors);
+ } else if (payment === "cod") {
+ if (total < COD_MINIMUM) {
+ setErrors({ cod: `Cash on Delivery requires a minimum order of ₹${COD_MINIMUM}.` });
  return;
  }
  }
@@ -2312,6 +2306,8 @@ function CheckoutPage() {
  items: orderItems,
  couponCode: couponCode || undefined,
  discountAmount: discount,
+ paymentMethod: payment,
+ ...(payment === "upi" && { upiTransactionId: upiTransactionId.trim(), payerName: payerName.trim() }),
  };
  if (savedAddressId) {
  orderPayload.shippingAddressId = savedAddressId;
@@ -2341,49 +2337,57 @@ function CheckoutPage() {
  }
  }
 
- if (step === 4) {
- return (
- <div className="min-h-screen bg-[#FAF8F3] pt-20 flex items-center justify-center px-4 py-12">
- <motion.div initial={{ opacity: 0, scale: 0.92 }} animate={{ opacity: 1, scale: 1 }} className="text-center max-w-lg w-full bg-white p-8 rounded-3xl border border-[#1A1714]/8 shadow-xl">
- <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 0.2, type: "spring", stiffness: 180 }}
- className="w-20 h-20 rounded-full bg-[#2A4A3C] flex items-center justify-center mx-auto mb-6 shadow-md">
- <Check className="w-10 h-10 text-white" />
- </motion.div>
- <h2 className="text-3xl font-bold text-[#1A1714] mb-2" style={{ fontFamily: "'Bodoni Moda', serif" }}>Order Placed Successfully!</h2>
- <p className="text-sm text-[#C9920A] font-semibold tracking-wider uppercase mb-4">Confirmation #{placedOrder?.orderNumber || `ORD-${placedOrder?.id}`}</p>
- <p className="text-[#7A7064] mb-6 text-sm leading-relaxed">
- Thank you! Your spice order has been confirmed and sent to our small-batch processing facility. You can track live milling and delivery progress in your profile.
- </p>
+  if (step === 4) {
+  const isUpi = payment === "upi";
+  return (
+  <div className="min-h-screen bg-[#FAF8F3] pt-20 flex items-center justify-center px-4 py-12">
+  <motion.div initial={{ opacity: 0, scale: 0.92 }} animate={{ opacity: 1, scale: 1 }} className="text-center max-w-lg w-full bg-white p-8 rounded-3xl border border-[#1A1714]/8 shadow-xl">
+  <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 0.2, type: "spring", stiffness: 180 }}
+  className={`w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6 shadow-md ${isUpi ? "bg-[#C9920A]" : "bg-[#2A4A3C]"}`}>
+  {isUpi ? <Clock className="w-10 h-10 text-white" /> : <Check className="w-10 h-10 text-white" />}
+  </motion.div>
+  <h2 className="text-3xl font-bold text-[#1A1714] mb-2" style={{ fontFamily: "'Bodoni Moda', serif" }}>
+  {isUpi ? "Order Placed Successfully!" : "Order Confirmed!"}
+  </h2>
+  <p className="text-sm text-[#C9920A] font-semibold tracking-wider uppercase mb-4">Confirmation #{placedOrder?.orderNumber || `ORD-${placedOrder?.id}`}</p>
+  <p className="text-[#7A7064] mb-6 text-sm leading-relaxed">
+  {isUpi 
+  ? "Order placed successfully! Your payment details have been received and are pending verification by our team. We will verify your payment and notify you once it has been confirmed. You can track your order status from your dashboard."
+  : "Thank you! Your spice order has been confirmed and sent to our small-batch processing facility. You can track live milling and delivery progress in your profile."
+  }
+  </p>
 
- <div className="bg-[#FAF8F3] rounded-2xl p-4 mb-6 border border-[#1A1714]/6 text-left space-y-2">
- <div className="flex justify-between items-center text-xs text-[#7A7064]">
- <span>Status</span>
- <span className="font-semibold text-amber-700 bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200">Processing</span>
- </div>
- <div className="flex justify-between items-center text-xs text-[#7A7064]">
- <span>Total Amount</span>
- <span className="font-bold text-[#1A1714] text-sm">₹{placedOrder?.total || total.toFixed(2)}</span>
- </div>
- {addr.name && (
- <div className="flex justify-between items-start text-xs text-[#7A7064] pt-2 border-t border-[#1A1714]/6">
- <span>Deliver To</span>
- <span className="font-medium text-[#1A1714] text-right">{addr.name}, {addr.city} ({addr.pin})</span>
- </div>
- )}
- </div>
+  <div className="bg-[#FAF8F3] rounded-2xl p-4 mb-6 border border-[#1A1714]/6 text-left space-y-2">
+  <div className="flex justify-between items-center text-xs text-[#7A7064]">
+  <span>Status</span>
+  <span className="font-semibold text-amber-700 bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200">
+  {isUpi ? "Pending Verification" : "Processing"}
+  </span>
+  </div>
+  <div className="flex justify-between items-center text-xs text-[#7A7064]">
+  <span>Total Amount</span>
+  <span className="font-bold text-[#1A1714] text-sm">₹{placedOrder?.total || total.toFixed(2)}</span>
+  </div>
+  {addr.name && (
+  <div className="flex justify-between items-start text-xs text-[#7A7064] pt-2 border-t border-[#1A1714]/6">
+  <span>Deliver To</span>
+  <span className="font-medium text-[#1A1714] text-right">{addr.name}, {addr.city} ({addr.pin})</span>
+  </div>
+  )}
+  </div>
 
- <div className="flex flex-col sm:flex-row gap-3 justify-center">
- <Btn onClick={() => navigate("profile", { tab: "orders", trackingOrderId: placedOrder?.id || placedOrder?.orderNumber })} className="w-full sm:w-auto">
- Track Order Progress <ArrowRight className="w-4 h-4" />
- </Btn>
- <Btn variant="outline" onClick={() => navigate("home")} className="w-full sm:w-auto">
- Continue Shopping
- </Btn>
- </div>
- </motion.div>
- </div>
- );
- }
+  <div className="flex flex-col sm:flex-row gap-3 justify-center">
+  <Btn onClick={() => navigate("profile", { tab: "orders", trackingOrderId: placedOrder?.id || placedOrder?.orderNumber })} className="w-full sm:w-auto">
+  Track Order Progress <ArrowRight className="w-4 h-4" />
+  </Btn>
+  <Btn variant="outline" onClick={() => navigate("home")} className="w-full sm:w-auto">
+  Continue Shopping
+  </Btn>
+  </div>
+  </motion.div>
+  </div>
+  );
+  }
 
  return (
  <div className="min-h-screen bg-[#FAF8F3] pt-20">
@@ -2465,64 +2469,77 @@ function CheckoutPage() {
  </motion.div>
  )}
  {step === 2 && (
- <motion.div key="pay" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
- <h3 className="font-semibold text-[#1A1714] text-lg mb-5">Payment Method</h3>
- <div className="space-y-3 mb-5">
- {[
- { id: "card", label: "Credit / Debit Card", icon: CreditCard },
- { id: "upi", label: "UPI", icon: Zap },
- { id: "cod", label: "Cash on Delivery", icon: Package },
- ].map(opt => (
- <label key={opt.id} className="flex items-center gap-4 p-4 rounded-xl border-2 cursor-pointer transition-all"
- style={{ borderColor: payment === opt.id ? "#2A4A3C" : "rgba(26,23,20,0.1)", background: payment === opt.id ? "rgba(42,74,60,0.04)" : "white" }}>
- <input type="radio" name="payment" value={opt.id} checked={payment === opt.id} onChange={() => setPayment(opt.id)} className="sr-only" />
- <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${payment === opt.id ? "border-[#2A4A3C]" : "border-[#7A7064]/40"}`}>
- {payment === opt.id && <div className="w-2.5 h-2.5 rounded-full bg-[#2A4A3C]" />}
- </div>
- <opt.icon className="w-4 h-4 text-[#7A7064]" />
- <p className="font-medium text-[#1A1714] text-sm">{opt.label}</p>
- </label>
- ))}
- </div>
- {payment === "card" && (
- <div className="space-y-4 p-4 bg-[#FAF8F3] rounded-xl">
- <div>
- <label className="text-xs font-semibold text-[#7A7064] uppercase tracking-widest mb-1.5 block">Card Number</label>
- <input value={cardNum} onChange={e => setCardNum(e.target.value.replace(/\D/g, "").slice(0, 16).replace(/(.{4})/g, "$1 ").trim())}
- placeholder="1234 5678 9012 3456" className={`w-full bg-white border rounded-xl px-4 py-3 text-sm outline-none focus:border-[#2A4A3C] transition-all font-mono ${errors.cardNum ? "border-red-400" : "border-[#1A1714]/12"}`} />
- {errors.cardNum && <p className="text-[10px] text-red-500 mt-1">{errors.cardNum}</p>}
- </div>
- <div className="grid grid-cols-2 gap-3">
- <div>
- <label className="text-xs font-semibold text-[#7A7064] uppercase tracking-widest mb-1.5 block">Expiry</label>
- <input value={cardExpiry} onChange={e => setCardExpiry(e.target.value.replace(/\D/g, "").slice(0, 4).replace(/(.{2})/, "$1 / ").trim())}
- placeholder="MM / YY" className={`w-full bg-white border rounded-xl px-4 py-3 text-sm outline-none focus:border-[#2A4A3C] transition-all ${errors.expiry ? "border-red-400" : "border-[#1A1714]/12"}`} />
- {errors.expiry && <p className="text-[10px] text-red-500 mt-1">{errors.expiry}</p>}
- </div>
- <div>
- <label className="text-xs font-semibold text-[#7A7064] uppercase tracking-widest mb-1.5 block">CVV</label>
- <input type="password" maxLength={3} value={cardCvv} onChange={e => setCardCvv(e.target.value.replace(/\D/g, "").slice(0, 3))}
- placeholder="•••" className={`w-full bg-white border rounded-xl px-4 py-3 text-sm outline-none focus:border-[#2A4A3C] transition-all ${errors.cvv ? "border-red-400" : "border-[#1A1714]/12"}`} />
- {errors.cvv && <p className="text-[10px] text-red-500 mt-1">{errors.cvv}</p>}
- </div>
- </div>
- <div>
- <label className="text-xs font-semibold text-[#7A7064] uppercase tracking-widest mb-1.5 block">Name on Card</label>
- <input value={cardName} onChange={e => setCardName(e.target.value.toUpperCase())}
- placeholder="ANANYA KRISHNAN" className={`w-full bg-white border rounded-xl px-4 py-3 text-sm outline-none focus:border-[#2A4A3C] transition-all ${errors.cardName ? "border-red-400" : "border-[#1A1714]/12"}`} />
- {errors.cardName && <p className="text-[10px] text-red-500 mt-1">{errors.cardName}</p>}
- </div>
- </div>
- )}
- {payment === "upi" && (
- <div className="p-4 bg-[#FAF8F3] rounded-xl">
- <label className="text-xs font-semibold text-[#7A7064] uppercase tracking-widest mb-1.5 block">UPI ID</label>
- <input value={upiId} onChange={e => setUpiId(e.target.value.replace(/\s/g, ""))}
- placeholder="yourname@upi" className={`w-full bg-white border rounded-xl px-4 py-3 text-sm outline-none focus:border-[#2A4A3C] transition-all ${errors.upiId ? "border-red-400" : "border-[#1A1714]/12"}`} />
- {errors.upiId && <p className="text-[10px] text-red-500 mt-1">{errors.upiId}</p>}
- </div>
- )}
- </motion.div>
+  <motion.div key="pay" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
+  <h3 className="font-semibold text-[#1A1714] text-lg mb-5">Payment Method</h3>
+  <div className="space-y-3 mb-5">
+  {/* UPI Option */}
+  <label className="flex items-center gap-4 p-4 rounded-xl border-2 cursor-pointer transition-all"
+  style={{ borderColor: payment === "upi" ? "#2A4A3C" : "rgba(26,23,20,0.1)", background: payment === "upi" ? "rgba(42,74,60,0.04)" : "white" }}>
+  <input type="radio" name="payment" value="upi" checked={payment === "upi"} onChange={() => setPayment("upi")} className="sr-only" />
+  <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${payment === "upi" ? "border-[#2A4A3C]" : "border-[#7A7064]/40"}`}>
+  {payment === "upi" && <div className="w-2.5 h-2.5 rounded-full bg-[#2A4A3C]" />}
+  </div>
+  <Zap className="w-4 h-4 text-[#7A7064]" />
+  <p className="font-medium text-[#1A1714] text-sm">UPI Payment</p>
+  </label>
+  {/* COD Option */}
+  {total >= COD_MINIMUM ? (
+  <label className="flex items-center gap-4 p-4 rounded-xl border-2 cursor-pointer transition-all"
+  style={{ borderColor: payment === "cod" ? "#2A4A3C" : "rgba(26,23,20,0.1)", background: payment === "cod" ? "rgba(42,74,60,0.04)" : "white" }}>
+  <input type="radio" name="payment" value="cod" checked={payment === "cod"} onChange={() => setPayment("cod")} className="sr-only" />
+  <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${payment === "cod" ? "border-[#2A4A3C]" : "border-[#7A7064]/40"}`}>
+  {payment === "cod" && <div className="w-2.5 h-2.5 rounded-full bg-[#2A4A3C]" />}
+  </div>
+  <Package className="w-4 h-4 text-[#7A7064]" />
+  <p className="font-medium text-[#1A1714] text-sm">Cash on Delivery</p>
+  </label>
+  ) : (
+  <div className="flex items-start gap-4 p-4 rounded-xl border-2 border-dashed border-[#1A1714]/10 bg-[#FAF8F3] opacity-60 cursor-not-allowed">
+  <div className="w-5 h-5 rounded-full border-2 border-[#7A7064]/30 flex-shrink-0 mt-0.5" />
+  <Package className="w-4 h-4 text-[#7A7064] mt-0.5" />
+  <div>
+  <p className="font-medium text-[#7A7064] text-sm">Cash on Delivery</p>
+  <p className="text-[10px] text-[#7A7064]/70 mt-0.5">Available for orders of ₹{COD_MINIMUM}+. Add ₹{(COD_MINIMUM - total).toFixed(0)} more to unlock COD.</p>
+  </div>
+  </div>
+  )}
+  </div>
+  {payment === "upi" && (
+  <div className="space-y-4">
+  <div className="p-5 bg-[#FAF8F3] rounded-xl text-center">
+  <p className="text-xs font-semibold text-[#7A7064] uppercase tracking-widest mb-3">Scan QR Code to Pay</p>
+  <div className="flex justify-center mb-3">
+  <img src="/upi_qr.png" alt="UPI QR Code" className="w-44 h-44 rounded-xl object-contain border border-[#2A4A3C]/20 bg-white p-2" />
+  </div>
+  <p className="text-xs text-[#7A7064]">UPI ID: <strong className="text-[#2A4A3C] font-semibold">lepakshispices@upi</strong></p>
+  <p className="text-[10px] text-[#7A7064]/70 mt-1">Open any UPI app (GPay, PhonePe, Paytm, etc.) and scan this QR code.</p>
+  </div>
+  <div className="space-y-3 p-4 bg-[#FAF8F3] rounded-xl">
+  <p className="text-xs font-semibold text-[#7A7064] uppercase tracking-widest">Confirm Your Payment</p>
+  <div>
+  <label className="text-xs font-semibold text-[#7A7064] uppercase tracking-widest mb-1.5 block">Transaction ID / UTR Number</label>
+  <input id="upi-transaction-id" value={upiTransactionId} onChange={e => setUpiTransactionId(e.target.value.replace(/\s/g, ""))}
+  placeholder="e.g. 123456789012" className={`w-full bg-white border rounded-xl px-4 py-3 text-sm outline-none focus:border-[#2A4A3C] transition-all font-mono ${errors.upiTransactionId ? "border-red-400" : "border-[#1A1714]/12"}`} />
+  {errors.upiTransactionId && <p className="text-[10px] text-red-500 mt-1">{errors.upiTransactionId}</p>}
+  </div>
+  <div>
+  <label className="text-xs font-semibold text-[#7A7064] uppercase tracking-widest mb-1.5 block">Payer Name (as in UPI app)</label>
+  <input id="upi-payer-name" value={payerName} onChange={e => setPayerName(e.target.value)}
+  placeholder="e.g. Ananya Krishnan" className={`w-full bg-white border rounded-xl px-4 py-3 text-sm outline-none focus:border-[#2A4A3C] transition-all ${errors.payerName ? "border-red-400" : "border-[#1A1714]/12"}`} />
+  {errors.payerName && <p className="text-[10px] text-red-500 mt-1">{errors.payerName}</p>}
+  </div>
+  </div>
+  </div>
+  )}
+  {payment === "cod" && total >= COD_MINIMUM && (
+  <div className="p-4 bg-green-50 rounded-xl border border-green-200">
+  <div className="flex items-center gap-2">
+  <CheckCircle className="w-4 h-4 text-green-600 flex-shrink-0" />
+  <p className="text-sm text-green-700 font-medium">Cash on Delivery — Pay ₹{total.toFixed(2)} at your doorstep.</p>
+  </div>
+  </div>
+  )}
+  </motion.div>
  )}
  {step === 3 && (
  <motion.div key="review" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
@@ -2932,7 +2949,9 @@ function ProfilePage() {
  <p className="text-xs text-[#7A7064]">{Array.isArray(o.items) ? o.items.map((item: any) => item.product?.name || item.variant?.label || "Product").join(", ") : o.items}</p>
  </div>
  <div className="text-right">
- <span className="text-xs font-semibold px-2 py-1 rounded-full bg-amber-50 text-amber-800">{o.status}</span>
+ <span className="text-xs font-semibold px-2 py-1 rounded-full bg-amber-50 text-amber-800">
+ {o.paymentMethod?.toLowerCase() === 'upi' && o.paymentStatus === 'pending' ? 'Pending Verification' : o.status}
+ </span>
  <p className="text-sm font-bold text-[#1A1714] mt-1">₹{o.total}</p>
  </div>
  </div>
@@ -2960,10 +2979,11 @@ function ProfilePage() {
  <h3 className="text-lg font-bold text-[#1A1714]">Tracking Order #{trackingOrderId}</h3>
  </div>
  {(() => {
+ const isUpiVerification = trackingOrder?.paymentMethod?.toLowerCase() === 'upi' && trackingOrder?.paymentStatus === 'pending';
  const s = trackingOrder?.status || 'pending';
  const bc: Record<string,string> = { pending:'gold', processing:'orange', shipped:'gold', delivered:'green', completed:'green', cancelled:'gray', refunded:'gray', returned:'gray' };
  const sl: Record<string,string> = { pending:'Pending', processing:'Processing', shipped:'Shipped', delivered:'Delivered', completed:'Completed', cancelled:'Cancelled', refunded:'Refunded', returned:'Returned' };
- return <Badge color={bc[s] || 'gray'}>{sl[s] || s}</Badge>;
+ return <Badge color={isUpiVerification ? 'gold' : (bc[s] || 'gray')}>{isUpiVerification ? 'Pending Verification' : (sl[s] || s)}</Badge>;
  })()}
  </div>
 
@@ -2974,7 +2994,7 @@ function ProfilePage() {
  const STATUSES = ['pending','processing','shipped','delivered'];
  const STEPS = [
  { title:"Order Placed", desc:"Your payment was processed and order confirmed." },
- { title:"Stone Grinding & Packing", desc:"Spices slow-milled under 35Â°C and vacuum-sealed." },
+ { title:"Stone Grinding & Packing", desc:"Spices slow-milled under 35°C and vacuum-sealed." },
  { title:"Shipped", desc:"Handed over to Express Courier Partner." },
  { title:"Delivered", desc:"Will require contact-free verification." },
  ];
@@ -2984,6 +3004,22 @@ function ProfilePage() {
  const idx = STATUSES.indexOf(effective);
  const ci = idx >= 0 ? idx : -1;
  return (
+ <div className="space-y-6">
+ <div className="p-4 bg-[#FAF8F3] rounded-xl border border-[#1A1714]/8 space-y-2 text-left">
+ <p className="text-xs text-[#7A7064]"><span className="font-semibold text-[#1A1714]">Order Status:</span> <span className="capitalize">{trackingOrder.status}</span></p>
+ <p className="text-xs text-[#7A7064]"><span className="font-semibold text-[#1A1714]">Payment Method:</span> {trackingOrder.paymentMethod?.toLowerCase() === 'upi' ? 'UPI Payment (Scan & Pay)' : trackingOrder.paymentMethod?.toLowerCase() === 'cod' ? 'Cash on Delivery' : trackingOrder.paymentMethod}</p>
+ <p className="text-xs text-[#7A7064]"><span className="font-semibold text-[#1A1714]">Payment Status:</span> {
+ trackingOrder.paymentMethod?.toLowerCase() === 'upi' && trackingOrder.paymentStatus === 'pending'
+ ? 'Pending Verification'
+ : trackingOrder.paymentStatus === 'paid' ? 'Paid' : trackingOrder.paymentStatus === 'pending' ? 'Pending' : trackingOrder.paymentStatus
+ }</p>
+ {trackingOrder.customerNote && trackingOrder.customerNote.includes('UPI_UTR:') && (
+ <p className="text-xs text-[#7A7064]"><span className="font-semibold text-[#1A1714]">UTR / Transaction ID:</span> <span className="font-mono text-[#2A4A3C] bg-[#2A4A3C]/5 px-1.5 py-0.5 rounded">{
+ trackingOrder.customerNote.match(/UPI_UTR:([^|]+)/)?.[1]
+ }</span></p>
+ )}
+ </div>
+
  <div className="relative pl-8 space-y-8 before:absolute before:left-3 before:top-2 before:bottom-2 before:w-0.5 before:bg-[#EEE9E0]">
  {STEPS.map((m,i) => {
  const done = effective === 'delivered' ? i <= ci : ci > i;
@@ -3003,6 +3039,7 @@ function ProfilePage() {
  );
  })}
  </div>
+ </div>
  );
  })()
  ) : (
@@ -3018,7 +3055,9 @@ function ProfilePage() {
  <div>
  <div className="flex items-center gap-2 mb-1">
  <p className="font-semibold text-[#1A1714] text-sm">#{o.id}</p>
- <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-800">{o.status}</span>
+ <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-800">
+ {o.paymentMethod?.toLowerCase() === 'upi' && o.paymentStatus === 'pending' ? 'Pending Verification' : o.status}
+ </span>
  </div>
  <p className="text-xs text-[#7A7064]">{o.date}</p>
  <p className="text-sm text-[#7A7064] mt-1">{Array.isArray(o.items) ? o.items.map((item: any) => item.product?.name || item.variant?.label || "Product").join(", ") : o.items}</p>
@@ -3417,7 +3456,7 @@ function FarmToKitchenTimeline() {
  title: "Small-Batch Stone Grinding",
  desc: "Using traditional slow stone-grinding wheels that prevent heat buildup, preserving volatile aromatic oils that industrial steel grinders burn off.",
  image: "https://images.unsplash.com/photo-1596040033229-a9821ebd058d?w=800&h=500&fit=crop&auto=format",
- detail: "Heat is the enemy of spice aroma. Our cold-milled stone wheels operate at low RPMs, keeping the internal temperature below 35Â°C to preserve natural spice oils."
+ detail: "Heat is the enemy of spice aroma. Our cold-milled stone wheels operate at low RPMs, keeping the internal temperature below 35°C to preserve natural spice oils."
  },
  {
  num: "04",
@@ -3536,14 +3575,14 @@ function InstagramGallery() {
  <div className="h-px w-8 bg-[#C9920A]" />
  </div>
  <h2 className="text-4xl font-bold text-[#1A1714] mb-3" style={{ fontFamily: "'Bodoni Moda', serif" }}>On the Gram</h2>
- <p className="text-[#7A7064] text-sm max-w-md mx-auto">Follow our sourcing travels and culinary journey at <strong className="text-[#2A4A3C]">@lepakshispices</strong></p>
+ <p className="text-[#7A7064] text-sm max-w-md mx-auto">Follow our sourcing travels and culinary journey at{" "}<a href="https://www.instagram.com/lepakshi_spices?igsh=ZHM0dHIyZnpxZ2Rn" target="_blank" rel="noopener noreferrer" className="font-bold text-[#2A4A3C] hover:underline">@lepakshi_spices</a></p>
  </div>
  </Reveal>
 
  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
  {posts.map((post, i) => (
  <Reveal key={post.id} delay={i * 60}>
- <div className="group relative rounded-2xl overflow-hidden cursor-pointer" style={{ aspectRatio: "1/1" }}>
+ <a href="https://www.instagram.com/lepakshi_spices?igsh=ZHM0dHIyZnpxZ2Rn" target="_blank" rel="noopener noreferrer" className="group relative rounded-2xl overflow-hidden cursor-pointer block" style={{ aspectRatio: "1/1" }}>
  <img src={post.img} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
  <div className="absolute inset-0 bg-[#1A2E25]/85 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-between p-4 text-white text-left">
  <Instagram className="w-5 h-5 text-[#C9920A] self-end" />
@@ -3555,7 +3594,7 @@ function InstagramGallery() {
  </div>
  </div>
  </div>
- </div>
+ </a>
  </Reveal>
  ))}
  </div>

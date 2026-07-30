@@ -16,7 +16,10 @@ export async function createOrderController(req: AuthenticatedRequest, res: Resp
       billingAddressId: req.body.billingAddressId,
       shippingAddress: req.body.shippingAddress,
       couponCode: req.body.couponCode,
-      discountAmount: req.body.discountAmount
+      discountAmount: req.body.discountAmount,
+      paymentMethod: req.body.paymentMethod,
+      upiTransactionId: req.body.upiTransactionId,
+      payerName: req.body.payerName,
     });
     sendCreated(res, order, 'Order placed successfully');
   } catch (error) {

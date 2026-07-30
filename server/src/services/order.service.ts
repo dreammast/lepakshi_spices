@@ -16,10 +16,33 @@ function canEmailOrder(order: Awaited<ReturnType<typeof findOrderById>>): order 
   return Boolean(order?.customerEmail);
 }
 
+const ALLOWED_PAYMENT_METHODS = ['upi', 'cod'];
+const COD_MINIMUM_AMOUNT = 1000;
+
 export async function createOrder(input: CreateOrderInput) {
   if (!input.items?.length) {
     throw new AppError(400, 'Order must contain at least one item');
   }
+
+  // Validate payment method
+  const paymentMethod = input.paymentMethod || 'upi';
+  if (!ALLOWED_PAYMENT_METHODS.includes(paymentMethod)) {
+    throw new AppError(400, 'Invalid payment method. Only UPI and Cash on Delivery are accepted.');
+  }
+
+  // Calculate order total for COD validation
+  const subtotalForValidation = input.items.reduce((sum, item) => sum + Number(item.price) * item.quantity, 0);
+  const discountForValidation = Number(input.discountAmount || 0);
+  const orderTotal = subtotalForValidation - discountForValidation;
+
+  if (paymentMethod === 'cod' && orderTotal < COD_MINIMUM_AMOUNT) {
+    throw new AppError(400, `Cash on Delivery is only available for orders of ₹${COD_MINIMUM_AMOUNT} or more. Your order total is ₹${orderTotal.toFixed(2)}.`);
+  }
+
+  if (paymentMethod === 'upi' && !input.upiTransactionId?.trim()) {
+    throw new AppError(400, 'UPI Transaction ID (UTR) is required to complete a UPI payment.');
+  }
+
   if (input.couponCode) {
     const subtotal = input.items.reduce((sum, item) => sum + Number(item.price) * item.quantity, 0);
     const validated = await validateCoupon(input.couponCode, subtotal, input.customerId);
@@ -27,6 +50,8 @@ export async function createOrder(input: CreateOrderInput) {
   } else {
     input = { ...input, discountAmount: '0' };
   }
+
+  input = { ...input, paymentMethod };
   const order = await createOrderRecord(input);
   if (canEmailOrder(order)) {
     const orderUrl = `${env.FRONTEND_URL.replace(/\/$/, '')}/orders/${order.id}`;

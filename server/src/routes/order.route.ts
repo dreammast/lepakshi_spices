@@ -30,7 +30,11 @@ const createOrderSchema = z.object({
     country: z.string().optional()
   }).optional(),
   couponCode: z.string().optional(),
-  discountAmount: z.union([z.string(), z.number()]).optional()
+  discountAmount: z.union([z.string(), z.number()]).optional(),
+  // Payment fields — required for service-level validation to work correctly
+  paymentMethod: z.enum(['upi', 'cod']).optional(),
+  upiTransactionId: z.string().optional(),
+  payerName: z.string().optional()
 });
 
 router.post('/', authenticate, validateBody(createOrderSchema), asyncHandler(createOrderController));

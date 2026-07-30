@@ -20,6 +20,9 @@ export type CreateOrderInput = {
   };
   couponCode?: string;
   discountAmount?: string;
+  paymentMethod?: string;
+  upiTransactionId?: string;
+  payerName?: string;
 };
 
 type ShippingAddressSnapshot = {
@@ -98,6 +101,11 @@ export async function createOrderRecord(input: CreateOrderInput) {
     }
   }
 
+  // Build customer note: include UPI transaction details if provided
+  const upiNote = input.upiTransactionId
+    ? `UPI_UTR:${input.upiTransactionId}${input.payerName ? `|PAYER:${input.payerName}` : ''}`
+    : undefined;
+
   const orderId = await db.transaction(async (tx) => {
     for (const item of input.items) {
       const result: any = await tx.update(productVariants)
@@ -116,7 +124,9 @@ export async function createOrderRecord(input: CreateOrderInput) {
       shippingAmount: '0',
       totalAmount: String(Math.max(0, totalAmount - discount)),
       status: 'pending',
+      paymentMethod: input.paymentMethod || null,
       couponCode: input.couponCode,
+      customerNote: upiNote || null,
       shippingAddressId: shippingAddressId,
       shippingAddress: finalShippingAddressSnapshot ? JSON.stringify(finalShippingAddressSnapshot) : null,
       billingAddressId: input.billingAddressId,
