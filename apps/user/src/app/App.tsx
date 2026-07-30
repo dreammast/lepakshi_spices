@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, createContext, useContext } from "react";
+import { useState, useEffect, useRef, useCallback, createContext, useContext } from "react";
 import { Toaster, toast } from "sonner";
 import { motion, AnimatePresence } from "motion/react";
 import {
@@ -342,7 +342,7 @@ function ProductCard({ product, index = 0 }: { product: Product; index?: number 
 // ─── HEADER ────────────────────────────────────────────────────────────────────
 
 function Header() {
-  const { navigate, cart, wishlist, currentPage, user, setAuthModalOpen, logout, products, orders, campaigns } = useApp();
+  const { navigate, cart, wishlist, currentPage, user, setAuthModalOpen, logout, products, orders, campaigns, deliveryNotifications, clearDeliveryNotifications } = useApp();
   const scrolled = useScrolled();
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -382,13 +382,19 @@ function Header() {
     color: "#C55A20"
   })));
 
+  for (const dn of deliveryNotifications) {
+    notifs.unshift(dn);
+  }
+
   if (myOrders.length > 0) {
     const latest = myOrders[myOrders.length - 1];
-    notifs.unshift({
-      title: `Order ${latest.status === 'dispatched' ? 'is on its way!' : 'Update'}`,
-      desc: `Order ${latest.id} is ${latest.status}`,
-      time: "Just now", icon: Truck, color: "#2A4A3C"
-    });
+    if (latest.status?.toLowerCase() !== 'delivered') {
+      notifs.unshift({
+        title: `Order ${latest.status === 'dispatched' ? 'is on its way!' : 'Update'}`,
+        desc: `Order ${latest.id} is ${latest.status}`,
+        time: "Just now", icon: Truck, color: "#2A4A3C"
+      });
+    }
   }
 
   return (
@@ -573,7 +579,7 @@ function Header() {
                           </button>
                         ))}
                         <div className="border-t border-[#1A1714]/8 mt-1">
-                          <button onClick={() => { logout(); closeAll(); }} className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 transition-colors">
+                          <button onClick={() => { clearDeliveryNotifications(); logout(); closeAll(); }} className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 transition-colors">
                             <LogOut className="w-4 h-4" /> Sign Out
                           </button>
                         </div>
@@ -707,9 +713,53 @@ function Hero() {
   );
 }
 
+const DEFAULT_CATEGORY_IMAGE = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='600' viewBox='0 0 400 600'%3E%3Crect fill='%23EEE9E0' width='400' height='600'/%3E%3Cg transform='translate(200,280)'%3E%3Ccircle r='50' fill='%23D4CFC5'/%3E%3Cpath d='M-30 20 L30 20 L40 80 L-40 80 Z' fill='%23D4CFC5'/%3E%3C/g%3E%3Ctext x='200' y='440' text-anchor='middle' fill='%239A9084' font-size='18' font-family='sans-serif'%3ECategory%3C/text%3E%3C/svg%3E";
+
+function CategorySkeleton() {
+  return (
+    <div className="rounded-2xl overflow-hidden w-full bg-[#EEE9E0]/50 animate-pulse" style={{ aspectRatio: "3/4" }}>
+      <div className="w-full h-full flex items-center justify-center bg-[#E5DDD3]">
+        <div className="w-8 h-8 border-2 border-[#C9920A]/30 border-t-[#C9920A] rounded-full animate-spin" />
+      </div>
+    </div>
+  );
+}
+
 function Categories() {
-  const { navigate, categories } = useApp();
+  const { navigate, categories, categoriesLoading } = useApp();
   const cats = categories.filter((c: any) => c.id !== "all") as any[];
+
+  const [failedImages, setFailedImages] = useState<Set<string>>(new Set());
+
+  const handleImageError = useCallback((catId: string) => {
+    setFailedImages(prev => new Set(prev).add(catId));
+  }, []);
+
+  if (categoriesLoading) {
+    return (
+      <section className="py-20 lg:py-28 bg-[#FAF8F3]">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-14">
+            <div className="flex items-center justify-center gap-3 mb-4">
+              <div className="h-px w-8 bg-[#C9920A]" />
+              <span className="text-[#C9920A] text-xs font-semibold tracking-[0.2em] uppercase">Explore</span>
+              <div className="h-px w-8 bg-[#C9920A]" />
+            </div>
+            <h2 className="text-4xl md:text-5xl font-bold text-[#1A1714] mb-4" style={{ fontFamily: "'Bodoni Moda', serif" }}>
+              Shop by Category
+            </h2>
+            <p className="text-[#7A7064] text-lg max-w-lg mx-auto">From ancient roots to artisan blends — every ingredient with a story.</p>
+          </div>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-5">
+            {[1, 2, 3, 4].map(i => (
+              <CategorySkeleton key={i} />
+            ))}
+          </div>
+        </div>
+      </section>
+    );
+  }
+
   if (!cats || cats.length === 0) return null;
 
   return (
@@ -733,12 +783,18 @@ function Categories() {
             <Reveal key={cat.id} delay={i * 80}>
               <button onClick={() => navigate("shop", { category: cat.id })}
                 className="group relative rounded-2xl overflow-hidden cursor-pointer w-full" style={{ aspectRatio: "3/4" }}>
-                <img src={cat.image} alt={cat.name} className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                <img
+                  src={failedImages.has(cat.id) ? DEFAULT_CATEGORY_IMAGE : (cat.image || DEFAULT_CATEGORY_IMAGE)}
+                  alt={cat.name}
+                  loading="lazy"
+                  onError={() => handleImageError(cat.id)}
+                  className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/20 to-transparent group-hover:from-black/85 transition-all duration-300" />
                 <div className="absolute inset-0 flex flex-col justify-end p-5 text-left">
                   <span className="text-xs text-white/65 font-medium mb-1">{cat.description}</span>
                   <h3 className="text-base font-semibold text-white leading-tight mb-1">{cat.name}</h3>
-                  <span className="text-xs text-white/55">{cat.count} products</span>
+                  <span className="text-xs text-white/55">{cat.count} {cat.count === 1 ? 'Product' : 'Products'}</span>
                   <div className="flex items-center gap-1 mt-3 text-[#C9920A] text-xs font-semibold opacity-0 group-hover:opacity-100 transition-all duration-250 translate-y-1 group-hover:translate-y-0">
                     Browse <ArrowRight className="w-3 h-3" />
                   </div>
@@ -912,17 +968,66 @@ function Process() {
   );
 }
 
+const DEFAULT_RECIPE_IMAGE = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='800' height='534' viewBox='0 0 800 534'%3E%3Crect fill='%23EEE9E0' width='800' height='534'/%3E%3Cg transform='translate(400,230)'%3E%3Ccircle r='50' fill='%23D4CFC5'/%3E%3Cpath d='M-35 30 Q0 50 35 30 L45 90 L-45 90 Z' fill='%23D4CFC5'/%3E%3C/g%3E%3Ctext x='400' y='390' text-anchor='middle' fill='%239A9084' font-size='24' font-family='sans-serif'%3ERecipe%3C/text%3E%3C/svg%3E";
+
+function RecipeCardSkeleton() {
+  return (
+    <div className="rounded-2xl overflow-hidden bg-white border border-[#1A1714]/6 w-full animate-pulse">
+      <div className="bg-[#EEE9E0]/50" style={{ aspectRatio: "3/2" }} />
+      <div className="p-5 space-y-3">
+        <div className="h-4 bg-[#EEE9E0]/70 rounded w-3/4" />
+        <div className="h-3 bg-[#EEE9E0]/50 rounded w-1/3" />
+      </div>
+    </div>
+  );
+}
+
+function getRecipeThumbnail(r: any): string {
+  if (r.thumbnailUrl) return r.thumbnailUrl;
+  if (r.imageUrl) {
+    const youtubeMatch = r.imageUrl.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
+    if (youtubeMatch) return `https://img.youtube.com/vi/${youtubeMatch[1]}/hqdefault.jpg`;
+  }
+  if (r.image) return r.image;
+  return DEFAULT_RECIPE_IMAGE;
+}
+
+function getRecipeTime(r: any): string {
+  if (r.time) return r.time;
+  const total = (r.prepMinutes || 0) + (r.cookMinutes || 0);
+  return total ? `${total} mins` : "30 mins";
+}
+
 function Recipes() {
-  const { navigate, recipes } = useApp();
+  const { navigate, recipes, recipesLoading } = useApp();
+  const [failedImages, setFailedImages] = useState<Set<number>>(new Set());
+  const handleImageError = useCallback((id: number) => {
+    setFailedImages(prev => new Set(prev).add(id));
+  }, []);
+
+  if (recipesLoading) {
+    return (
+      <section id="recipes" className="py-20 lg:py-28 bg-[#FAF8F3]">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex flex-col sm:flex-row items-start sm:items-end justify-between mb-14 gap-4">
+            <div>
+              <div className="flex items-center gap-3 mb-4">
+                <div className="h-px w-8 bg-[#C9920A]" />
+                <span className="text-[#C9920A] text-xs font-semibold tracking-[0.2em] uppercase">Inspiration</span>
+              </div>
+              <h2 className="text-4xl md:text-5xl font-bold text-[#1A1714]" style={{ fontFamily: "'Bodoni Moda', serif" }}>Recipes to Try</h2>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+            {[1, 2, 3].map(i => <RecipeCardSkeleton key={i} />)}
+          </div>
+        </div>
+      </section>
+    );
+  }
+
   if (!recipes || recipes.length === 0) return null;
-  const openRecipe = (recipe: any) => {
-    const videoUrl = recipe.videoUrl || recipe.video;
-    if (videoUrl) {
-      window.open(videoUrl, "_blank", "noopener,noreferrer");
-      return;
-    }
-    navigate("recipe", recipe);
-  };
+
   return (
     <section id="recipes" className="py-20 lg:py-28 bg-[#FAF8F3]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -943,11 +1048,17 @@ function Recipes() {
             <Reveal key={r.id} delay={i * 80}>
               <button onClick={() => navigate("recipe", r)} className="group text-left rounded-2xl overflow-hidden bg-white border border-[#1A1714]/6 hover:border-[#2A4A3C]/20 hover:shadow-lg transition-all duration-300 w-full cursor-pointer">
                 <div className="relative overflow-hidden" style={{ aspectRatio: "3/2" }}>
-                  <img src={r.image || r.imageUrl || "https://images.unsplash.com/photo-1596040033229-a9821ebd058d?w=800&fit=crop"} alt={r.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                  <img
+                    src={failedImages.has(r.id) ? DEFAULT_RECIPE_IMAGE : getRecipeThumbnail(r)}
+                    alt={r.title}
+                    loading="lazy"
+                    onError={() => handleImageError(r.id)}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
                   <div className="absolute bottom-3 left-3 flex gap-2">
                     <span className="text-xs bg-black/40 text-white backdrop-blur-sm px-2.5 py-1 rounded-full flex items-center gap-1">
-                      <Clock className="w-3 h-3" /> {r.time || (r.prepMinutes || r.cookMinutes ? `${(r.prepMinutes || 0) + (r.cookMinutes || 0)} mins` : "30 mins")}
+                      <Clock className="w-3 h-3" /> {getRecipeTime(r)}
                     </span>
                     <span className="text-xs bg-black/40 text-white backdrop-blur-sm px-2.5 py-1 rounded-full">{r.difficulty || "medium"}</span>
                   </div>
@@ -2488,11 +2599,26 @@ function ProfilePage() {
   const { navigate, wishlist, user, logout, products, orders, profileData } = useApp();
   const [tab, setTab] = useState(profileData?.tab || "overview");
   const [trackingOrderId, setTrackingOrderId] = useState<string | null>(profileData?.trackingOrderId || null);
+  const [trackingOrder, setTrackingOrder] = useState<any>(null);
+  const [trackingLoading, setTrackingLoading] = useState(false);
 
   useEffect(() => {
     if (profileData?.tab) setTab(profileData.tab);
     if (profileData?.trackingOrderId) setTrackingOrderId(profileData.trackingOrderId);
   }, [profileData]);
+
+  useEffect(() => {
+    if (!trackingOrderId) { setTrackingOrder(null); return; }
+    setTrackingLoading(true);
+    const id = Number(trackingOrderId);
+    if (isNaN(id)) { setTrackingLoading(false); return; }
+    const fromList = orders.find(o => Number(o.id) === id);
+    if (fromList) setTrackingOrder(fromList);
+    ordersApi.get(id).then(order => {
+      setTrackingOrder(order);
+      setTrackingLoading(false);
+    }).catch(() => setTrackingLoading(false));
+  }, [trackingOrderId]);
 
   // Settings form states
   const [settingsName, setSettingsName] = useState(user?.name || "");
@@ -2826,28 +2952,55 @@ function ProfilePage() {
                             </button>
                             <h3 className="text-lg font-bold text-[#1A1714]">Tracking Order #{trackingOrderId}</h3>
                           </div>
-                          <Badge color="orange">Processing</Badge>
+                          {(() => {
+                            const s = trackingOrder?.status || 'pending';
+                            const bc: Record<string,string> = { pending:'gold', processing:'orange', shipped:'gold', delivered:'green', completed:'green', cancelled:'gray', refunded:'gray', returned:'gray' };
+                            const sl: Record<string,string> = { pending:'Pending', processing:'Processing', shipped:'Shipped', delivered:'Delivered', completed:'Completed', cancelled:'Cancelled', refunded:'Refunded', returned:'Returned' };
+                            return <Badge color={bc[s] || 'gray'}>{sl[s] || s}</Badge>;
+                          })()}
                         </div>
 
-                        <div className="relative pl-8 space-y-8 before:absolute before:left-3 before:top-2 before:bottom-2 before:w-0.5 before:bg-[#EEE9E0]">
-                          {[
-                            { title: "Order Placed", desc: "Your payment was processed and order confirmed.", date: "Just now", done: true },
-                            { title: "Stone Grinding & Packing", desc: "Spices slow-milled under 35°C and vacuum-sealed.", date: "In Progress", done: false, active: true },
-                            { title: "Shipped", desc: "Handed over to Express Courier Partner.", date: "Pending", done: false },
-                            { title: "Delivered", desc: "Will require contact-free verification.", date: "Pending", done: false },
-                          ].map((milestone, idx) => (
-                            <div key={idx} className="relative text-left">
-                              <div className={`absolute -left-8 top-1.5 w-6.5 h-6.5 rounded-full border-2 flex items-center justify-center bg-white transition-all ${milestone.done ? "border-[#2A4A3C] text-[#2A4A3C]" : milestone.active ? "border-[#C9920A] text-[#C9920A]" : "border-gray-200 text-gray-300"}`}>
-                                {milestone.done ? <Check className="w-3 h-3" /> : <div className={`w-2 h-2 rounded-full ${milestone.active ? "bg-[#C9920A]" : "bg-transparent"}`} />}
+                        {trackingLoading ? (
+                          <div className="text-center py-8 text-sm text-[#7A7064] animate-pulse">Loading tracking details…</div>
+                        ) : trackingOrder ? (
+                          (() => {
+                            const STATUSES = ['pending','processing','shipped','delivered'];
+                            const STEPS = [
+                              { title:"Order Placed", desc:"Your payment was processed and order confirmed." },
+                              { title:"Stone Grinding & Packing", desc:"Spices slow-milled under 35°C and vacuum-sealed." },
+                              { title:"Shipped", desc:"Handed over to Express Courier Partner." },
+                              { title:"Delivered", desc:"Will require contact-free verification." },
+                            ];
+                            const cur = trackingOrder.status || 'pending';
+                            const terminal = ['cancelled','refunded','returned'].includes(cur);
+                            const effective = cur === 'completed' ? 'delivered' : cur;
+                            const idx = STATUSES.indexOf(effective);
+                            const ci = idx >= 0 ? idx : -1;
+                            return (
+                              <div className="relative pl-8 space-y-8 before:absolute before:left-3 before:top-2 before:bottom-2 before:w-0.5 before:bg-[#EEE9E0]">
+                                {STEPS.map((m,i) => {
+                                  const done = effective === 'delivered' ? i <= ci : ci > i;
+                                  const active = ci === i && !done && !terminal && ci >= 0;
+                                  const pending = !done && !active;
+                                  return (
+                                    <div key={i} className="relative text-left">
+                                      <div className={`absolute -left-8 top-1.5 w-6.5 h-6.5 rounded-full border-2 flex items-center justify-center bg-white transition-all ${done ? "border-[#2A4A3C] text-[#2A4A3C]" : active ? "border-[#C9920A] text-[#C9920A]" : "border-gray-200 text-gray-300"}`}>
+                                        {done ? <Check className="w-3 h-3" /> : <div className={`w-2 h-2 rounded-full ${active ? "bg-[#C9920A]" : "bg-transparent"}`} />}
+                                      </div>
+                                      <div>
+                                        <h4 className={`font-semibold text-sm ${done || active ? "text-[#1A1714]" : "text-[#7A7064]"}`}>{m.title}</h4>
+                                        <p className="text-xs text-[#7A7064] mt-0.5">{m.desc}</p>
+                                        <span className="text-[10px] text-[#7A7064]/60 font-medium block mt-1">{done ? "Completed" : active ? "In Progress" : "Pending"}</span>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
                               </div>
-                              <div>
-                                <h4 className={`font-semibold text-sm ${milestone.done || milestone.active ? "text-[#1A1714]" : "text-[#7A7064]"}`}>{milestone.title}</h4>
-                                <p className="text-xs text-[#7A7064] mt-0.5">{milestone.desc}</p>
-                                <span className="text-[10px] text-[#7A7064]/60 font-medium block mt-1">{milestone.date}</span>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
+                            );
+                          })()
+                        ) : (
+                          <div className="text-center py-8 text-sm text-red-500">Failed to load order details.</div>
+                        )}
                       </div>
                     ) : orders.length > 0 ? (
                       <div className="bg-white rounded-2xl border border-[#1A1714]/8 overflow-hidden">
@@ -3519,9 +3672,13 @@ function BulkOrderSection() {
 }
 
 function RecipesPage() {
-  const { navigate, recipes } = useApp();
+  const { navigate, recipes, recipesLoading } = useApp();
   useSEO("Artisan Recipes", "Learn how to cook with Lepakshi Spices premium spices. View step-by-step cooking instructions for traditional and modern recipes.");
   const [difficulty, setDifficulty] = useState("all");
+  const [failedImages, setFailedImages] = useState<Set<number>>(new Set());
+  const handleImageError = useCallback((id: number) => {
+    setFailedImages(prev => new Set(prev).add(id));
+  }, []);
 
   const filtered = recipes.filter((r: any) => difficulty === "all" || r.difficulty.toLowerCase() === difficulty.toLowerCase());
 
@@ -3553,32 +3710,50 @@ function RecipesPage() {
           ))}
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {filtered.map((r, i) => (
-            <Reveal key={r.id} delay={i * 80}>
-              <button onClick={() => navigate("recipe", r)}
-                className="group text-left rounded-2xl overflow-hidden bg-white border border-[#1A1714]/6 hover:border-[#2A4A3C]/20 hover:shadow-lg transition-all duration-300 w-full cursor-pointer">
-                <div className="relative overflow-hidden" style={{ aspectRatio: "3/2" }}>
-                  <img src={r.image || r.imageUrl || "https://images.unsplash.com/photo-1596040033229-a9821ebd058d?w=800&fit=crop"} alt={r.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
-                  <div className="absolute bottom-3 left-3 flex gap-2">
-                    <span className="text-xs bg-black/40 text-white backdrop-blur-sm px-2.5 py-1 rounded-full flex items-center gap-1 font-medium">
-                      <Clock className="w-3.5 h-3.5" /> {r.time || (r.prepMinutes || r.cookMinutes ? `${(r.prepMinutes || 0) + (r.cookMinutes || 0)} mins` : "30 mins")}
-                    </span>
-                    <span className="text-xs bg-black/40 text-white backdrop-blur-sm px-2.5 py-1 rounded-full font-medium">{r.difficulty || "medium"}</span>
-                  </div>
-                </div>
-                <div className="p-5">
-                  <h3 className="text-lg font-bold text-[#1A1714] mb-2 group-hover:text-[#2A4A3C] transition-colors" style={{ fontFamily: "'Bodoni Moda', serif" }}>{r.title}</h3>
-                  <p className="text-xs text-[#7A7064] leading-relaxed mb-4 line-clamp-2">{r.description}</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {(r.spices || []).map((s: string) => <span key={s} className="text-xs text-[#7A7064] bg-[#FAF8F3] px-2 py-1 rounded-full border border-[#1A1714]/6">#{s}</span>)}
-                  </div>
-                </div>
-              </button>
-            </Reveal>
-          ))}
-        </div>
+        {recipesLoading ? (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {[1, 2, 3].map(i => <RecipeCardSkeleton key={i} />)}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {filtered.length === 0 ? (
+              <div className="col-span-full text-center py-16">
+                <p className="text-[#7A7064]">No recipes found for this difficulty level.</p>
+              </div>
+            ) : (
+              filtered.map((r, i) => (
+                <Reveal key={r.id} delay={i * 80}>
+                  <button onClick={() => navigate("recipe", r)}
+                    className="group text-left rounded-2xl overflow-hidden bg-white border border-[#1A1714]/6 hover:border-[#2A4A3C]/20 hover:shadow-lg transition-all duration-300 w-full cursor-pointer">
+                    <div className="relative overflow-hidden" style={{ aspectRatio: "3/2" }}>
+                      <img
+                        src={failedImages.has(r.id) ? DEFAULT_RECIPE_IMAGE : getRecipeThumbnail(r)}
+                        alt={r.title}
+                        loading="lazy"
+                        onError={() => handleImageError(r.id)}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
+                      <div className="absolute bottom-3 left-3 flex gap-2">
+                        <span className="text-xs bg-black/40 text-white backdrop-blur-sm px-2.5 py-1 rounded-full flex items-center gap-1 font-medium">
+                          <Clock className="w-3.5 h-3.5" /> {getRecipeTime(r)}
+                        </span>
+                        <span className="text-xs bg-black/40 text-white backdrop-blur-sm px-2.5 py-1 rounded-full font-medium">{r.difficulty || "medium"}</span>
+                      </div>
+                    </div>
+                    <div className="p-5">
+                      <h3 className="text-lg font-bold text-[#1A1714] mb-2 group-hover:text-[#2A4A3C] transition-colors" style={{ fontFamily: "'Bodoni Moda', serif" }}>{r.title}</h3>
+                      <p className="text-xs text-[#7A7064] leading-relaxed mb-4 line-clamp-2">{r.description}</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {(r.spices || []).map((s: string) => <span key={s} className="text-xs text-[#7A7064] bg-[#FAF8F3] px-2 py-1 rounded-full border border-[#1A1714]/6">#{s}</span>)}
+                      </div>
+                    </div>
+                  </button>
+                </Reveal>
+              ))
+            )}
+          </div>
+        )}
       </div>
       <Footer />
     </div>
@@ -3590,8 +3765,9 @@ function RecipeDetailPage({ recipe }: { recipe: any }) {
   const spicesList = recipe?.spices || [];
   const ingredientsList = recipe?.ingredients || [];
   const instructionsList = recipe?.instructions || [];
-  const displayImage = recipe?.image || recipe?.imageUrl || "https://images.unsplash.com/photo-1596040033229-a9821ebd058d?w=800&fit=crop";
-  const displayTime = recipe?.time || (recipe?.prepMinutes || recipe?.cookMinutes ? `${(recipe?.prepMinutes || 0) + (recipe?.cookMinutes || 0)} mins` : "30 mins");
+  const [detailImageFailed, setDetailImageFailed] = useState(false);
+  const displayImage = detailImageFailed ? DEFAULT_RECIPE_IMAGE : getRecipeThumbnail(recipe);
+  const displayTime = getRecipeTime(recipe);
   const displayDifficulty = recipe?.difficulty || "medium";
 
   useSEO(recipe?.title || "Recipe", `Learn how to make ${recipe?.title || "Recipe"}. Portions: ${recipe?.servings || 4}. Prep time: ${displayTime}. Ingredients include: ${ingredientsList.join(", ")}.`);
@@ -3637,7 +3813,7 @@ function RecipeDetailPage({ recipe }: { recipe: any }) {
           {/* Left Column: Image + Info */}
           <div className="md:col-span-7">
             <div className="rounded-3xl overflow-hidden shadow-md bg-[#F5F0E8] mb-6" style={{ aspectRatio: "16/10" }}>
-              <img src={displayImage} alt={recipe?.title} className="w-full h-full object-cover" />
+              <img src={displayImage} alt={recipe?.title} loading="lazy" onError={() => setDetailImageFailed(true)} className="w-full h-full object-cover" />
             </div>
             <h1 className="text-3xl lg:text-4xl font-bold text-[#1A1714] mb-3" style={{ fontFamily: "'Bodoni Moda', serif" }}>{recipe?.title}</h1>
             <p className="text-[#7A7064] leading-relaxed mb-6">{recipe?.description}</p>
@@ -4799,8 +4975,13 @@ export default function App() {
   const [products, setProducts] = useState<any[]>([]);
 
   const [categories, setCategories] = useState<any[]>([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
 
   const [recipes, setRecipes] = useState<any[]>([]);
+  const [recipesLoading, setRecipesLoading] = useState(true);
+
+  const [deliveryNotifications, setDeliveryNotifications] = useState<any[]>([]);
+  const deliveredNotifiedRef = useRef<Set<number>>(new Set());
 
   const [testimonials, setTestimonials] = useState<any[]>([]);
 
@@ -4865,6 +5046,8 @@ export default function App() {
   useEffect(() => {
     const fetchApiData = async () => {
       try {
+        setCategoriesLoading(true);
+        setRecipesLoading(true);
         const [dataP, dataC, dataR, dataReviews, homepageCms] = await Promise.all([
           productsApi.list(), categoriesApi.list(), recipesApi.list(),
           reviewsApi.listApproved(),
@@ -4872,11 +5055,11 @@ export default function App() {
         ]);
         setProducts(dataP || []);
         setCategories([
-          { id: "all", name: "All Spices", count: 0 },
+          { id: "all", name: "All Spices", count: (dataP || []).length },
           ...(dataC || []).map((c: any) => ({
             id: c.slug || String(c.id),
             name: c.name,
-            count: 0,
+            count: c.count ?? 0,
             description: c.description || "",
             image: c.imageUrl || ""
           }))
@@ -4893,6 +5076,9 @@ export default function App() {
         if (homepageCms?.value) setCmsSettings(homepageCms.value);
       } catch (err) {
         console.warn("User app API connection failed:", err);
+      } finally {
+        setCategoriesLoading(false);
+        setRecipesLoading(false);
       }
     };
     fetchApiData();
@@ -4943,6 +5129,33 @@ export default function App() {
 
   useEffect(() => { refreshCustomerData().catch(console.error); }, [user?.token]);
 
+  useEffect(() => {
+    if (!user?.token) {
+      setDeliveryNotifications([]);
+      deliveredNotifiedRef.current = new Set();
+      return;
+    }
+    const interval = setInterval(async () => {
+      try {
+        const serverOrders = await ordersApi.list();
+        if (!serverOrders || !Array.isArray(serverOrders)) return;
+        setOrders(serverOrders as any[]);
+        for (const o of serverOrders as any[]) {
+          if (o.status?.toLowerCase() === 'delivered' && !deliveredNotifiedRef.current.has(o.id)) {
+            deliveredNotifiedRef.current.add(o.id);
+            setDeliveryNotifications(prev => [...prev, {
+              title: 'Product Delivered',
+              desc: `Your order #${o.id} has been delivered successfully.`,
+              time: 'Just now',
+              icon: Truck,
+              color: '#2A4A3C'
+            }]);
+          }
+        }
+      } catch {}
+    }, 15000);
+    return () => clearInterval(interval);
+  }, [user?.token]);
 
   function trackProductView(id: number) {
     setRecentlyViewed(prev => {
@@ -5080,7 +5293,8 @@ export default function App() {
     user, authModalOpen, setAuthModalOpen, login, signup, logout, forgotPassword, recentlyViewed,
     analyticsEvents, logAnalyticsEvent, wholesaleData, setWholesaleData, profileData, setProfileData,
     discount, setDiscount, couponCode, setCouponCode, orders, setOrders, campaigns, clearCart, refreshOrders: refreshCustomerData,
-    products, setProducts, categories, setCategories, recipes, setRecipes,
+    products, setProducts, categories, setCategories, categoriesLoading, recipes, setRecipes, recipesLoading,
+    deliveryNotifications, clearDeliveryNotifications: () => { setDeliveryNotifications([]); deliveredNotifiedRef.current = new Set(); },
     testimonials, setTestimonials, cmsSettings, setCmsSettings
   };
 

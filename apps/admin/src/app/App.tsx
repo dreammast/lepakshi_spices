@@ -83,7 +83,8 @@ type OrderShippingAddress = {
   postalCode: string;
   country?: string;
 };
-type Order = { id: string; customer: string; email: string; items: number; total: number; status: string; date: string; shippingAddress: OrderShippingAddress | null; products: string[] };
+type OrderItemDetail = { productName: string; variantLabel: string; quantity: number; price: number };
+type Order = { id: string; customer: string; email: string; customerEmail: string; customerPhone: string; items: number; itemDetails: OrderItemDetail[]; subtotal: number; discount: number; tax: number; shipping: number; total: number; status: string; date: string; shippingAddress: OrderShippingAddress | null; paymentMethod: string; paymentStatus: string };
 const INIT_ORDERS: Order[] = [];
 
 const NOTIFS: any[] = [];
@@ -1694,12 +1695,25 @@ function OrdersPage() {
         id: String(order.id),
         customer: order.customerName || order.customer || "Customer",
         email: order.customerEmail || "",
+        customerEmail: order.customerEmail || "",
+        customerPhone: order.customerPhone || "",
         items: order.items?.length || 0,
+        itemDetails: (order.items || []).map((item: any) => ({
+          productName: item.product?.name || "Product",
+          variantLabel: item.variant?.label || "",
+          quantity: item.quantity || 0,
+          price: Number(item.price ?? item.variant?.price ?? 0),
+        })),
+        subtotal: Number(order.subtotalAmount ?? 0),
+        discount: Number(order.discountAmount ?? 0),
+        tax: Number(order.taxAmount ?? 0),
+        shipping: Number(order.shippingAmount ?? 0),
         total: Number(order.totalAmount ?? order.total ?? 0),
         status: order.status || "pending",
         date: order.placedAt ? new Date(order.placedAt).toLocaleDateString() : "",
         shippingAddress: normalizeAdminOrderAddress(order.shippingAddress),
-        products: (order.items || []).map((item: any) => item.product?.name || item.variant?.label || "Product")
+        paymentMethod: order.paymentMethod || "",
+        paymentStatus: order.paymentStatus || "pending",
       })));
     } catch (error: any) {
       toast.error(error.message || "Unable to load orders");
@@ -1915,24 +1929,70 @@ function OrdersPage() {
                   <div className="bg-[#FAF8F5] p-4 rounded-xl border border-[#2C2416]/8">
                     <p className="text-[10px] font-bold text-[#8B7355] uppercase tracking-widest mb-2">Customer Profile</p>
                     <p className="text-sm font-semibold text-[#2C2416]">{drawerTarget.customer}</p>
-                    {drawerTarget.customerEmail && <p className="text-xs text-[#8B7355]">{drawerTarget.customerEmail}</p>}
-                    {drawerTarget.customerPhone && <p className="text-xs text-[#8B7355]">Phone: {drawerTarget.customerPhone}</p>}
-                    <p className="text-xs text-[#8B7355] mt-1.5 pt-1.5 border-t border-[#2C2416]/6">
-                      <span className="font-semibold text-[#2C2416]">Shipping Address:</span>{" "}
-                      {formatShippingAddress(drawerTarget.shippingAddress) || "Not specified"}
-                    </p>
+                    <p className="text-xs text-[#8B7355]">{drawerTarget.customerEmail}</p>
+                    {drawerTarget.customerPhone && <p className="text-xs text-[#8B7355]">{drawerTarget.customerPhone}</p>}
+                    <div className="mt-2 space-y-0.5">
+                      {(() => {
+                        const pm = drawerTarget.paymentMethod?.toLowerCase();
+                        const pmLabel = pm === 'cod' ? 'Cash on Delivery' : pm === 'card' ? 'Credit/Debit Card' : pm === 'upi' ? 'UPI' : pm === 'netbanking' ? 'Net Banking' : pm === 'wallet' ? 'Wallet' : pm || '';
+                        const ps = drawerTarget.paymentStatus?.toLowerCase();
+                        const psColors: Record<string,string> = { paid:'text-[#2D5016]', pending:'text-[#A87800]', failed:'text-[#C94040]' };
+                        return (
+                          <>
+                            {pmLabel && <p className="text-xs text-[#8B7355]"><span className="font-semibold text-[#2C2416]">Payment Method:</span> {pmLabel}</p>}
+                            {ps && <p className={`text-xs font-semibold ${psColors[ps] || 'text-[#8B7355]'}`}>{ps === 'paid' ? 'Paid' : ps === 'pending' ? 'Pending' : ps === 'failed' ? 'Failed' : ps}</p>}
+                          </>
+                        );
+                      })()}
+                    </div>
+                    {drawerTarget.shippingAddress && (
+                      <div className="mt-2 pt-2 border-t border-[#2C2416]/6 text-xs text-[#8B7355] space-y-0.5">
+                        <p className="font-semibold text-[#2C2416]">Shipping Address</p>
+                        {drawerTarget.shippingAddress.name && <p>{drawerTarget.shippingAddress.name}</p>}
+                        {drawerTarget.shippingAddress.phone && <p>{drawerTarget.shippingAddress.phone}</p>}
+                        <p>{[drawerTarget.shippingAddress.line1, drawerTarget.shippingAddress.line2].filter(Boolean).join(", ")}</p>
+                        <p>{[drawerTarget.shippingAddress.city, drawerTarget.shippingAddress.state].filter(Boolean).join(", ")}{drawerTarget.shippingAddress.postalCode ? ` - ${drawerTarget.shippingAddress.postalCode}` : ''}</p>
+                        {drawerTarget.shippingAddress.country && <p>{drawerTarget.shippingAddress.country}</p>}
+                      </div>
+                    )}
                   </div>
 
                   <div>
                     <p className="text-[10px] font-bold text-[#8B7355] uppercase tracking-widest block mb-2">Order Items</p>
                     <div className="space-y-2 border border-[#2C2416]/8 p-3 rounded-xl">
-                      <div className="flex items-center justify-between text-xs py-1 border-b border-[#2C2416]/6">
-                        <span className="text-[#8B7355]">General Spices Pack (Weight Variant)</span>
-                        <span className="font-semibold">{drawerTarget.items} items</span>
-                      </div>
-                      <div className="flex items-center justify-between text-xs pt-1 font-semibold text-[#2C2416]">
-                        <span>Subtotal</span>
-                        <span>₹{drawerTarget.total}</span>
+                      {drawerTarget.itemDetails.length > 0 ? drawerTarget.itemDetails.map((item, idx) => (
+                        <div key={idx} className="flex items-center justify-between text-xs py-1 border-b border-[#2C2416]/6 last:border-b-0">
+                          <span className="text-[#8B7355]">{item.productName}{item.variantLabel ? ` (${item.variantLabel})` : ''} × {item.quantity}</span>
+                          <span className="font-semibold">₹{(item.price * item.quantity).toFixed(2)}</span>
+                        </div>
+                      )) : <p className="text-xs text-[#8B7355] py-1">No item details</p>}
+                      {drawerTarget.subtotal > 0 && (
+                        <div className="flex items-center justify-between text-xs pt-2 text-[#8B7355]">
+                          <span>Subtotal</span>
+                          <span>₹{drawerTarget.subtotal.toFixed(2)}</span>
+                        </div>
+                      )}
+                      {drawerTarget.discount > 0 && (
+                        <div className="flex items-center justify-between text-xs text-[#8B7355]">
+                          <span>Discount</span>
+                          <span className="text-[#2D5016]">-₹{drawerTarget.discount.toFixed(2)}</span>
+                        </div>
+                      )}
+                      {drawerTarget.tax > 0 && (
+                        <div className="flex items-center justify-between text-xs text-[#8B7355]">
+                          <span>Tax</span>
+                          <span>₹{drawerTarget.tax.toFixed(2)}</span>
+                        </div>
+                      )}
+                      {drawerTarget.shipping > 0 && (
+                        <div className="flex items-center justify-between text-xs text-[#8B7355]">
+                          <span>Shipping</span>
+                          <span>₹{drawerTarget.shipping.toFixed(2)}</span>
+                        </div>
+                      )}
+                      <div className="flex items-center justify-between text-xs pt-2 border-t border-[#2C2416]/6 font-semibold text-[#2C2416]">
+                        <span>Total</span>
+                        <span>₹{drawerTarget.total.toFixed(2)}</span>
                       </div>
                     </div>
                   </div>

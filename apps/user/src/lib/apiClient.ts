@@ -123,6 +123,7 @@ export const couponsApi = {
 
 export const ordersApi = {
   list: () => api.get<any[]>('/orders'),
+  get: (id: number | string) => api.get<any>(`/orders/${id}`),
   create: (body: unknown) => api.post<any>('/orders', body)
 };
 
