@@ -43,7 +43,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(() => {
     try {
       const saved = localStorage.getItem("spiceora_user") || sessionStorage.getItem("spiceora_user");
-      return saved ? JSON.parse(saved) : null;
+      if (!saved) return null;
+      const parsed = JSON.parse(saved);
+      if (parsed.token) {
+        try {
+          const payload = JSON.parse(atob(parsed.token.split('.')[1]));
+          if (payload.exp * 1000 < Date.now()) {
+            localStorage.removeItem("spiceora_user");
+            sessionStorage.removeItem("spiceora_user");
+            return null;
+          }
+        } catch {}
+      }
+      return parsed;
     } catch {
       return null;
     }
@@ -75,6 +87,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             }),
           });
 
+          if (!res.ok) {
+            const errBody = await res.json().catch(() => ({}));
+            throw new Error(errBody.message || `Sync failed (${res.status})`);
+          }
+
           const json = await res.json();
           const localUser = json.data?.user || {};
           const appToken = json.data?.token || token;
@@ -93,6 +110,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           localStorage.setItem("spiceora_user", JSON.stringify(userData));
         } catch (err) {
           console.warn("Failed to sync Firebase user with backend:", err);
+          setUser(null);
+          localStorage.removeItem("spiceora_user");
+          sessionStorage.removeItem("spiceora_user");
         }
       } else {
         setUser(null);

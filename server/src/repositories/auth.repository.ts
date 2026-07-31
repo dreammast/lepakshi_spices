@@ -8,6 +8,7 @@ export type CreateCustomerProfileInput = {
   firstName: string;
   lastName: string;
   phone?: string;
+  avatarUrl?: string;
   role?: 'customer' | 'staff' | 'manager' | 'admin';
 };
 
@@ -27,6 +28,7 @@ export async function createCustomerProfile(input: CreateCustomerProfileInput) {
     passwordHash: input.passwordHash,
     firstName: input.firstName,
     lastName: input.lastName,
+    avatarUrl: input.avatarUrl,
     phone: input.phone,
     role: input.role ?? 'customer',
     createdAt: new Date(),

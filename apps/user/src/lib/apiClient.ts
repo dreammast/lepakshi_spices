@@ -6,12 +6,27 @@ export type ApiResponse<T> = {
   message?: string;
 };
 
+function isJwtExpired(token: string): boolean {
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    return payload.exp * 1000 < Date.now();
+  } catch {
+    return false;
+  }
+}
+
 function getAuthToken(): string | null {
   try {
     const raw = localStorage.getItem('spiceora_user') || sessionStorage.getItem('spiceora_user');
     if (!raw) return null;
     const parsed = JSON.parse(raw);
-    return parsed.token || null;
+    const token = parsed.token || null;
+    if (token && isJwtExpired(token)) {
+      localStorage.removeItem('spiceora_user');
+      sessionStorage.removeItem('spiceora_user');
+      return null;
+    }
+    return token;
   } catch {
     return null;
   }
@@ -34,6 +49,10 @@ export async function apiRequest<T>(
   const json = (await res.json()) as ApiResponse<T> & { message?: string };
 
   if (!res.ok || json.success === false) {
+    if (res.status === 401) {
+      localStorage.removeItem('spiceora_user');
+      sessionStorage.removeItem('spiceora_user');
+    }
     throw new Error(json.message || `Request failed (${res.status})`);
   }
 

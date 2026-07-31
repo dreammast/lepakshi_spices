@@ -1,4 +1,5 @@
 import type { NextFunction, Request, Response } from 'express';
+import { logger } from '../utils/logger.js';
 import {
   registerCustomer,
   authenticateCustomer,
@@ -181,10 +182,13 @@ export async function googleCallbackController(req: Request, res: Response, next
 
 export async function syncFirebaseController(req: Request, res: Response, next: NextFunction) {
   try {
+    logger.info({ body: req.body, ip: req.ip }, '[sync-firebase] Incoming request');
     const { email, firstName, lastName, avatarUrl, phone } = req.body || {};
+    logger.info({ email }, '[sync-firebase] Validation');
     if (!email) {
       return res.status(400).json({ success: false, message: 'Email is required' });
     }
+    logger.info({ email }, '[sync-firebase] Calling syncOAuthUser');
     const result = await syncOAuthUser({
       email,
       firstName,
@@ -193,8 +197,10 @@ export async function syncFirebaseController(req: Request, res: Response, next: 
       phone,
       provider: 'firebase',
     });
+    logger.info({ email, userId: result.user.id }, '[sync-firebase] Success');
     sendSuccess(res, result, 'Firebase user synced successfully');
   } catch (error) {
+    logger.error({ err: error, body: req.body, ip: req.ip }, '[sync-firebase] Unhandled exception');
     next(error);
   }
 }

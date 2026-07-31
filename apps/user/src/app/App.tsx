@@ -4754,9 +4754,9 @@ const triggerPDFDownload = async () => {
  </p>
 
  <div className="space-y-4">
- {/* WhatsApp Support */}
- <a href={`https://wa.me/91${cmsContact.whatsapp}?text=Hello%2C%20I%20am%20interested%20in%20sourcing%20spices%20in%20bulk.`} target="_blank" rel="noreferrer"
- className="flex items-center gap-4 p-4 rounded-xl border border-[#25D366]/20 bg-[#25D366]/5 hover:bg-[#25D366]/10 transition-colors w-full">
+  {/* WhatsApp Support */}
+  <a href={`https://wa.me/917995219657?text=Hello%2C%20I%20am%20interested%20in%20sourcing%20spices%20in%20bulk.`} target="_blank" rel="noreferrer"
+  className="flex items-center gap-4 p-4 rounded-xl border border-[#25D366]/20 bg-[#25D366]/5 hover:bg-[#25D366]/10 transition-colors w-full">
  <div className="w-10 h-10 rounded-lg bg-[#25D366] text-white flex items-center justify-center flex-shrink-0">
  <Zap className="w-5 h-5 fill-white" />
  </div>
@@ -4766,42 +4766,38 @@ const triggerPDFDownload = async () => {
  </div>
  </a>
 
- {/* Call Sales */}
- <a href={`tel:+91${cmsContact.phone}`}
- className="flex items-center gap-4 p-4 rounded-xl border border-[#2A4A3C]/20 bg-[#2A4A3C]/5 hover:bg-[#2A4A3C]/10 transition-colors w-full">
- <div className="w-10 h-10 rounded-lg bg-[#2A4A3C] text-white flex items-center justify-center flex-shrink-0">
- <Phone className="w-4 h-4 fill-white" />
- </div>
- <div className="text-left">
- <span className="text-[10px] uppercase font-bold text-[#2A4A3C] tracking-wider block">{cmsContact.hours}</span>
- <span className="font-bold text-[#1A1714] text-sm">+91 {cmsContact.phone}</span>
- </div>
- </a>
+  {/* Call Sales */}
+  <a href={`tel:+917995219657`}
+  className="flex items-center gap-4 p-4 rounded-xl border border-[#2A4A3C]/20 bg-[#2A4A3C]/5 hover:bg-[#2A4A3C]/10 transition-colors w-full">
+  <div className="w-10 h-10 rounded-lg bg-[#2A4A3C] text-white flex items-center justify-center flex-shrink-0">
+  <Phone className="w-4 h-4 fill-white" />
+  </div>
+  <div className="text-left">
+  <span className="text-[10px] uppercase font-bold text-[#2A4A3C] tracking-wider block">{cmsContact.hours}</span>
+  <span className="font-bold text-[#1A1714] text-sm">+91 7995219657</span>
+  </div>
+  </a>
 
- {/* Email Desk */}
- <a href={`mailto:${cmsContact.email}`}
- className="flex items-center gap-4 p-4 rounded-xl border border-[#C9920A]/20 bg-[#C9920A]/5 hover:bg-[#C9920A]/10 transition-colors w-full">
- <div className="w-10 h-10 rounded-lg bg-[#C9920A] text-white flex items-center justify-center flex-shrink-0">
- <Mail className="w-4 h-4 text-white" />
- </div>
- <div className="text-left">
- <span className="text-[10px] uppercase font-bold text-[#C9920A] tracking-wider block">Logistics & Quotes Desk</span>
- <span className="font-bold text-[#1A1714] text-sm">{cmsContact.email}</span>
- </div>
- </a>
+  {/* Email Desk */}
+  <a href={`mailto:lepakshispices@gmail.com`}
+  className="flex items-center gap-4 p-4 rounded-xl border border-[#C9920A]/20 bg-[#C9920A]/5 hover:bg-[#C9920A]/10 transition-colors w-full">
+  <div className="w-10 h-10 rounded-lg bg-[#C9920A] text-white flex items-center justify-center flex-shrink-0">
+  <Mail className="w-4 h-4 text-white" />
+  </div>
+  <div className="text-left">
+  <span className="text-[10px] uppercase font-bold text-[#C9920A] tracking-wider block">Logistics & Quotes Desk</span>
+  <span className="font-bold text-[#1A1714] text-sm">lepakshispices@gmail.com</span>
+  </div>
+  </a>
  </div>
  </div>
 
  {/* B2B Sourcing Certs banner */}
  <div className="bg-[#2A4A3C]/5 rounded-3xl border border-[#2A4A3C]/10 p-6 text-center">
  <span className="text-[10px] font-bold text-[#2A4A3C] uppercase tracking-widest block mb-2">Accreditations</span>
- <div className="flex justify-center items-center gap-4 opacity-75">
- <span className="font-serif font-bold text-sm text-[#2A4A3C]">FSSAI</span>
- <div className="h-4 w-px bg-[#2A4A3C]/20" />
- <span className="font-serif font-bold text-sm text-[#2A4A3C]">APEDA</span>
- <div className="h-4 w-px bg-[#2A4A3C]/20" />
- <span className="font-serif font-bold text-sm text-[#2A4A3C]">USDA ORGANIC</span>
- </div>
+  <div className="flex justify-center items-center gap-4 opacity-75">
+   <img src="/fssai_logo.png" alt="FSSAI Certified" className="h-5 w-auto" />
+  </div>
  </div>
  </div>
 
@@ -4824,8 +4820,8 @@ const triggerPDFDownload = async () => {
  <button onClick={triggerPDFDownload} className="w-full py-3 bg-[#2A4A3C] hover:bg-[#1E352B] text-white font-semibold rounded-xl shadow transition-colors flex items-center justify-center gap-2 text-sm cursor-pointer">
  <FileText className="w-4 h-4" /> Download Again
  </button>
- <a href={`https://wa.me/91${cmsContact.whatsapp}?text=Hello%2C%20I%20am%20interested%20in%20sourcing%20spices%20in%20bulk.`} target="_blank" rel="noreferrer"
- className="w-full py-3 bg-[#25D366] hover:bg-[#20ba5a] text-white font-semibold rounded-xl shadow transition-colors flex items-center justify-center gap-2 text-sm">
+  <a href={`https://wa.me/917995219657?text=Hello%2C%20I%20am%20interested%20in%20sourcing%20spices%20in%20bulk.`} target="_blank" rel="noreferrer"
+  className="w-full py-3 bg-[#25D366] hover:bg-[#20ba5a] text-white font-semibold rounded-xl shadow transition-colors flex items-center justify-center gap-2 text-sm">
  <Zap className="w-4 h-4 fill-white" /> Chat on WhatsApp
  </a>
  <button onClick={() => setSubmitted(false)} className="w-full py-3 bg-[#FAF8F3] hover:bg-[#EEE9E0] text-[#7A7064] font-semibold rounded-xl transition-colors text-sm border border-[#1A1714]/12 cursor-pointer mt-4">
@@ -5170,7 +5166,13 @@ export default function App() {
  setWishlist(new Set((serverWishlist.items || []).map((row: any) => row.item?.productId || row.productId).filter(Boolean)));
  }
 
- useEffect(() => { refreshCustomerData().catch(console.error); }, [user?.token]);
+  useEffect(() => {
+    refreshCustomerData().catch((err) => {
+      if (err?.message?.includes('token') || err?.message?.includes('401')) {
+        logout();
+      }
+    });
+  }, [user?.token]);
 
  useEffect(() => {
  if (!user?.token) {
@@ -5195,7 +5197,9 @@ export default function App() {
  }]);
  }
  }
- } catch {}
+  } catch (err: any) {
+    if (err?.message?.includes('token') || err?.message?.includes('401')) logout();
+  }
  }, 15000);
  return () => clearInterval(interval);
  }, [user?.token]);

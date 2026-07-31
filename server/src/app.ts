@@ -13,7 +13,9 @@ import { verifyEmailTransport } from './mail/send-email.js';
 
 const app = express();
 app.use(requestLogger);
-app.use(helmet());
+app.use(helmet({
+  crossOriginOpenerPolicy: { policy: 'unsafe-none' },
+}));
 app.use(cors({
   origin: (origin, callback) => {
     const allowed = [

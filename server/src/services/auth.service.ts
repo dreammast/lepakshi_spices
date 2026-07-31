@@ -103,12 +103,13 @@ export async function syncOAuthUser(input: {
   let customer = await findCustomerByEmail(input.email);
   const firstName = input.firstName || input.email.split('@')[0] || 'User';
   const lastName = input.lastName || '';
+  const avatarUrl = input.avatarUrl ? input.avatarUrl.slice(0, 512) : undefined;
 
   if (customer) {
     const updates: Record<string, any> = { updatedAt: new Date() };
     if (firstName && customer.firstName !== firstName) updates.firstName = firstName;
     if (lastName !== undefined && customer.lastName !== lastName) updates.lastName = lastName;
-    if (input.avatarUrl && customer.avatarUrl !== input.avatarUrl) updates.avatarUrl = input.avatarUrl;
+    if (avatarUrl && customer.avatarUrl !== avatarUrl) updates.avatarUrl = avatarUrl;
     if (input.phone && customer.phone !== input.phone) updates.phone = input.phone;
 
     if (Object.keys(updates).length > 1) {
@@ -122,6 +123,7 @@ export async function syncOAuthUser(input: {
       firstName,
       lastName,
       phone: input.phone || '',
+      avatarUrl,
       role: 'customer'
     });
   }
@@ -217,7 +219,7 @@ export async function updateProfile(userId: number, input: {
   if (input.firstName !== undefined) updates.firstName = input.firstName;
   if (input.lastName !== undefined) updates.lastName = input.lastName;
   if (input.phone !== undefined) updates.phone = input.phone;
-  if (input.avatarUrl !== undefined) updates.avatarUrl = input.avatarUrl;
+  if (input.avatarUrl !== undefined) updates.avatarUrl = input.avatarUrl.slice(0, 512);
 
   await db.update(customerProfiles).set(updates).where(eq(customerProfiles.id, userId));
   const updated = await findCustomerById(userId);
