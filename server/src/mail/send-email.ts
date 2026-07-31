@@ -39,7 +39,7 @@ export async function verifyEmailTransport() {
   }
 }
 
-function escapeHtml(value: string | number | null | undefined) {
+export function escapeHtml(value: string | number | null | undefined) {
   return String(value ?? '').replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char]!));
 }
 
@@ -47,7 +47,7 @@ function formatMoney(amount: number, currency = 'INR') {
   return new Intl.NumberFormat('en-IN', { style: 'currency', currency }).format(amount);
 }
 
-function emailLayout(title: string, body: string) {
+export function emailLayout(title: string, body: string) {
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
 <body style="margin:0;padding:0;background:#FAF8F3;font-family:Arial,sans-serif"><div style="max-width:560px;margin:32px auto;background:#fff;border-radius:16px;overflow:hidden"><div style="background:#2A4A3C;padding:28px;text-align:center;color:#fff"><strong style="color:#C9920A;font-family:Georgia,serif;font-size:24px">Lepakshi Spices</strong></div><div style="padding:32px;color:#3d3832"><h2>${escapeHtml(title)}</h2>${body}</div><div style="padding:16px 32px;background:#FAF8F3;color:#7A7064;font-size:11px;text-align:center">Lepakshi Spices &copy; ${new Date().getFullYear()}</div></div></body></html>`;
 }
@@ -195,16 +195,9 @@ export function orderStatusEmailTemplate(order: OrderEmailData) {
   );
 }
 
-export function wholesaleInquiryEmailTemplate(contactName: string, companyName: string, status: 'received' | 'approved' | 'rejected') {
-  const copy =
-    status === 'received'
-      ? 'We have received your wholesale request and will review it shortly.'
-      : status === 'approved'
-        ? 'Your wholesale request has been approved. Our team will contact you with the next steps.'
-        : 'Thank you for your interest. We are unable to approve your wholesale request at this time.';
-  const title = status === 'received' ? 'Wholesale request received' : status === 'approved' ? 'Wholesale request approved' : 'Wholesale request rejected';
-  return emailLayout(title, `<p>Hi ${escapeHtml(contactName)},</p><p>${copy}</p><p>Company: <strong>${escapeHtml(companyName)}</strong></p>`);
-}
+// Wholesale inquiry email template is now maintained in the wholesale module.
+// Re-exported here for backward compatibility with any external consumers.
+export { wholesaleInquiryEmailTemplate } from '../modules/wholesale/emails/templates.js';
 
 export function verificationEmailTemplate(name: string, verificationUrl: string) {
   return `<!DOCTYPE html>

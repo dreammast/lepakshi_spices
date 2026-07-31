@@ -28,6 +28,10 @@ const TABLE_AUTO_INCREMENT_MAP: Record<string, number> = {
   audit_logs: 1,
   website_settings: 1,
   email_otps: 1,
+  wholesale_orders: 1,
+  wholesale_order_items: 1,
+  wholesale_invoices: 1,
+  wholesale_activity_log: 1,
 };
 
 export async function runMigrations() {

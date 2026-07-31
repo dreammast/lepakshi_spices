@@ -16,7 +16,7 @@ import { campaignAdminRouter, campaignPublicRouter } from './campaign.route.js';
 import { recipeAdminRouter, recipePublicRouter } from './recipe.route.js';
 import { productReviewRouter, publicReviewRouter, adminReviewRouter } from './review.route.js';
 import { settingsAdminRouter, settingsPublicRouter } from './settings.route.js';
-import { wholesaleAdminRouter, wholesalePublicRouter } from './wholesale.route.js';
+import { wholesaleAdminRouter, wholesalePublicRouter } from '../modules/wholesale/index.js';
 import packagingRoute from './packaging.route.js';
 import adminCustomerRoute from './admin-customer.route.js';
 import auditRoute from './audit.route.js';
