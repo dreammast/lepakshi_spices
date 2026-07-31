@@ -3,6 +3,7 @@ import {
   findWholesaleOrderById,
   findAllWholesaleOrders,
   updateWholesaleOrderStatusRecord,
+  findWholesaleOrdersByCustomer,
 } from '../repositories/order.repository.js';
 import { findQuotationById, updateQuotationStatus } from '../repositories/quotation.repository.js';
 import { findWholesaleInquiryById, updateWholesaleInquiryStatus } from '../repositories/inquiry.repository.js';
@@ -16,6 +17,10 @@ import { WHOLESALE_ORDER_STATUSES } from '../types/index.js';
 // ---------------------------------------------------------------------------
 // Wholesale Order Service
 // ---------------------------------------------------------------------------
+
+export async function listCustomerOrders(customerId: number, email: string) {
+  return findWholesaleOrdersByCustomer(customerId, email);
+}
 
 /**
  * Convert an accepted quotation into a wholesale order.
@@ -49,6 +54,8 @@ export async function convertQuotationToOrder(quotationId: number) {
     discountAmount: quotation.discountAmount,
     taxAmount: quotation.taxAmount,
     shippingAmount: quotation.shippingAmount,
+    additionalCharges: quotation.additionalCharges,
+    deliveryTerms: quotation.deliveryTerms,
     totalAmount: quotation.totalAmount,
     currency: quotation.currency,
     paymentTerms: quotation.paymentTerms,

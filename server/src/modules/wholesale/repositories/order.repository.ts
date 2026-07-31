@@ -1,10 +1,23 @@
-import { eq, desc } from 'drizzle-orm';
+import { eq, desc, or } from 'drizzle-orm';
 import { db } from '../../../config/database.js';
 import { wholesaleOrders, wholesaleOrderItems } from '../../../db/schema.js';
 
 // ---------------------------------------------------------------------------
 // Wholesale Order Repository
 // ---------------------------------------------------------------------------
+
+export async function findWholesaleOrdersByCustomer(customerId: number, email: string) {
+  const rows = await db.select().from(wholesaleOrders)
+    .where(or(
+      eq(wholesaleOrders.customerId, customerId),
+      eq(wholesaleOrders.email, email)
+    ))
+    .orderBy(desc(wholesaleOrders.createdAt));
+  return Promise.all(rows.map(async o => {
+    const items = await db.select().from(wholesaleOrderItems).where(eq(wholesaleOrderItems.wholesaleOrderId, o.id));
+    return { ...o, items };
+  }));
+}
 
 function generateWholesaleOrderNumber() {
   return `WO-${Date.now()}-${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`;
@@ -25,6 +38,8 @@ export interface CreateWholesaleOrderData {
   discountAmount: string;
   taxAmount: string;
   shippingAmount: string;
+  additionalCharges?: string | null;
+  deliveryTerms?: string | null;
   totalAmount: string;
   currency: string;
   paymentTerms?: string | null;
@@ -60,6 +75,8 @@ export async function createWholesaleOrderRecord(data: CreateWholesaleOrderData)
     discountAmount: data.discountAmount,
     taxAmount: data.taxAmount,
     shippingAmount: data.shippingAmount,
+    additionalCharges: data.additionalCharges || '0',
+    deliveryTerms: data.deliveryTerms ?? undefined,
     totalAmount: data.totalAmount,
     currency: data.currency,
     paymentTerms: data.paymentTerms ?? undefined,

@@ -25,10 +25,10 @@ const quotationLineItemSchema = z.object({
   productName: z.string().min(1),
   weightLabel: z.string().optional(),
   quantity: z.number().positive(),
-  unitPrice: z.number().min(0),
+  unitPrice: z.number().min(0).optional(),
   discountPercent: z.number().min(0).max(100).optional(),
   taxPercent: z.number().min(0).max(100).optional(),
-  lineTotal: z.number().min(0),
+  lineTotal: z.number().min(0).optional(),
   displayOrder: z.number().int().optional(),
   productVariantId: z.number().int().positive().optional(),
 });
@@ -36,18 +36,29 @@ const quotationLineItemSchema = z.object({
 export const createQuotationSchema = z.object({
   inquiryId: z.number().int().positive(),
   customerId: z.number().int().positive().optional(),
-  totalAmount: z.union([z.string(), z.number()]),
+  totalAmount: z.union([z.string(), z.number()]).optional(),
   items: z.array(quotationLineItemSchema).optional(),
+  notes: z.string().optional(),
+  paymentTerms: z.string().optional(),
+  validUntil: z.string().optional(),
+  shippingAmount: z.union([z.string(), z.number()]).optional(),
+  additionalCharges: z.union([z.string(), z.number()]).optional(),
+  deliveryTerms: z.string().optional(),
+  deliveryMethod: z.string().optional(),
 });
 
 export const updateQuotationSchema = z.object({}).passthrough();
 
 export const createQuotationRevisionSchema = z.object({
-  totalAmount: z.union([z.string(), z.number()]),
+  totalAmount: z.union([z.string(), z.number()]).optional(),
   items: z.array(quotationLineItemSchema).optional(),
   notes: z.string().optional(),
   paymentTerms: z.string().optional(),
   validUntil: z.string().optional(),
+  shippingAmount: z.union([z.string(), z.number()]).optional(),
+  additionalCharges: z.union([z.string(), z.number()]).optional(),
+  deliveryTerms: z.string().optional(),
+  deliveryMethod: z.string().optional(),
 });
 
 export const acceptQuotationSchema = z.object({

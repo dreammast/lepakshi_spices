@@ -1,15 +1,29 @@
 import type { Request, Response, NextFunction } from 'express';
+import type { AuthenticatedRequest } from '../../../middleware/auth.middleware.js';
 import {
   convertQuotationToOrder,
   listWholesaleOrders,
   getWholesaleOrder,
   updateWholesaleOrderStatus,
+  listCustomerOrders,
 } from '../services/order.service.js';
 import { sendSuccess, sendCreated } from '../../../utils/response.util.js';
 
 // ---------------------------------------------------------------------------
 // Wholesale Order Controllers
 // ---------------------------------------------------------------------------
+
+export async function listCustomerOrdersController(
+  req: AuthenticatedRequest, res: Response, next: NextFunction,
+) {
+  try {
+    const customerId = req.user!.sub;
+    const email = req.user!.email;
+    sendSuccess(res, await listCustomerOrders(customerId, email));
+  } catch (e) {
+    next(e);
+  }
+}
 
 export async function convertQuotationToOrderController(
   req: Request, res: Response, next: NextFunction,

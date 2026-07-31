@@ -389,6 +389,8 @@ export const quotations = mysqlTable('quotations', {
   packagingType: varchar('packaging_type', { length: 128 }),
   deliveryMethod: varchar('delivery_method', { length: 128 }),
   notes: text('notes'),
+  additionalCharges: decimal('additional_charges', { precision: 12, scale: 2 }).notNull().default('0'),
+  deliveryTerms: text('delivery_terms'),
   validUntil: datetime('valid_until'),
   revisionNumber: int('revision_number').notNull().default(1),
   parentQuotationId: int('parent_quotation_id'),
@@ -441,6 +443,8 @@ export const wholesaleOrders = mysqlTable('wholesale_orders', {
   currency: varchar('currency', { length: 3 }).notNull().default('INR'),
   paymentTerms: text('payment_terms'),
   notes: text('notes'),
+  additionalCharges: decimal('additional_charges', { precision: 12, scale: 2 }).notNull().default('0'),
+  deliveryTerms: text('delivery_terms'),
   status: mysqlEnum('status', ['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'completed', 'cancelled']).notNull().default('pending'),
   createdAt: datetime('created_at').notNull(),
   updatedAt: datetime('updated_at').notNull()
@@ -478,6 +482,7 @@ export const wholesaleInvoices = mysqlTable('wholesale_invoices', {
   status: mysqlEnum('status', ['draft', 'sent', 'paid', 'overdue', 'cancelled']).notNull().default('draft'),
   dueDate: datetime('due_date'),
   paidAt: datetime('paid_at'),
+  additionalCharges: decimal('additional_charges', { precision: 12, scale: 2 }).notNull().default('0'),
   notes: text('notes'),
   createdAt: datetime('created_at').notNull(),
   updatedAt: datetime('updated_at').notNull()

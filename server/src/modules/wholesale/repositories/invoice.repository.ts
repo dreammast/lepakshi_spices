@@ -6,6 +6,12 @@ import { wholesaleInvoices } from '../../../db/schema.js';
 // Wholesale Invoice Repository
 // ---------------------------------------------------------------------------
 
+export async function findInvoicesByCustomer(customerId: number) {
+  return db.select().from(wholesaleInvoices)
+    .where(eq(wholesaleInvoices.customerId, customerId))
+    .orderBy(desc(wholesaleInvoices.createdAt));
+}
+
 function generateInvoiceNumber() {
   return `INV-${Date.now()}-${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`;
 }
@@ -15,6 +21,7 @@ export interface CreateInvoiceData {
   customerId?: number | null;
   subtotalAmount: string;
   taxAmount: string;
+  additionalCharges?: string | null;
   totalAmount: string;
   currency: string;
   dueDate?: Date | null;
@@ -29,6 +36,7 @@ export async function createInvoiceRecord(data: CreateInvoiceData) {
     customerId: data.customerId ?? undefined,
     subtotalAmount: data.subtotalAmount,
     taxAmount: data.taxAmount,
+    additionalCharges: data.additionalCharges || '0',
     totalAmount: data.totalAmount,
     currency: data.currency,
     status: 'draft',

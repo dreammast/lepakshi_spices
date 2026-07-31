@@ -4,6 +4,7 @@ import {
   createWholesaleInquiryRecord,
   updateWholesaleInquiryStatus,
   deleteWholesaleInquiry,
+  findWholesaleInquiriesByCustomer,
 } from '../repositories/inquiry.repository.js';
 import { findQuotationsByInquiryId } from '../repositories/quotation.repository.js';
 import { findWholesaleOrdersByInquiryId } from '../repositories/order.repository.js';
@@ -16,6 +17,10 @@ import type { CreateInquiryInput } from '../types/index.js';
 // ---------------------------------------------------------------------------
 // Wholesale Inquiry Service
 // ---------------------------------------------------------------------------
+
+export async function listCustomerInquiries(customerId: number, email: string) {
+  return findWholesaleInquiriesByCustomer(customerId, email);
+}
 
 export async function listWholesaleInquiries() {
   return findAllWholesaleInquiries();

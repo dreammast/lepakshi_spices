@@ -72,6 +72,13 @@ export interface CreateQuotationInput {
   customerId?: number;
   totalAmount: string | number;
   items?: QuotationLineItem[];
+  notes?: string;
+  paymentTerms?: string;
+  validUntil?: string;
+  shippingAmount?: string | number;
+  additionalCharges?: string | number;
+  deliveryTerms?: string;
+  deliveryMethod?: string;
 }
 
 /** Input shape for creating a quotation revision. */
@@ -82,6 +89,10 @@ export interface CreateQuotationRevisionInput {
   notes?: string;
   paymentTerms?: string;
   validUntil?: string;
+  shippingAmount?: string | number;
+  additionalCharges?: string | number;
+  deliveryTerms?: string;
+  deliveryMethod?: string;
 }
 
 /** Input shape for updating a quotation. */

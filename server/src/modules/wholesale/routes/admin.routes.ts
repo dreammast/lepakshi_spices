@@ -10,6 +10,7 @@ import {
 import {
   listQuotationsController,
   getQuotationController,
+  getQuotationPdfController,
   createQuotationController,
   updateQuotationController,
   deleteQuotationController,
@@ -56,9 +57,9 @@ adminRouter.get('/wholesale-inquiries/:id', asyncHandler(getWholesaleInquiryCont
 adminRouter.put('/wholesale-inquiries/:id/status', validateBody(updateInquiryStatusSchema), asyncHandler(updateInquiryStatusController));
 adminRouter.delete('/wholesale-inquiries/:id', asyncHandler(deleteWholesaleInquiryController));
 
-// Quotation management
 adminRouter.get('/quotations', asyncHandler(listQuotationsController));
 adminRouter.get('/quotations/:id', asyncHandler(getQuotationController));
+adminRouter.get('/quotations/:id/pdf', asyncHandler(getQuotationPdfController));
 adminRouter.post('/quotations', validateBody(createQuotationSchema), asyncHandler(createQuotationController));
 adminRouter.post('/quotations/:id/revisions', validateBody(createQuotationRevisionSchema), asyncHandler(createQuotationRevisionController));
 adminRouter.put('/quotations/:id/accept', validateBody(acceptQuotationSchema), asyncHandler(acceptQuotationController));

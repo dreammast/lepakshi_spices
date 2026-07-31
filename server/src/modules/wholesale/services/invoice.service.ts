@@ -3,6 +3,7 @@ import {
   findInvoiceById,
   findAllInvoices,
   updateInvoiceStatusRecord,
+  findInvoicesByCustomer,
 } from '../repositories/invoice.repository.js';
 import { findWholesaleOrderById } from '../repositories/order.repository.js';
 import { AppError } from '../../../utils/app-error.js';
@@ -16,6 +17,10 @@ import { INVOICE_STATUSES } from '../types/index.js';
 // Wholesale Invoice Service
 // ---------------------------------------------------------------------------
 
+export async function listCustomerInvoices(customerId: number) {
+  return findInvoicesByCustomer(customerId);
+}
+
 export async function generateInvoiceFromOrder(orderId: number, dueDateStr?: string, notes?: string) {
   const order = await findWholesaleOrderById(orderId);
   if (!order) throw new AppError(404, 'Wholesale order not found');
@@ -27,6 +32,7 @@ export async function generateInvoiceFromOrder(orderId: number, dueDateStr?: str
     customerId: order.customerId,
     subtotalAmount: order.subtotalAmount,
     taxAmount: order.taxAmount,
+    additionalCharges: order.additionalCharges,
     totalAmount: order.totalAmount,
     currency: order.currency,
     dueDate,

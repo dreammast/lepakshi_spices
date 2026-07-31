@@ -14,7 +14,7 @@ import {
     Palette, Activity, FlaskConical, Droplets, Wind,
     Camera, AlertTriangle, RefreshCw, MoreHorizontal,
     BookOpen, ClipboardList, Layers, Globe, History, Lock,
-    FileText, Check, UserCheck, Tag
+    FileText, Check, UserCheck, Tag, Receipt, FileCheck
 } from "lucide-react";
 import {
     AreaChart, Area, BarChart, Bar,
@@ -403,7 +403,10 @@ const NAV_GROUPS = [
             { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
             { id: "products", label: "Products", icon: Package },
             { id: "orders", label: "Orders", icon: ShoppingBag, badge: 3 },
-            { id: "wholesale", label: "Wholesale", icon: ClipboardList },
+            { id: "wholesale", label: "B2B Inquiries", icon: ClipboardList },
+            { id: "quotations", label: "B2B Quotations", icon: FileText },
+            { id: "wholesale-orders", label: "B2B Orders", icon: FileCheck },
+            { id: "wholesale-invoices", label: "B2B Invoices", icon: Receipt },
             { id: "website", label: "Website", icon: Globe },
             { id: "customers", label: "Customers", icon: Users },
             { id: "settings", label: "Settings", icon: Settings },
@@ -993,7 +996,7 @@ function ProductsPage() {
     const [margin, setMargin] = useState<number>(30); // in percent
 
     // Inline Inventory editing state
-    const [inventoryChanges, setInventoryChanges] = useState<Record<string, { stock: number; lowStockThreshold: number }>>({});
+    const [inventoryChanges, setInventoryChanges] = useState<Record<string, { stock: number; lowStockThreshold: number; variantId?: any; productId?: any }>>({});
 
     // Category CRUD state
     const [catModalOpen, setCatModalOpen] = useState(false);
@@ -3457,33 +3460,15 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
     };
 
     const handleConvertQuoteToOrder = (quote: any) => {
-        const orderId = "ORD-" + Math.floor(Math.random() * 90000 + 10000);
-        const dateStr = new Date().toLocaleDateString('en-IN');
-        const newOrder = {
-            id: orderId, customer: quote.businessName, email: quote.email, date: dateStr,
-            items: quote.items?.map((it: any) => `${it.name} (${it.weight} x ${it.quantity})`).join(", ") || "Wholesale Batch",
-            total: `₹${quote.payableAmount}`, status: "processing",
-            address: quote.shippingAddress, gstin: quote.gstin,
-            source: "Converted B2B Quotation (" + quote.id + ")"
-        };
-        try {
-            const storedOrders = localStorage.getItem("Lepakshi Spices_orders");
-            const list = storedOrders ? JSON.parse(storedOrders) : [];
-            list.unshift(newOrder);
-            localStorage.setItem("Lepakshi Spices_orders", JSON.stringify(list));
-            // Update quote status
-            const updatedQ = { ...quote, status: "converted", timeline: [...(quote.timeline || []), { time: dateStr, event: `Converted to Order ${orderId}` }] };
-            saveQuotation(updatedQ);
-            // Update inquiry status to converted
-            if (quote.inquiryId) {
-                const updated = inquiries.map((inq: any) =>
-                    inq.id === quote.inquiryId ? { ...inq, status: "converted" } : inq
-                );
-                saveInquiries(updated);
-            }
-            addAuditLog("Quotation Converted", `${quote.id} → Order ${orderId}`);
-            toast.success("Converted to Order!", { description: `Order ${orderId} created.` });
-        } catch (e) { console.error(e); toast.error("Failed to convert."); }
+        const id = quote.id || quote.dbId;
+        wholesaleApi.createWholesaleOrderFromQuotation(id)
+            .then(res => {
+                toast.success("Converted to Order!", { description: `Order ${res.orderNumber} created.` });
+                refreshInquiries();
+            })
+            .catch(err => {
+                toast.error(err.message || "Failed to convert quote to wholesale order");
+            });
     };
 
     const handleAddItemRow = () => {
@@ -3508,81 +3493,14 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
 
     const downloadQuotePDF = (q: any) => {
         try {
-            const { jsPDF } = (window as any).jspdf;
-            const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-            const primary: [number, number, number] = [42, 74, 60];
-            const secondary: [number, number, number] = [201, 146, 10];
-            doc.setFillColor(...primary); doc.rect(0, 0, 210, 40, "F");
-            doc.setFont("Helvetica", "bold"); doc.setFontSize(24); doc.setTextColor(...secondary);
-            doc.text("Lepakshi Spices", 15, 20);
-            doc.setFont("Helvetica", "normal"); doc.setFontSize(9); doc.setTextColor(255, 255, 255);
-            doc.text("PREMIUM WHOLESALE SPICE SOURCING", 15, 27);
-            doc.setFont("Helvetica", "bold"); doc.setFontSize(14); doc.setTextColor(...secondary);
-            doc.text("OFFICIAL QUOTATION", 130, 20);
-            doc.setFont("Helvetica", "normal"); doc.setFontSize(9); doc.setTextColor(255, 255, 255);
-            doc.text(`Quote No: ${q.id}`, 130, 27); doc.text(`Date: ${q.date}`, 130, 32);
-            doc.setFillColor(250, 248, 243); doc.rect(0, 40, 210, 25, "F");
-            doc.setFont("Helvetica", "bold"); doc.setFontSize(8.5); doc.setTextColor(26, 23, 20);
-            doc.text("Lepakshi Spices Sourcing Desk Gate 2, Guntur Industrial Area, AP, India", 15, 48);
-            doc.text("Support Desk: +91 9390645710 | Email: dreammasterorigin@gmail.com", 15, 53);
-            let cy = 78;
-            doc.setFont("Helvetica", "bold"); doc.setFontSize(11); doc.setTextColor(...primary);
-            doc.text("BILL TO:", 15, cy); doc.text("SHIP TO:", 110, cy);
-            doc.setFontSize(10); doc.setTextColor(26, 23, 20);
-            doc.text(q.businessName, 15, cy + 6); doc.text(q.businessName, 110, cy + 6);
-            doc.setFont("Helvetica", "normal"); doc.setFontSize(8.5); doc.setTextColor(74, 70, 64);
-            doc.text(`Contact: ${q.contactPerson}`, 15, cy + 11);
-            doc.text(`Phone: +91 ${q.phone}`, 15, cy + 16);
-            doc.text(`Email: ${q.email}`, 15, cy + 21);
-            if (q.gstin) doc.text(`GSTIN: ${q.gstin}`, 15, cy + 26);
-            doc.text(doc.splitTextToSize(q.billingAddress || "N/A", 80), 15, cy + 31);
-            doc.text(doc.splitTextToSize(q.shippingAddress || "N/A", 80), 110, cy + 11);
-            let tableY = 125;
-            doc.setFillColor(...primary); doc.rect(15, tableY, 180, 8, "F");
-            doc.setFont("Helvetica", "bold"); doc.setFontSize(8.5); doc.setTextColor(255, 255, 255);
-            ["Product Details", "Pack", "Qty", "Rate (INR)", "Disc%", "GST%", "Net Total"].forEach((h, i) => {
-                doc.text(h, [18, 70, 90, 110, 135, 155, 175][i], tableY + 5.5);
-            });
-            let rowY = tableY + 8, totalSub = 0, totalGst = 0;
-            (q.items || []).forEach((row: any, i: number) => {
-                if (i % 2 === 1) { doc.setFillColor(248, 246, 240); doc.rect(15, rowY, 180, 8, "F"); }
-                doc.setDrawColor(26, 23, 20); doc.rect(15, rowY, 180, 8, "S");
-                doc.setFont("Helvetica", "bold"); doc.setFontSize(8); doc.setTextColor(26, 23, 20);
-                doc.text(row.name, 18, rowY + 5.5);
-                doc.setFont("Helvetica", "normal"); doc.setTextColor(74, 70, 64);
-                doc.text(row.weight, 70, rowY + 5.5); doc.text(String(row.quantity), 90, rowY + 5.5);
-                doc.text(`Rs.${row.unitPrice}`, 110, rowY + 5.5);
-                doc.text(`${row.discount}%`, 135, rowY + 5.5); doc.text(`${row.gst}%`, 155, rowY + 5.5);
-                const net = row.quantity * row.unitPrice * (1 - row.discount / 100);
-                const gst = net * (row.gst / 100); totalSub += net; totalGst += gst;
-                doc.setFont("Helvetica", "bold"); doc.setTextColor(26, 23, 20);
-                doc.text(`Rs.${Math.round(net + gst)}`, 175, rowY + 5.5);
-                rowY += 8;
-            });
-            rowY += 6;
-            doc.setFont("Helvetica", "normal"); doc.setFontSize(8.5); doc.setTextColor(74, 70, 64);
-            doc.text("Payment: " + (q.paymentTerms || "Direct Bank"), 15, rowY);
-            doc.text("Lead time: " + (q.leadTime || 5) + " days", 15, rowY + 5);
-            doc.text("Packaging: " + (q.packagingType || "Sack"), 15, rowY + 10);
-            doc.text("Delivery: " + (q.deliveryMethod || "Road"), 15, rowY + 15);
-            let payY = rowY;
-            doc.setTextColor(26, 23, 20); doc.text("Gross Subtotal:", 130, payY); doc.text(`Rs.${totalSub.toFixed(0)}`, 175, payY); payY += 5;
-            if (q.discountValue > 0) { doc.text("Overall Discount:", 130, payY); doc.text(`-Rs.${q.discountValue}`, 175, payY); payY += 5; }
-            doc.text("Tax (GST):", 130, payY); doc.text(`Rs.${totalGst.toFixed(0)}`, 175, payY); payY += 5;
-            doc.text("Freight:", 130, payY); doc.text(`Rs.${q.shippingCharges || 0}`, 175, payY); payY += 5;
-            doc.setFillColor(secondary[0], secondary[1], secondary[2]); doc.rect(125, payY - 3.8, 70, 7.5, "F");
-            doc.setFont("Helvetica", "bold"); doc.setTextColor(...primary);
-            doc.text("Total Payable:", 128, payY + 1.2); doc.text(`Rs.${q.payableAmount}`, 173, payY + 1.2);
-            payY += 15;
-            doc.setFont("Helvetica", "bold"); doc.setFontSize(8.5); doc.setTextColor(...primary);
-            doc.text("TERMS:", 15, payY); payY += 4.5;
-            doc.setFont("Helvetica", "normal"); doc.setFontSize(8); doc.setTextColor(74, 70, 64);
-            (q.termsList || []).forEach((t: string) => { doc.text(`• ${t}`, 18, payY); payY += 4.5; });
-            doc.setFont("Helvetica", "normal"); doc.setFontSize(8); doc.setTextColor(122, 112, 100);
-            doc.text("Page 1 of 1", 100, 285);
-            doc.save(`Lepakshi Spices_Quotation_${q.id}_${q.businessName.replace(/\s+/g, "_")}.pdf`);
-            toast.success("Quotation PDF generated");
-        } catch (e) { console.error(e); toast.error("Failed to generate PDF."); }
+            const token = localStorage.getItem("spiceora_admin") ? JSON.parse(localStorage.getItem("spiceora_admin")!).token : "";
+            const id = q.id || q.dbId;
+            window.open(`${API_BASE_URL}/admin/quotations/${id}/pdf?token=${token}`, '_blank');
+            toast.success("Downloading quotation PDF...");
+        } catch (e) {
+            console.error(e);
+            toast.error("Failed to download PDF.");
+        }
     };
 
     // Filter inquiries
@@ -4986,42 +4904,18 @@ function QuotationManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
     };
 
     const handleConvertQuoteToOrder = (quote: any) => {
-        // Generate order record
-        const orderId = "ORD-" + Math.floor(Math.random() * 90000 + 10000);
-        const dateStr = new Date().toLocaleDateString('en-IN');
-
-        const newOrder = {
-            id: orderId,
-            customer: quote.businessName,
-            email: quote.email,
-            date: dateStr,
-            items: quote.items?.map((it: any) => `${it.name} (${it.weight} x ${it.quantity})`).join(", ") || "Wholesale Batch",
-            total: `₹${quote.payableAmount}`,
-            status: "processing", // goes straight to processing since payment is accepted
-            address: quote.shippingAddress,
-            gstin: quote.gstin,
-            source: "Converted B2B Quotation (" + quote.id + ")"
-        };
-
-        // Save to orders db
-        try {
-            const storedOrders = localStorage.getItem("Lepakshi Spices_orders");
-            const list = storedOrders ? JSON.parse(storedOrders) : [];
-            list.unshift(newOrder);
-            localStorage.setItem("Lepakshi Spices_orders", JSON.stringify(list));
-
-            // Update quote status
-            handleUpdateStatusSingle(quote.id, "converted");
-
-            // Save logs
-            addAuditLog("Quotation Converted", `Quotation ${quote.id} successfully converted to Order ${orderId}`);
-            toast.success("Converted to Order successfully!", {
-                description: `Order ${orderId} created in pipeline.`
+        const id = quote.id || quote.dbId;
+        wholesaleApi.createWholesaleOrderFromQuotation(id)
+            .then(res => {
+                toast.success("Converted to Order!", { description: `Order ${res.orderNumber} created.` });
+                wholesaleApi.listQuotations().then(data => {
+                    if (Array.isArray(data)) setQuotations(data);
+                });
+                setActiveDetailQuote(null);
+            })
+            .catch(err => {
+                toast.error(err.message || "Failed to convert quote to wholesale order");
             });
-        } catch (e) {
-            console.error(e);
-            toast.error("Failed to convert to Order.");
-        }
     };
 
     const handleDeleteQuote = async (id: string) => {

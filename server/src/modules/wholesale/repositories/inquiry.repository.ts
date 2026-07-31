@@ -1,4 +1,4 @@
-import { eq, desc } from 'drizzle-orm';
+import { eq, desc, or } from 'drizzle-orm';
 import { db } from '../../../config/database.js';
 import { wholesaleInquiries } from '../../../db/schema.js';
 import type { CreateInquiryInput, WholesaleInquiryStatus } from '../types/index.js';
@@ -7,6 +7,15 @@ import { WHOLESALE_INQUIRY_STATUSES } from '../types/index.js';
 // ---------------------------------------------------------------------------
 // Wholesale Inquiry Repository
 // ---------------------------------------------------------------------------
+
+export async function findWholesaleInquiriesByCustomer(customerId: number, email: string) {
+  return db.select().from(wholesaleInquiries)
+    .where(or(
+      eq(wholesaleInquiries.customerId, customerId),
+      eq(wholesaleInquiries.email, email)
+    ))
+    .orderBy(desc(wholesaleInquiries.createdAt));
+}
 
 export async function findAllWholesaleInquiries() {
   return db.select().from(wholesaleInquiries).orderBy(desc(wholesaleInquiries.createdAt));

@@ -29,8 +29,8 @@ export { getWholesaleStats } from './dashboard/stats.js';
 
 // Re-export pricing utilities
 export {
-  calculateLineTotal,
-  calculateQuotationTotals,
+  calculateWholesaleItemLine,
+  calculateQuotationSummary,
   formatWholesaleAmount,
 } from './services/pricing.service.js';
 

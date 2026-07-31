@@ -1,6 +1,8 @@
 import type { Request, Response, NextFunction } from 'express';
+import type { AuthenticatedRequest } from '../../../middleware/auth.middleware.js';
 import {
   listQuotations,
+  getQuotation,
   createQuotation,
   updateQuotation,
   removeQuotation,
@@ -8,12 +10,25 @@ import {
   getQuotationWithRevisions,
   createRevision,
   acceptQuotation,
+  listCustomerQuotations,
 } from '../services/quotation.service.js';
+import { generateQuotationPdf } from '../services/pdf.service.js';
 import { sendSuccess, sendCreated } from '../../../utils/response.util.js';
 
 // ---------------------------------------------------------------------------
 // Wholesale Quotation Controllers
 // ---------------------------------------------------------------------------
+
+export async function listCustomerQuotationsController(
+  req: AuthenticatedRequest, res: Response, next: NextFunction,
+) {
+  try {
+    const customerId = req.user!.sub;
+    sendSuccess(res, await listCustomerQuotations(customerId));
+  } catch (e) {
+    next(e);
+  }
+}
 
 export async function listQuotationsController(
   _req: Request, res: Response, next: NextFunction,
@@ -30,6 +45,19 @@ export async function getQuotationController(
 ) {
   try {
     sendSuccess(res, await getQuotationWithRevisions(Number(req.params.id)));
+  } catch (e) {
+    next(e);
+  }
+}
+
+export async function getQuotationPdfController(
+  req: Request, res: Response, next: NextFunction,
+) {
+  try {
+    const q = await getQuotation(Number(req.params.id));
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename=Quotation_${q.quoteNumber}.pdf`);
+    generateQuotationPdf(q, res);
   } catch (e) {
     next(e);
   }

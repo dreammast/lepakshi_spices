@@ -7,6 +7,16 @@ import type { CreateQuotationInput } from '../types/index.js';
 // Quotation Repository
 // ---------------------------------------------------------------------------
 
+export async function findQuotationsByCustomer(customerId: number) {
+  const rows = await db.select().from(quotations)
+    .where(eq(quotations.customerId, customerId))
+    .orderBy(desc(quotations.createdAt));
+  return Promise.all(rows.map(async q => {
+    const items = await db.select().from(quotationItems).where(eq(quotationItems.quotationId, q.id));
+    return { ...q, items };
+  }));
+}
+
 function generateQuoteNumber() {
   return `QT-${Date.now()}-${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`;
 }
@@ -46,14 +56,48 @@ export async function findQuotationRevisions(parentId: number) {
   }));
 }
 
-export async function createQuotationRecord(data: CreateQuotationInput) {
+export async function createQuotationRecord(data: {
+  inquiryId: number;
+  customerId?: number;
+  subtotalAmount: string | number;
+  discountAmount: string | number;
+  taxAmount: string | number;
+  shippingAmount?: string | number;
+  additionalCharges?: string | number;
+  totalAmount: string | number;
+  notes?: string;
+  paymentTerms?: string;
+  deliveryTerms?: string;
+  deliveryMethod?: string;
+  validUntil?: Date | null;
+  items?: Array<{
+    productVariantId?: number;
+    productName: string;
+    weightLabel?: string;
+    quantity: number | string;
+    unitPrice: number | string;
+    discountPercent?: number | string;
+    taxPercent?: number | string;
+    lineTotal: number | string;
+    displayOrder?: number;
+  }>;
+}) {
   const now = new Date();
   const [res] = await db.insert(quotations).values({
     quoteNumber: generateQuoteNumber(),
     inquiryId: data.inquiryId,
     customerId: data.customerId,
-    subtotalAmount: String(data.totalAmount),
+    subtotalAmount: String(data.subtotalAmount),
+    discountAmount: String(data.discountAmount),
+    taxAmount: String(data.taxAmount),
+    shippingAmount: String(data.shippingAmount || '0'),
+    additionalCharges: String(data.additionalCharges || '0'),
     totalAmount: String(data.totalAmount),
+    notes: data.notes,
+    paymentTerms: data.paymentTerms,
+    deliveryTerms: data.deliveryTerms,
+    deliveryMethod: data.deliveryMethod,
+    validUntil: data.validUntil ?? undefined,
     revisionNumber: 1,
     status: 'draft',
     createdAt: now,
@@ -65,9 +109,13 @@ export async function createQuotationRecord(data: CreateQuotationInput) {
     await db.insert(quotationItems).values(
       data.items.map((item, idx) => ({
         quotationId,
+        productVariantId: item.productVariantId,
         productName: item.productName,
+        weightLabel: item.weightLabel,
         quantity: String(item.quantity),
         unitPrice: String(item.unitPrice),
+        discountPercent: String(item.discountPercent || '0'),
+        taxPercent: String(item.taxPercent || '0'),
         lineTotal: String(item.lineTotal),
         displayOrder: item.displayOrder ?? idx
       }))
@@ -83,11 +131,28 @@ export async function createQuotationRevision(
   customerId: number | null | undefined,
   currentRevision: number,
   data: {
+    subtotalAmount: string | number;
+    discountAmount: string | number;
+    taxAmount: string | number;
+    shippingAmount?: string | number;
+    additionalCharges?: string | number;
     totalAmount: string | number;
-    items?: Array<{ productName: string; quantity: number; unitPrice: number; lineTotal: number; displayOrder?: number; productVariantId?: number; weightLabel?: string; discountPercent?: number; taxPercent?: number }>;
     notes?: string;
     paymentTerms?: string;
-    validUntil?: string;
+    deliveryTerms?: string;
+    deliveryMethod?: string;
+    validUntil?: Date | null;
+    items?: Array<{
+      productVariantId?: number;
+      productName: string;
+      weightLabel?: string;
+      quantity: number | string;
+      unitPrice: number | string;
+      discountPercent?: number | string;
+      taxPercent?: number | string;
+      lineTotal: number | string;
+      displayOrder?: number;
+    }>;
   },
 ) {
   const now = new Date();
@@ -97,11 +162,17 @@ export async function createQuotationRevision(
     customerId: customerId ?? undefined,
     parentQuotationId: parentId,
     revisionNumber: currentRevision + 1,
-    subtotalAmount: String(data.totalAmount),
+    subtotalAmount: String(data.subtotalAmount),
+    discountAmount: String(data.discountAmount),
+    taxAmount: String(data.taxAmount),
+    shippingAmount: String(data.shippingAmount || '0'),
+    additionalCharges: String(data.additionalCharges || '0'),
     totalAmount: String(data.totalAmount),
     notes: data.notes,
     paymentTerms: data.paymentTerms,
-    validUntil: data.validUntil ? new Date(data.validUntil) : undefined,
+    deliveryTerms: data.deliveryTerms,
+    deliveryMethod: data.deliveryMethod,
+    validUntil: data.validUntil ?? undefined,
     status: 'draft',
     createdAt: now,
     updatedAt: now,
@@ -112,13 +183,13 @@ export async function createQuotationRevision(
     await db.insert(quotationItems).values(
       data.items.map((item, idx) => ({
         quotationId,
-        productName: item.productName,
         productVariantId: item.productVariantId,
+        productName: item.productName,
         weightLabel: item.weightLabel,
         quantity: String(item.quantity),
         unitPrice: String(item.unitPrice),
-        discountPercent: String(item.discountPercent ?? 0),
-        taxPercent: String(item.taxPercent ?? 0),
+        discountPercent: String(item.discountPercent || '0'),
+        taxPercent: String(item.taxPercent || '0'),
         lineTotal: String(item.lineTotal),
         displayOrder: item.displayOrder ?? idx,
       }))
