@@ -150,12 +150,26 @@ export const settingsApi = {
 
 export const wholesaleApi = {
   listInquiries: () => api.get<any[]>('/admin/wholesale-inquiries'),
+  getInquiry: (id: number) => api.get<any>(`/admin/wholesale-inquiries/${id}`),
   updateInquiryStatus: (id: number, status: string) => api.put<any>(`/admin/wholesale-inquiries/${id}/status`, { status }),
   deleteInquiry: (id: number) => api.delete<any>(`/admin/wholesale-inquiries/${id}`),
   listQuotations: () => api.get<any[]>('/admin/quotations'),
+  getQuotation: (id: number) => api.get<any>(`/admin/quotations/${id}`),
   createQuotation: (body: unknown) => api.post<any>('/admin/quotations', body),
   updateQuotation: (id: number, body: unknown) => api.put<any>(`/admin/quotations/${id}`, body),
-  deleteQuotation: (id: number) => api.delete<any>(`/admin/quotations/${id}`)
+  deleteQuotation: (id: number) => api.delete<any>(`/admin/quotations/${id}`),
+  createQuotationRevision: (id: number, body: unknown) => api.post<any>(`/admin/quotations/${id}/revisions`, body),
+  acceptQuotation: (id: number, notes?: string) => api.put<any>(`/admin/quotations/${id}/accept`, { notes }),
+  listWholesaleOrders: () => api.get<any[]>('/admin/wholesale-orders'),
+  getWholesaleOrder: (id: number) => api.get<any>(`/admin/wholesale-orders/${id}`),
+  createWholesaleOrderFromQuotation: (quotationId: number) => api.post<any>('/admin/wholesale-orders/from-quotation', { quotationId }),
+  updateWholesaleOrderStatus: (id: number, status: string, notes?: string) => api.put<any>(`/admin/wholesale-orders/${id}/status`, { status, notes }),
+  listInvoices: () => api.get<any[]>('/admin/wholesale-invoices'),
+  getInvoice: (id: number) => api.get<any>(`/admin/wholesale-invoices/${id}`),
+  createInvoiceFromOrder: (wholesaleOrderId: number, dueDate?: string, notes?: string) => api.post<any>('/admin/wholesale-invoices', { wholesaleOrderId, dueDate, notes }),
+  updateInvoiceStatus: (id: number, status: string) => api.put<any>(`/admin/wholesale-invoices/${id}/status`, { status }),
+  getActivityLog: (entityType: string, id: number) => api.get<any[]>(`/admin/wholesale-activity/${entityType}/${id}`),
+  getRecentActivity: (limit?: number) => api.get<any[]>(`/admin/wholesale-activity${limit ? `?limit=${limit}` : ''}`)
 };
 
 export const packagingApi = {
