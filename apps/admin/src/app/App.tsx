@@ -3761,9 +3761,9 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
                 terms: "Terms: Ex-works / F.O.B dispatch. Sample kits available on request."
             };
             try {
-                const storedTemplate = localStorage.getItem("Lepakshi Spices_pdf_template");
-                if (storedTemplate) {
-                    const parsed = JSON.parse(storedTemplate);
+                const templateData = await settingsApi.get('pdf_template');
+                if (templateData?.value) {
+                    const parsed = templateData.value;
                     const colorMap: Record<string, number[]> = {
                         green: [42, 74, 60],
                         gold: [201, 146, 10],
@@ -3995,11 +3995,10 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
             // Load contacts dynamically
             let contactInfo = { whatsapp: "9390645710", email: "dreammasterorigin@gmail.com" };
             try {
-                const storedContact = localStorage.getItem("Lepakshi Spices_contact_settings");
-                if (storedContact) {
-                    const parsedContact = JSON.parse(storedContact);
-                    contactInfo.whatsapp = parsedContact.whatsapp || contactInfo.whatsapp;
-                    contactInfo.email = parsedContact.email || contactInfo.email;
+                const contactData = await settingsApi.get('contact_settings');
+                if (contactData?.value) {
+                    contactInfo.whatsapp = contactData.value.whatsapp || contactInfo.whatsapp;
+                    contactInfo.email = contactData.value.email || contactInfo.email;
                 }
             } catch { }
 
@@ -5059,7 +5058,7 @@ function QuotationManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
     };
 
     // Reusable dynamic PDF quote generator using jsPDF
-    const downloadQuotationPDF = (q: any) => {
+    const downloadQuotationPDF = async (q: any) => {
         try {
             const { jsPDF } = (window as any).jspdf;
             const doc = new jsPDF({
@@ -5076,9 +5075,9 @@ function QuotationManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
                 terms: "Terms: Ex-works / F.O.B Guntur yard dispatch."
             };
             try {
-                const storedTemplate = localStorage.getItem("Lepakshi Spices_pdf_template");
-                if (storedTemplate) {
-                    const parsed = JSON.parse(storedTemplate);
+                const templateData = await settingsApi.get('pdf_template');
+                if (templateData?.value) {
+                    const parsed = templateData.value;
                     const colorMap: Record<string, number[]> = {
                         green: [42, 74, 60],
                         gold: [201, 146, 10],

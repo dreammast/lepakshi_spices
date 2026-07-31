@@ -4281,7 +4281,7 @@ function WholesalePage() {
  const [downloading, setDownloading] = useState(false);
  const [downloadSuccess, setDownloadSuccess] = useState(false);
 
- // Dynamic CMS configurations loaded via localStorage
+ // Dynamic CMS configurations loaded via server settings API
  const [cmsContact, setCmsContact] = useState({
  whatsapp: "",
  phone: "",
@@ -4316,35 +4316,29 @@ function WholesalePage() {
   }
  }).catch(err => console.warn("Failed to load wholesale catalogue:", err));
 
- try {
-  const storedContact = localStorage.getItem("Lepakshi Spices_contact_settings");
-  if (storedContact) {
-  setCmsContact(JSON.parse(storedContact));
+ settingsApi.get('contact_settings').then((data: any) => {
+  if (data?.value) setCmsContact(data.value);
+ }).catch(() => {});
+
+ settingsApi.get('pdf_template').then((data: any) => {
+  if (data?.value) {
+   const parsed = data.value;
+   const colorMap: Record<string, number[]> = {
+    green: [42, 74, 60],
+    gold: [201, 146, 10],
+    red: [180, 40, 40],
+    blue: [25, 80, 150]
+   };
+   setPdfTemplate({
+    headerVisible: parsed.headerVisible !== false,
+    footerVisible: parsed.footerVisible !== false,
+    watermark: parsed.watermark || "",
+    primaryColor: colorMap[parsed.primaryColor] || [42, 74, 60],
+    secondaryColor: colorMap[parsed.secondaryColor] || [201, 146, 10],
+    terms: parsed.terms || ""
+   });
   }
-
-  const storedTemplate = localStorage.getItem("Lepakshi Spices_pdf_template");
-  if (storedTemplate) {
-  const parsed = JSON.parse(storedTemplate);
-
-  const colorMap: Record<string, number[]> = {
-  green: [42, 74, 60],
-  gold: [201, 146, 10],
-  red: [180, 40, 40],
-  blue: [25, 80, 150]
-  };
-
-  setPdfTemplate({
-  headerVisible: parsed.headerVisible !== false,
-  footerVisible: parsed.footerVisible !== false,
-  watermark: parsed.watermark || "",
-  primaryColor: colorMap[parsed.primaryColor] || [42, 74, 60],
-  secondaryColor: colorMap[parsed.secondaryColor] || [201, 146, 10],
-  terms: parsed.terms || ""
-  });
-  }
- } catch (e) {
-  console.error("Error loading CMS settings in storefront:", e);
- }
+ }).catch(() => {});
  }, []);
 
  useEffect(() => {
