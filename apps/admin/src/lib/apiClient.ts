@@ -150,6 +150,7 @@ export const settingsApi = {
 
 export const wholesaleApi = {
   listInquiries: () => api.get<any[]>('/admin/wholesale-inquiries'),
+  updateInquiry: (id: number, body: unknown) => api.put<any>(`/admin/wholesale-inquiries/${id}`, body),
   updateInquiryStatus: (id: number, status: string) => api.put<any>(`/admin/wholesale-inquiries/${id}/status`, { status }),
   deleteInquiry: (id: number) => api.delete<any>(`/admin/wholesale-inquiries/${id}`),
   listQuotations: () => api.get<any[]>('/admin/quotations'),
@@ -176,7 +177,8 @@ export const auditApi = {
   list: (filters?: Record<string, string>) => {
     const params = new URLSearchParams(filters).toString();
     return api.get<any[]>(`/admin/audit-logs${params ? `?${params}` : ''}`);
-  }
+  },
+  createLog: (action: string, details: string) => api.post<any>('/admin/audit-logs', { action, details })
 };
 
 export const ordersApi = {

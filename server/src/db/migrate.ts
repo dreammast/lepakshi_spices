@@ -47,5 +47,34 @@ export async function runMigrations() {
     }
   }
 
-  console.log('[migrate] Auto-increment migration complete.');
+  // Ensure new columns exist on wholesale_inquiries and quotations
+  const columnMigrations = [
+    `ALTER TABLE wholesale_inquiries ADD COLUMN assigned_executive VARCHAR(255) NULL`,
+    `ALTER TABLE wholesale_inquiries ADD COLUMN product_interest VARCHAR(255) NULL`,
+    `ALTER TABLE wholesale_inquiries ADD COLUMN volume VARCHAR(128) NULL`,
+    `ALTER TABLE wholesale_inquiries ADD COLUMN notes JSON NULL`,
+    `ALTER TABLE wholesale_inquiries ADD COLUMN timeline JSON NULL`,
+    `ALTER TABLE quotations ADD COLUMN business_name VARCHAR(255) NULL`,
+    `ALTER TABLE quotations ADD COLUMN contact_person VARCHAR(255) NULL`,
+    `ALTER TABLE quotations ADD COLUMN email VARCHAR(255) NULL`,
+    `ALTER TABLE quotations ADD COLUMN phone VARCHAR(32) NULL`,
+    `ALTER TABLE quotations ADD COLUMN sales_executive VARCHAR(255) NULL`,
+    `ALTER TABLE quotations ADD COLUMN discount_type ENUM('percentage', 'flat') NOT NULL DEFAULT 'percentage'`,
+    `ALTER TABLE quotations ADD COLUMN discount_value DECIMAL(12,2) NOT NULL DEFAULT '0.00'`,
+    `ALTER TABLE quotations ADD COLUMN shipping_charges DECIMAL(12,2) NOT NULL DEFAULT '0.00'`,
+    `ALTER TABLE quotations ADD COLUMN payable_amount DECIMAL(12,2) NOT NULL DEFAULT '0.00'`,
+    `ALTER TABLE quotations ADD COLUMN round_off DECIMAL(12,2) NOT NULL DEFAULT '0.00'`,
+    `ALTER TABLE quotations ADD COLUMN terms_list JSON NULL`,
+    `ALTER TABLE quotations ADD COLUMN timeline JSON NULL`
+  ];
+
+  for (const statement of columnMigrations) {
+    try {
+      await db.execute(sql.raw(statement));
+    } catch (e: any) {
+      // Column may already exist or error ignored
+    }
+  }
+
+  console.log('[migrate] Auto-increment & column migration complete.');
 }

@@ -4303,49 +4303,47 @@ function WholesalePage() {
  });
 
  useEffect(() => {
+ wholesaleCatalogueApi.list().then((list: any[]) => {
+  if (Array.isArray(list)) {
+   const formatted = list.map((p: any) => ({
+    name: p.name,
+    p100: p.basePrice ? `₹${p.basePrice}` : "N/A",
+    p250: "N/A",
+    p500: "N/A",
+    p1000: "Available"
+   }));
+   setCmsProducts(formatted);
+  }
+ }).catch(err => console.warn("Failed to load wholesale catalogue:", err));
+
  try {
- const storedContact = localStorage.getItem("Lepakshi Spices_contact_settings");
- if (storedContact) {
- setCmsContact(JSON.parse(storedContact));
- }
+  const storedContact = localStorage.getItem("Lepakshi Spices_contact_settings");
+  if (storedContact) {
+  setCmsContact(JSON.parse(storedContact));
+  }
 
- const storedProducts = localStorage.getItem("Lepakshi Spices_pdf_products");
- if (storedProducts) {
- const parsed = JSON.parse(storedProducts);
- if (Array.isArray(parsed) && parsed.length > 0) {
- const formatted = parsed.map((p: any) => ({
- name: p.name,
- p100: p.retailSizes?.p100 ? `₹${p.retailSizes.p100}` : "N/A",
- p250: p.retailSizes?.p250 ? `₹${p.retailSizes.p250}` : "N/A",
- p500: p.retailSizes?.p500 ? `₹${p.retailSizes.p500}` : "N/A",
- p1000: p.retailSizes?.p1000 ? `₹${p.retailSizes.p1000}` : "Available"
- }));
- setCmsProducts(formatted);
- }
- }
+  const storedTemplate = localStorage.getItem("Lepakshi Spices_pdf_template");
+  if (storedTemplate) {
+  const parsed = JSON.parse(storedTemplate);
 
- const storedTemplate = localStorage.getItem("Lepakshi Spices_pdf_template");
- if (storedTemplate) {
- const parsed = JSON.parse(storedTemplate);
+  const colorMap: Record<string, number[]> = {
+  green: [42, 74, 60],
+  gold: [201, 146, 10],
+  red: [180, 40, 40],
+  blue: [25, 80, 150]
+  };
 
- const colorMap: Record<string, number[]> = {
- green: [42, 74, 60],
- gold: [201, 146, 10],
- red: [180, 40, 40],
- blue: [25, 80, 150]
- };
-
- setPdfTemplate({
- headerVisible: parsed.headerVisible !== false,
- footerVisible: parsed.footerVisible !== false,
- watermark: parsed.watermark || "",
- primaryColor: colorMap[parsed.primaryColor] || [42, 74, 60],
- secondaryColor: colorMap[parsed.secondaryColor] || [201, 146, 10],
- terms: parsed.terms || ""
- });
- }
+  setPdfTemplate({
+  headerVisible: parsed.headerVisible !== false,
+  footerVisible: parsed.footerVisible !== false,
+  watermark: parsed.watermark || "",
+  primaryColor: colorMap[parsed.primaryColor] || [42, 74, 60],
+  secondaryColor: colorMap[parsed.secondaryColor] || [201, 146, 10],
+  terms: parsed.terms || ""
+  });
+  }
  } catch (e) {
- console.error("Error loading CMS settings in storefront:", e);
+  console.error("Error loading CMS settings in storefront:", e);
  }
  }, []);
 
@@ -4642,7 +4640,9 @@ const triggerPDFDownload = async () => {
  contactName: formData.contactName,
  email: formData.email,
  phone: formData.phone,
- message: [formData.productInterest && `Product: ${formData.productInterest}`, formData.volume && `Volume: ${formData.volume}`, formData.message].filter(Boolean).join("\n")
+ productInterest: formData.productInterest,
+ volume: formData.volume,
+ message: formData.message
  });
  } catch (e) {
  console.error("Wholesale inquiry submission error:", e);

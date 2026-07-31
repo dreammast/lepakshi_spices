@@ -3308,8 +3308,9 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
             ...item,
             businessName: item.companyName,
             contactPerson: item.contactName,
-            productInterest: item.message || "",
-            date: item.createdAt,
+            productInterest: item.productInterest || item.message || "",
+            volume: item.volume || "",
+            date: item.createdAt ? new Date(item.createdAt).toLocaleDateString('en-IN') : "",
             assignedExecutive: item.assignedExecutive || "Unassigned"
         }))))
         .catch((error: any) => console.warn("Unable to load wholesale inquiries", error));
@@ -3321,19 +3322,7 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
     };
 
     const addAuditLog = (action: string, details: string) => {
-        try {
-            const stored = localStorage.getItem("Lepakshi Spices_audit_logs");
-            const logs = stored ? JSON.parse(stored) : [];
-            logs.unshift({
-                time: new Date().toLocaleDateString('en-IN') + " " + new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
-                action,
-                user: "Arjun Kumar (Admin)",
-                details
-            });
-            localStorage.setItem("Lepakshi Spices_audit_logs", JSON.stringify(logs));
-        } catch (e) {
-            console.error(e);
-        }
+        auditApi.createLog(action, details).catch(console.error);
     };
 
     // Status mapping colors & labels
@@ -3353,20 +3342,13 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
 
     // Inline Quote Builder Helpers 
     const getQuotations = (): any[] => {
-        try {
-            const stored = localStorage.getItem("Lepakshi Spices_quotations");
-            return stored ? JSON.parse(stored) : [];
-        } catch { return []; }
+        return [];
     };
 
     const saveQuotation = async (q: any) => {
-        try {
-            const dbId = typeof q.id === 'string' && q.id.match(/^\d+$/) ? Number(q.id) : null;
-            if (dbId) await wholesaleApi.updateQuotation(dbId, q);
-            else await wholesaleApi.createQuotation(q);
-        } catch (err) {
-            console.warn("Quotation API save failed:", err);
-        }
+        const dbId = typeof q.id === 'string' && q.id.match(/^\d+$/) ? Number(q.id) : null;
+        if (dbId) return await wholesaleApi.updateQuotation(dbId, q);
+        return await wholesaleApi.createQuotation(q);
     };
 
     const calcTotals = (form: any) => {
@@ -3374,16 +3356,21 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
         let taxTotal = 0;
 
         (form.items || []).forEach((item: any) => {
-            const itemGross = (item.quantity || 0) * (item.unitPrice || 0);
-            const itemDiscount = itemGross * ((item.discount || 0) / 100);
+            const qty = Number(item.quantity || 0);
+            const price = Number(item.unitPrice || 0);
+            const discPct = Number(item.discountPercent ?? item.discount ?? 0);
+            const gstPct = Number(item.taxPercent ?? item.gst ?? 0);
+
+            const itemGross = qty * price;
+            const itemDiscount = itemGross * (discPct / 100);
             const itemNet = Math.max(0, itemGross - itemDiscount);
             subtotal += itemNet;
-            taxTotal += itemNet * ((item.gst || 0) / 100);
+            taxTotal += itemNet * (gstPct / 100);
         });
 
         let overDisc = 0;
         if (form.discountType === "percentage") {
-            overDisc = subtotal * ((form.discountValue || 0) / 100);
+            overDisc = subtotal * ((Number(form.discountValue) || 0) / 100);
         } else if (form.discountType === "flat") {
             overDisc = Number(form.discountValue) || 0;
         }
@@ -3391,9 +3378,23 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
 
         const netSubtotal = Math.max(0, subtotal - overDisc);
         const taxAfterDiscount = subtotal > 0 ? taxTotal * (netSubtotal / subtotal) : 0;
-        const grand = netSubtotal + taxAfterDiscount + (Number(form.shippingCharges) || 0);
+        const shipCharges = Number(form.shippingCharges || form.shippingAmount || 0);
+        const grand = netSubtotal + taxAfterDiscount + shipCharges;
         const rounded = Math.round(grand);
-        return { subtotal: subtotal.toFixed(2), discount: overDisc.toFixed(2), tax: taxAfterDiscount.toFixed(2), grandTotal: grand.toFixed(2), payableAmount: rounded, roundOff: (rounded - grand).toFixed(2) };
+        return {
+            subtotal: subtotal.toFixed(2),
+            subtotalAmount: subtotal.toFixed(2),
+            discount: overDisc.toFixed(2),
+            discountAmount: overDisc.toFixed(2),
+            tax: taxAfterDiscount.toFixed(2),
+            taxAmount: taxAfterDiscount.toFixed(2),
+            shippingCharges: shipCharges.toFixed(2),
+            shippingAmount: shipCharges.toFixed(2),
+            grandTotal: grand.toFixed(2),
+            totalAmount: grand.toFixed(2),
+            payableAmount: rounded,
+            roundOff: (rounded - grand).toFixed(2)
+        };
     };
 
     const openQuoteBuilder = (inq: any, existingQuote?: any) => {
@@ -3432,28 +3433,42 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
         setWholesaleView("quote-builder");
     };
 
-    const handleSaveQuote = () => {
+    const handleSaveQuote = async () => {
         if (!quoteForm.businessName || !quoteForm.contactPerson || !quoteForm.email) {
             toast.error("Please fill in Business Name, Contact Name, and Email."); return;
         }
         const calcs = calcTotals(quoteForm);
-        const finalForm = { ...quoteForm, payableAmount: calcs.payableAmount };
-        saveQuotation(finalForm);
+        const finalForm = {
+            ...quoteForm,
+            payableAmount: calcs.payableAmount,
+            subtotalAmount: calcs.subtotal,
+            discountAmount: calcs.discount,
+            taxAmount: calcs.tax,
+            shippingAmount: calcs.shippingCharges,
+            totalAmount: calcs.grandTotal,
+            roundOff: calcs.roundOff
+        };
 
-        // If linked to an inquiry, auto-update inquiry status to quotation_sent
-        if (finalForm.inquiryId) {
-            const updated = inquiries.map((inq: any) =>
-                inq.id === finalForm.inquiryId
-                    ? { ...inq, status: "quotation_sent", notes: [...(inq.notes || []), `[${new Date().toLocaleDateString('en-IN')}] Quotation ${finalForm.id} generated.`] }
-                    : inq
-            );
-            saveInquiries(updated);
+        try {
+            await saveQuotation(finalForm);
+            if (finalForm.inquiryId) {
+                const dbInqId = Number(finalForm.inquiryId);
+                if (!isNaN(dbInqId) && dbInqId > 0) {
+                    const inq = inquiries.find((i: any) => i.id === finalForm.inquiryId || i.id === dbInqId);
+                    const notes = [...(inq?.notes || []), `[${new Date().toLocaleDateString('en-IN')}] Quotation ${finalForm.id} generated.`];
+                    const timeline = [...(inq?.timeline || []), { time: new Date().toLocaleDateString('en-IN'), event: `Quotation ${finalForm.id} Generated` }];
+                    await wholesaleApi.updateInquiry(dbInqId, { status: "quotation_sent", notes, timeline });
+                    await refreshInquiries();
+                }
+            }
+            addAuditLog(editingQuoteId ? "Quotation Updated" : "Quotation Created", `${editingQuoteId ? "Updated" : "Generated"} quotation ${finalForm.id} for ${finalForm.businessName}`);
+            toast.success(editingQuoteId ? "Quotation updated" : "Quotation saved as draft");
+            setWholesaleView("list");
+            setEditingQuoteId(null);
+            setQuoteInquiryRef(null);
+        } catch (err: any) {
+            toast.error(err.message || "Failed to save quotation");
         }
-        addAuditLog(editingQuoteId ? "Quotation Updated" : "Quotation Created", `${editingQuoteId ? "Updated" : "Generated"} quotation ${finalForm.id} for ${finalForm.businessName}`);
-        toast.success(editingQuoteId ? "Quotation updated" : "Quotation saved as draft");
-        setWholesaleView("list");
-        setEditingQuoteId(null);
-        setQuoteInquiryRef(null);
     };
 
     const handleConvertQuoteToOrder = (quote: any) => {
@@ -3673,16 +3688,20 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
     };
 
     const handleUpdateSingleInquiry = async (id: string, fields: any) => {
-        let serverInquiry = null;
-        if (fields.status) serverInquiry = await wholesaleApi.updateInquiryStatus(Number(id), fields.status);
-        const updated = inquiries.map(inq => inq.id === id ? { ...inq, ...(serverInquiry || {}), ...fields } : inq);
-        saveInquiries(updated);
-        if (activeInquiry && activeInquiry.id === id) {
-            setActiveInquiry({ ...activeInquiry, ...fields });
+        try {
+            const dbId = Number(id);
+            if (!isNaN(dbId) && dbId > 0) {
+                await wholesaleApi.updateInquiry(dbId, fields);
+            }
+            await refreshInquiries();
+            if (activeInquiry && activeInquiry.id === id) {
+                setActiveInquiry(prev => ({ ...prev, ...fields }));
+            }
+            toast.success("Inquiry updated successfully");
+            fireDashboardRefresh();
+        } catch (err: any) {
+            toast.error(err.message || "Failed to update inquiry");
         }
-        await refreshInquiries();
-        toast.success("Inquiry updated successfully");
-        fireDashboardRefresh();
     };
 
     const handleAddNote = () => {
@@ -3723,7 +3742,7 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
     };
 
     // Reusable PDF generator for specific inquiry details
-    const downloadInquiryPDF = (inq: any) => {
+    const downloadInquiryPDF = async (inq: any) => {
         try {
             const { jsPDF } = (window as any).jspdf;
             const doc = new jsPDF({
@@ -3758,21 +3777,18 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
                 }
             } catch { }
 
-            // Load products prices
+            // Load products prices from live server API
             let productsData: any[] = [];
             try {
-                const storedProducts = localStorage.getItem("Lepakshi Spices_pdf_products");
-                if (storedProducts) {
-                    const parsed = JSON.parse(storedProducts);
-                    if (Array.isArray(parsed) && parsed.length > 0) {
-                        productsData = parsed.map((p: any) => ({
-                            name: p.name,
-                            p100: p.retailSizes?.p100 ? `₹${p.retailSizes.p100}` : "N/A",
-                            p250: p.retailSizes?.p250 ? `₹${p.retailSizes.p250}` : "N/A",
-                            p500: p.retailSizes?.p500 ? `₹${p.retailSizes.p500}` : "N/A",
-                            p1000: p.retailSizes?.p1000 ? `₹${p.retailSizes.p1000}` : "Available"
-                        }));
-                    }
+                const liveProducts = await productsApi.list();
+                if (Array.isArray(liveProducts) && liveProducts.length > 0) {
+                    productsData = liveProducts.map((p: any) => ({
+                        name: p.name,
+                        p100: p.basePrice ? `₹${p.basePrice}` : "N/A",
+                        p250: "N/A",
+                        p500: "N/A",
+                        p1000: "Available"
+                    }));
                 }
             } catch { }
 
@@ -4763,29 +4779,12 @@ function QuotationManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
         }
     }, [builderMode]);
 
-    const saveQuotations = (updated: any[]) => {
+    const saveQuotations = async (updated: any[]) => {
         setQuotations(updated);
-        try {
-            localStorage.setItem("Lepakshi Spices_quotations", JSON.stringify(updated));
-        } catch (e) {
-            console.error(e);
-        }
     };
 
     const addAuditLog = (action: string, details: string) => {
-        try {
-            const stored = localStorage.getItem("Lepakshi Spices_audit_logs");
-            const logs = stored ? JSON.parse(stored) : [];
-            logs.unshift({
-                time: new Date().toLocaleDateString('en-IN') + " " + new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
-                action,
-                user: "Arjun Kumar (Admin)",
-                details
-            });
-            localStorage.setItem("Lepakshi Spices_audit_logs", JSON.stringify(logs));
-        } catch (e) {
-            console.error(e);
-        }
+        auditApi.createLog(action, details).catch(console.error);
     };
 
     // Status mapping configs
@@ -4807,16 +4806,21 @@ function QuotationManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
         let taxTotal = 0;
 
         (form.items || []).forEach((item: any) => {
-            const itemGross = (item.quantity || 0) * (item.unitPrice || 0);
-            const itemDiscount = itemGross * ((item.discount || 0) / 100);
+            const qty = Number(item.quantity || 0);
+            const price = Number(item.unitPrice || 0);
+            const discPct = Number(item.discountPercent ?? item.discount ?? 0);
+            const gstPct = Number(item.taxPercent ?? item.gst ?? 0);
+
+            const itemGross = qty * price;
+            const itemDiscount = itemGross * (discPct / 100);
             const itemNet = Math.max(0, itemGross - itemDiscount);
             subtotal += itemNet;
-            taxTotal += itemNet * ((item.gst || 0) / 100);
+            taxTotal += itemNet * (gstPct / 100);
         });
 
         let overallDiscount = 0;
         if (form.discountType === "percentage") {
-            overallDiscount = subtotal * ((form.discountValue || 0) / 100);
+            overallDiscount = subtotal * ((Number(form.discountValue) || 0) / 100);
         } else if (form.discountType === "flat") {
             overallDiscount = Number(form.discountValue) || 0;
         }
@@ -4824,15 +4828,22 @@ function QuotationManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
 
         const netSubtotal = Math.max(0, subtotal - overallDiscount);
         const taxAfterDiscount = subtotal > 0 ? taxTotal * (netSubtotal / subtotal) : 0;
-        const grand = netSubtotal + taxAfterDiscount + (Number(form.shippingCharges) || 0);
+        const shipCharges = Number(form.shippingCharges || form.shippingAmount || 0);
+        const grand = netSubtotal + taxAfterDiscount + shipCharges;
         const rounded = Math.round(grand);
         const roundOff = (rounded - grand).toFixed(2);
 
         return {
             subtotal: subtotal.toFixed(2),
+            subtotalAmount: subtotal.toFixed(2),
             discount: overallDiscount.toFixed(2),
+            discountAmount: overallDiscount.toFixed(2),
             tax: taxAfterDiscount.toFixed(2),
+            taxAmount: taxAfterDiscount.toFixed(2),
+            shippingCharges: shipCharges.toFixed(2),
+            shippingAmount: shipCharges.toFixed(2),
             grandTotal: grand.toFixed(2),
+            totalAmount: grand.toFixed(2),
             payableAmount: rounded,
             roundOff
         };
@@ -4895,7 +4906,16 @@ function QuotationManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
         }
 
         const calculatedPayable = calcs.payableAmount;
-        const finalForm = { ...quoteForm, payableAmount: calculatedPayable };
+        const finalForm = {
+            ...quoteForm,
+            payableAmount: calculatedPayable,
+            subtotalAmount: calcs.subtotal,
+            discountAmount: calcs.discount,
+            taxAmount: calcs.tax,
+            shippingAmount: calcs.shippingCharges,
+            totalAmount: calcs.grandTotal,
+            roundOff: calcs.roundOff
+        };
 
         try {
             if (editingQuoteId) {

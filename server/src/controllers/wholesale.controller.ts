@@ -1,5 +1,5 @@
 import type { Request, Response, NextFunction } from 'express';
-import { listWholesaleInquiries, createWholesaleInquiry, setInquiryStatus, listQuotations, createQuotation, updateQuotation, removeWholesaleInquiry, removeQuotation, listWholesaleCatalogueData } from '../services/wholesale.service.js';
+import { listWholesaleInquiries, createWholesaleInquiry, updateWholesaleInquiry, setInquiryStatus, listQuotations, createQuotation, updateQuotation, removeWholesaleInquiry, removeQuotation, listWholesaleCatalogueData } from '../services/wholesale.service.js';
 import { sendSuccess, sendCreated } from '../utils/response.util.js';
 
 export async function listWholesaleInquiriesController(_req: Request, res: Response, next: NextFunction) {
@@ -8,6 +8,10 @@ export async function listWholesaleInquiriesController(_req: Request, res: Respo
 
 export async function createWholesaleInquiryController(req: Request, res: Response, next: NextFunction) {
   try { const id = await createWholesaleInquiry(req.body); sendCreated(res, { id, ...req.body }, 'Inquiry submitted'); } catch (e) { next(e); }
+}
+
+export async function updateWholesaleInquiryController(req: Request, res: Response, next: NextFunction) {
+  try { sendSuccess(res, await updateWholesaleInquiry(Number(req.params.id), req.body), 'Inquiry updated'); } catch (e) { next(e); }
 }
 
 export async function updateInquiryStatusController(req: Request, res: Response, next: NextFunction) {
