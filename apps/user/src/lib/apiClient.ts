@@ -1,5 +1,4 @@
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api';
-export const API_BASE_URL = API_URL;
 
 export type ApiResponse<T> = {
   success: boolean;
@@ -133,12 +132,7 @@ export const settingsApi = {
 };
 
 export const wholesaleInquiryApi = {
-  submit: (body: unknown) => api.post<any>('/wholesale-inquiries', body),
-  getMyInquiries: () => api.get<any[]>('/wholesale-inquiries/my/inquiries'),
-  getMyQuotations: () => api.get<any[]>('/wholesale-inquiries/my/quotations'),
-  getMyOrders: () => api.get<any[]>('/wholesale-inquiries/my/orders'),
-  getMyInvoices: () => api.get<any[]>('/wholesale-inquiries/my/invoices'),
-  getOrderTracking: (orderId: number) => api.get<any[]>(`/wholesale-inquiries/my/orders/${orderId}/tracking`)
+  submit: (body: unknown) => api.post<any>('/wholesale-inquiries', body)
 };
 
 export const wholesaleCatalogueApi = {

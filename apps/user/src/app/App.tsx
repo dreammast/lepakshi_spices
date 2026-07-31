@@ -9,7 +9,7 @@ import {
  Instagram, Facebook, Twitter, Youtube, Mail, Globe, Zap, CheckCircle,
  AlertCircle, AlertTriangle, BookOpen, Tag, Clock, HelpCircle, FileText, Phone
 } from "lucide-react";
-import { authApi, campaignsApi, cartApi, ordersApi, productsApi, categoriesApi, couponsApi, locationApi, recipesApi, reviewsApi, settingsApi, wholesaleInquiryApi, wholesaleCatalogueApi, addressesApi, wishlistApi, API_BASE_URL } from "../lib/apiClient";
+import { authApi, campaignsApi, cartApi, ordersApi, productsApi, categoriesApi, couponsApi, locationApi, recipesApi, reviewsApi, settingsApi, wholesaleInquiryApi, wholesaleCatalogueApi, addressesApi, wishlistApi } from "../lib/apiClient";
 import { useAuth } from "../context/AuthContext";
 
 
@@ -2626,53 +2626,6 @@ function ProfilePage() {
  const [trackingOrder, setTrackingOrder] = useState<any>(null);
  const [trackingLoading, setTrackingLoading] = useState(false);
 
- // Wholesale (B2B) state variables
- const [b2bInquiries, setB2bInquiries] = useState<any[]>([]);
- const [b2bQuotations, setB2bQuotations] = useState<any[]>([]);
- const [b2bOrders, setB2bOrders] = useState<any[]>([]);
- const [b2bInvoices, setB2bInvoices] = useState<any[]>([]);
- const [b2bSubTab, setB2bSubTab] = useState<"inquiries" | "quotations" | "orders" | "invoices">("inquiries");
- const [b2bLoading, setB2bLoading] = useState(false);
- const [selectedB2bOrder, setSelectedB2bOrder] = useState<any>(null);
- const [b2bTrackingTimeline, setB2bTrackingTimeline] = useState<any[]>([]);
- const [b2bTrackingLoading, setB2bTrackingLoading] = useState(false);
-
- useEffect(() => {
-   if (tab === "wholesale" && user?.token) {
-     setB2bLoading(true);
-     Promise.all([
-       wholesaleInquiryApi.getMyInquiries(),
-       wholesaleInquiryApi.getMyQuotations(),
-       wholesaleInquiryApi.getMyOrders(),
-       wholesaleInquiryApi.getMyInvoices()
-     ]).then(([inqs, quotes, ords, invs]) => {
-       if (Array.isArray(inqs)) setB2bInquiries(inqs);
-       if (Array.isArray(quotes)) setB2bQuotations(quotes);
-       if (Array.isArray(ords)) setB2bOrders(ords);
-       if (Array.isArray(invs)) setB2bInvoices(invs);
-       setB2bLoading(false);
-     }).catch(err => {
-       console.warn("Unable to load B2B dashboard data", err);
-       setB2bLoading(false);
-     });
-   }
- }, [tab, user?.token]);
-
- const handleTrackB2bOrder = (order: any) => {
-   setSelectedB2bOrder(order);
-   setB2bTrackingLoading(true);
-   wholesaleInquiryApi.getOrderTracking(order.id)
-     .then(history => {
-       if (Array.isArray(history)) {
-         setB2bTrackingTimeline(history);
-       }
-       setB2bTrackingLoading(false);
-     })
-     .catch(() => {
-       setB2bTrackingLoading(false);
-     });
- };
-
  useEffect(() => {
  if (profileData?.tab) setTab(profileData.tab);
  if (profileData?.trackingOrderId) setTrackingOrderId(profileData.trackingOrderId);
@@ -2892,7 +2845,6 @@ function ProfilePage() {
  { id: "addresses", label: "Addresses", icon: MapPin },
  { id: "settings", label: "Settings", icon: Settings },
  { id: "support", label: "Help & Support", icon: HelpCircle },
- { id: "wholesale", label: "Wholesale (B2B)", icon: FileText }
  ];
 
  const wishedProducts = products.filter((p: any) => wishlist.has(p.id));
@@ -3420,209 +3372,6 @@ function ProfilePage() {
  />
  <Btn type="submit" size="sm" loading={supportLoading} className="py-2.5 px-4 text-xs">Send</Btn>
  </form>
- </div>
- )}
-
- {tab === "wholesale" && (
- <div className="space-y-4">
-   {/* Sub tabs navigation */}
-   <div className="flex gap-2 border-b border-[#1A1714]/8 pb-2">
-     {['inquiries', 'quotations', 'orders', 'invoices'].map(sub => (
-       <button
-         key={sub}
-         onClick={() => { setB2bSubTab(sub as any); setSelectedB2bOrder(null); }}
-         className={`px-3 py-1.5 rounded-lg text-xs font-semibold uppercase tracking-wider transition-colors cursor-pointer ${
-           b2bSubTab === sub && !selectedB2bOrder
-             ? "bg-[#2A4A3C] text-white"
-             : "text-[#7A7064] hover:bg-[#FAF8F3] hover:text-[#1A1714]"
-         }`}
-       >
-         {sub}
-       </button>
-     ))}
-   </div>
-
-   {b2bLoading ? (
-     <div className="text-center py-12 text-sm text-[#7A7064] animate-pulse">Loading wholesale records...</div>
-   ) : selectedB2bOrder ? (
-     // Render order tracking timeline view!
-     <div className="bg-white rounded-2xl border border-[#1A1714]/8 p-5 space-y-4 text-left">
-       <button
-         onClick={() => setSelectedB2bOrder(null)}
-         className="text-xs text-[#2A4A3C] hover:underline flex items-center gap-1 mb-2 font-semibold cursor-pointer"
-       >
-         <ChevronLeft className="w-3.5 h-3.5" /> Back to Orders
-       </button>
-       
-       <div className="flex justify-between items-center flex-wrap gap-2 pb-3 border-b">
-         <div>
-           <h3 className="text-sm font-bold text-[#1A1714]">Order Tracking: #{selectedB2bOrder.orderNumber}</h3>
-           <p className="text-[10px] text-[#7A7064]">Quotation ID: {selectedB2bOrder.quotationId}</p>
-         </div>
-         <Badge color={
-           selectedB2bOrder.status === 'completed' || selectedB2bOrder.status === 'delivered' ? 'green' : 'gold'
-         }>{selectedB2bOrder.status}</Badge>
-       </div>
-
-       {b2bTrackingLoading ? (
-         <div className="text-center py-8 text-xs text-[#7A7064] animate-pulse">Fetching shipment history...</div>
-       ) : b2bTrackingTimeline.length > 0 ? (
-         <div className="relative pl-8 space-y-6 before:absolute before:left-3 before:top-2 before:bottom-2 before:w-0.5 before:bg-[#EEE9E0]">
-           {b2bTrackingTimeline.map((item: any, i: number) => (
-             <div key={i} className="relative text-left">
-               <div className="absolute -left-8 top-1.5 w-6.5 h-6.5 rounded-full border-2 border-[#2A4A3C] flex items-center justify-center bg-white text-[#2A4A3C]">
-                 {i === 0 ? <Check className="w-3 h-3" /> : <div className="w-1.5 h-1.5 rounded-full bg-[#2A4A3C]" />}
-               </div>
-               <div>
-                 <h4 className="font-semibold text-xs text-[#1A1714] capitalize">{item.action.replace(/_/g, ' ')}</h4>
-                 <p className="text-[10px] text-[#7A7064] mt-0.5">{item.notes || 'No description provided.'}</p>
-                 <span className="text-[9px] text-[#7A7064]/50 block mt-1">{new Date(item.createdAt).toLocaleString()}</span>
-               </div>
-             </div>
-           ))}
-         </div>
-       ) : (
-         <div className="py-8 text-center text-xs text-[#7A7064]">
-           Order processing initiated. Live shipment tracking updates will appear as the order progresses.
-         </div>
-       )}
-     </div>
-   ) : (
-     // Standard B2B Sub-tab view
-     <div className="bg-white rounded-2xl border border-[#1A1714]/8 overflow-hidden">
-       {b2bSubTab === 'inquiries' && (
-         <div className="divide-y divide-[#1A1714]/8">
-           <div className="p-4 bg-[#2A4A3C]/5 font-semibold text-xs text-[#1A1714] flex justify-between">
-             <span>Inquiry & Lead Records</span>
-             <span>{b2bInquiries.length} Found</span>
-           </div>
-           {b2bInquiries.length > 0 ? (
-             b2bInquiries.map((inq: any) => (
-               <div key={inq.id} className="p-4 space-y-2 text-left">
-                 <div className="flex justify-between items-center">
-                   <span className="font-bold text-xs">#{inq.id} - {inq.companyName}</span>
-                   <Badge color={inq.status === 'approved' || inq.status === 'converted' ? 'green' : 'gold'}>{inq.status}</Badge>
-                 </div>
-                 <p className="text-[11px] text-[#7A7064]">{inq.message || 'No message provided.'}</p>
-                 <div className="flex justify-between text-[10px] text-[#7A7064]/60">
-                   <span>Contact: {inq.contactName} ({inq.email})</span>
-                   <span>{new Date(inq.createdAt).toLocaleDateString()}</span>
-                 </div>
-               </div>
-             ))
-           ) : (
-             <div className="p-8 text-center text-xs text-[#7A7064]">No inquiries found.</div>
-           )}
-         </div>
-       )}
-
-       {b2bSubTab === 'quotations' && (
-         <div className="divide-y divide-[#1A1714]/8">
-           <div className="p-4 bg-[#2A4A3C]/5 font-semibold text-xs text-[#1A1714] flex justify-between">
-             <span>Wholesale Quotations</span>
-             <span>{b2bQuotations.length} Found</span>
-           </div>
-           {b2bQuotations.length > 0 ? (
-             b2bQuotations.map((quote: any) => (
-               <div key={quote.id} className="p-4 flex justify-between items-center text-left">
-                 <div>
-                   <div className="flex items-center gap-2">
-                     <span className="font-bold text-xs text-[#1A1714]">{quote.quoteNumber}</span>
-                     <Badge color={quote.status === 'accepted' || quote.status === 'converted' ? 'green' : 'gold'}>{quote.status}</Badge>
-                   </div>
-                   <p className="text-[10px] text-[#7A7064] mt-1">Payment Terms: {quote.paymentTerms || 'B2B Terms'}</p>
-                   <p className="text-[10px] text-[#7A7064]">Valid Until: {new Date(quote.validUntil).toLocaleDateString()}</p>
-                   <p className="text-[10px] text-[#7A7064] font-medium mt-1">
-                     Items: {quote.items?.map((it: any) => `${it.productName} (${it.weightLabel || '1kg'} x ${Number(it.quantity)})`).join(', ') || 'Wholesale Batch'}
-                   </p>
-                 </div>
-                 <div className="text-right shrink-0">
-                   <p className="font-bold text-sm text-[#1A1714]">₹{Number(quote.totalAmount).toLocaleString()}</p>
-                   <Btn
-                     size="xs"
-                     variant="ghost"
-                     onClick={() => window.open(`${API_BASE_URL}/wholesale-inquiries/my/quotations/${quote.id}/pdf?token=${user?.token}`, '_blank')}
-                     className="mt-2 text-[10px]"
-                   >
-                     Download PDF
-                   </Btn>
-                 </div>
-               </div>
-             ))
-           ) : (
-             <div className="p-8 text-center text-xs text-[#7A7064]">No quotations found.</div>
-           )}
-         </div>
-       )}
-
-       {b2bSubTab === 'orders' && (
-         <div className="divide-y divide-[#1A1714]/8">
-           <div className="p-4 bg-[#2A4A3C]/5 font-semibold text-xs text-[#1A1714] flex justify-between">
-             <span>Wholesale Orders</span>
-             <span>{b2bOrders.length} Found</span>
-           </div>
-           {b2bOrders.length > 0 ? (
-             b2bOrders.map((order: any) => (
-               <div key={order.id} className="p-4 flex justify-between items-center text-left">
-                 <div>
-                   <div className="flex items-center gap-2">
-                     <span className="font-bold text-xs text-[#1A1714]">{order.orderNumber}</span>
-                     <Badge color={order.status === 'completed' || order.status === 'delivered' ? 'green' : 'gold'}>{order.status}</Badge>
-                   </div>
-                   <p className="text-[10px] text-[#7A7064] mt-1">Quotation ID: {order.quotationId}</p>
-                   <p className="text-[10px] text-[#7A7064]">Date: {new Date(order.createdAt).toLocaleDateString()}</p>
-                 </div>
-                 <div className="text-right shrink-0">
-                   <p className="font-bold text-sm text-[#1A1714]">₹{Number(order.totalAmount).toLocaleString()}</p>
-                   <Btn
-                     size="xs"
-                     variant="secondary"
-                     onClick={() => handleTrackB2bOrder(order)}
-                     className="mt-2 text-[10px]"
-                   >
-                     Track Shipment
-                   </Btn>
-                 </div>
-               </div>
-             ))
-           ) : (
-             <div className="p-8 text-center text-xs text-[#7A7064]">No B2B orders found.</div>
-           )}
-         </div>
-       )}
-
-       {b2bSubTab === 'invoices' && (
-         <div className="divide-y divide-[#1A1714]/8">
-           <div className="p-4 bg-[#2A4A3C]/5 font-semibold text-xs text-[#1A1714] flex justify-between">
-             <span>Wholesale Invoices</span>
-             <span>{b2bInvoices.length} Found</span>
-           </div>
-           {b2bInvoices.length > 0 ? (
-             b2bInvoices.map((inv: any) => (
-               <div key={inv.id} className="p-4 flex justify-between items-center text-left">
-                 <div>
-                   <div className="flex items-center gap-2">
-                     <span className="font-bold text-xs text-[#1A1714]">{inv.invoiceNumber}</span>
-                     <Badge color={inv.status === 'paid' ? 'green' : 'gold'}>{inv.status}</Badge>
-                   </div>
-                   <p className="text-[10px] text-[#7A7064] mt-1">Order ID: {inv.wholesaleOrderId}</p>
-                   <p className="text-[10px] text-[#7A7064]">Due Date: {inv.dueDate ? new Date(inv.dueDate).toLocaleDateString() : 'N/A'}</p>
-                 </div>
-                 <div className="text-right shrink-0">
-                   <p className="font-bold text-sm text-[#1A1714]">₹{Number(inv.totalAmount).toLocaleString()}</p>
-                   {inv.paidAt && (
-                     <p className="text-[9px] text-green-600 mt-1">Paid on: {new Date(inv.paidAt).toLocaleDateString()}</p>
-                   )}
-                 </div>
-               </div>
-             ))
-           ) : (
-             <div className="p-8 text-center text-xs text-[#7A7064]">No B2B invoices found.</div>
-           )}
-         </div>
-       )}
-     </div>
-   )}
  </div>
  )}
  </motion.div>
