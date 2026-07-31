@@ -2,12 +2,11 @@ import type { Response, NextFunction } from 'express';
 import { db } from '../config/database.js';
 import {
   orders, products, productVariants, customerProfiles,
-  coupons, recipes, reviews, categories
+  coupons, recipes, reviews, wholesaleInquiries, categories
 } from '../db/schema.js';
 import { sql, eq, and, gte, lt, count } from 'drizzle-orm';
 import { sendSuccess } from '../utils/response.util.js';
 import type { AuthenticatedRequest } from '../middleware/auth.middleware.js';
-import { getWholesaleStats } from '../modules/wholesale/index.js';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -25,7 +24,7 @@ export async function getDashboardStatsController(_req: AuthenticatedRequest, re
       { couponCount, activeCouponCount },
       { recipeCount, publishedRecipeCount },
       { reviewCount, pendingReviewCount },
-      wholesaleStats,
+      { leadCount, activeLeadCount },
       allCategories,
       allProducts,
       recentOrders,
@@ -48,7 +47,10 @@ export async function getDashboardStatsController(_req: AuthenticatedRequest, re
         reviewCount: count(),
         pendingReviewCount: sql<number>`sum(case when ${reviews.status} = 'pending' then 1 else 0 end)`
       }).from(reviews).then(res => res[0]),
-      getWholesaleStats(),
+      db.select({ 
+        leadCount: count(),
+        activeLeadCount: sql<number>`sum(case when ${wholesaleInquiries.status} in ('new', 'reviewing') then 1 else 0 end)`
+      }).from(wholesaleInquiries).then(res => res[0]),
       db.select({ id: categories.id, name: categories.name }).from(categories),
       db.select({ id: products.id }).from(products),
       db.select({
@@ -87,7 +89,7 @@ export async function getDashboardStatsController(_req: AuthenticatedRequest, re
     const yesterdayRevenue = Number(yesterdayRev || 0);
     const totalRevenue = Number(totalRevenueVal || 0);
     const pendingOrders = Number(pendingCount || 0);
-    const activeLeads = wholesaleStats.activeLeads;
+    const activeLeads = Number(activeLeadCount || 0);
     const activeCoupons = Number(activeCouponCount || 0);
     const publishedRecipes = Number(publishedRecipeCount || 0);
     const pendingReviews = Number(pendingReviewCount || 0);
@@ -158,7 +160,7 @@ export async function getDashboardStatsController(_req: AuthenticatedRequest, re
       publishedRecipes,
       totalReviews: Number(reviewCount || 0),
       pendingReviews,
-      totalWholesaleLeads: wholesaleStats.totalLeads,
+      totalWholesaleLeads: Number(leadCount || 0),
       activeWholesaleLeads: activeLeads,
       revenueChangePct: revenueDelta,
       ordersChangePct: ordersCountDelta,

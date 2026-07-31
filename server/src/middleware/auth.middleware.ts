@@ -4,19 +4,13 @@ import { verifyToken, type JwtPayload } from '../utils/jwt.util.js';
 export type AuthenticatedRequest = Request & { user?: JwtPayload };
 
 export function authenticate(req: AuthenticatedRequest, res: Response, next: NextFunction) {
-  let token = '';
   const header = req.headers.authorization;
-  if (header?.startsWith('Bearer ')) {
-    token = header.slice(7);
-  } else if (req.query.token) {
-    token = req.query.token as string;
-  }
-
-  if (!token) {
+  if (!header?.startsWith('Bearer ')) {
     return res.status(401).json({ success: false, message: 'Authentication required' });
   }
 
   try {
+    const token = header.slice(7);
     req.user = verifyToken(token);
     next();
   } catch {
