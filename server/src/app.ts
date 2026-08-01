@@ -4,6 +4,7 @@ import helmet from 'helmet';
 import swaggerUi from 'swagger-ui-express';
 import { env } from './config/env.js';
 import router from './routes/index.js';
+import rootHealthRoute from './routes/root-health.route.js';
 import { requestLogger } from './middleware/logger.middleware.js';
 import { notFoundHandler, errorHandler } from './middleware/error.middleware.js';
 import { swaggerSpec } from './utils/swagger.js';
@@ -35,6 +36,7 @@ app.use(cors({
 
 app.use(express.json());
 app.use(adminActivity);
+app.use('/health', rootHealthRoute);
 app.use('/api', router);
 app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 app.use(notFoundHandler);
