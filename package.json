@@ -4,6 +4,7 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
+    "build": "npm --prefix apps/user run build",
     "dev:user": "npm --prefix apps/user run dev",
     "dev:admin": "npm --prefix apps/admin run dev",
     "dev:server": "npm --prefix server run dev",
