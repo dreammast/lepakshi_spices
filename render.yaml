@@ -11,3 +11,7 @@ services:
         value: production
       - key: PORT
         value: 10000
+      - key: FRONTEND_URL
+        value: https://lepakshi-spices-user.vercel.app
+      - key: ADMIN_FRONTEND_URL
+        value: https://lepakshi-spices-admin.vercel.app

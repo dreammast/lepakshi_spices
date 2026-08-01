@@ -16,21 +16,30 @@ const app = express();
 app.use(requestLogger);
 app.use(helmet({
   crossOriginOpenerPolicy: { policy: 'unsafe-none' },
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
 }));
+
+const allowedOrigins: string[] = [
+  ...(env.FRONTEND_URL ? env.FRONTEND_URL.split(',').map((s) => s.trim()) : []),
+  ...(env.ADMIN_FRONTEND_URL ? env.ADMIN_FRONTEND_URL.split(',').map((s) => s.trim()) : []),
+  'http://localhost:5174',
+  'http://localhost:5173',
+].filter(Boolean);
+
 app.use(cors({
   origin: (origin, callback) => {
-    const configuredOrigins = [
-      ...(env.FRONTEND_URL ? env.FRONTEND_URL.split(',').map((s) => s.trim()) : []),
-      ...(env.ADMIN_FRONTEND_URL ? env.ADMIN_FRONTEND_URL.split(',').map((s) => s.trim()) : []),
-      'http://localhost:5174',
-      'http://localhost:5173',
-    ];
-    if (!origin || configuredOrigins.includes(origin)) {
+    // Allow requests with no origin (server-to-server, curl, health checks)
+    if (!origin || allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
-      callback(new Error(`Not allowed by CORS: ${origin}`));
+      // Don't throw — silently deny so the response still goes through
+      // without CORS headers (standard behavior) instead of crashing into
+      // the error handler which strips CORS headers entirely.
+      callback(null, false);
     }
   },
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
   credentials: true,
 }));
 
