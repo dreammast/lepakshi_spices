@@ -48,9 +48,9 @@ const envSchema = z.object({
   SMTP_USER: z.string().trim().min(1, 'SMTP_USER is required'),
   SMTP_PASS: z.string().min(1, 'SMTP_PASS is required'),
   MAIL_FROM: z.string().trim().min(1, 'MAIL_FROM is required'),
-  FRONTEND_URL: z.string().optional().default('http://localhost:5174'),
-  ADMIN_FRONTEND_URL: z.string().optional().default('http://localhost:5173'),
-  API_PUBLIC_URL: z.string().url().default('http://localhost:4000/api'),
+  FRONTEND_URL: z.string().optional().default('https://lepakshi-spices-user.vercel.app'),
+  ADMIN_FRONTEND_URL: z.string().optional().default('https://lepakshi-spices-admin.vercel.app'),
+  API_PUBLIC_URL: z.string().url().default('https://lepakshi-spices-1.onrender.com/api'),
 });
 
 const parsedEnv = envSchema.safeParse(process.env);
