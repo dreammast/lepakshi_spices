@@ -4,6 +4,7 @@ import helmet from 'helmet';
 import swaggerUi from 'swagger-ui-express';
 import { env } from './config/env.js';
 import router from './routes/index.js';
+import rootHealthRoute from './routes/root-health.route.js';
 import { requestLogger } from './middleware/logger.middleware.js';
 import { notFoundHandler, errorHandler } from './middleware/error.middleware.js';
 import { swaggerSpec } from './utils/swagger.js';
@@ -18,15 +19,16 @@ app.use(helmet({
 }));
 app.use(cors({
   origin: (origin, callback) => {
-    const allowed = [
-      process.env.FRONTEND_URL,
+    const configuredOrigins = [
+      ...(env.FRONTEND_URL ? env.FRONTEND_URL.split(',').map((s) => s.trim()) : []),
+      ...(env.ADMIN_FRONTEND_URL ? env.ADMIN_FRONTEND_URL.split(',').map((s) => s.trim()) : []),
       'http://localhost:5174',
       'http://localhost:5173',
     ];
-    if (!origin || allowed.includes(origin)) {
+    if (!origin || configuredOrigins.includes(origin)) {
       callback(null, true);
     } else {
-      callback(new Error('Not allowed by CORS'));
+      callback(new Error(`Not allowed by CORS: ${origin}`));
     }
   },
   credentials: true,
@@ -34,6 +36,7 @@ app.use(cors({
 
 app.use(express.json());
 app.use(adminActivity);
+app.use('/health', rootHealthRoute);
 app.use('/api', router);
 app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 app.use(notFoundHandler);

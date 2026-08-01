@@ -22,6 +22,7 @@ import {
     PieChart, Pie, Cell,
 } from "recharts";
 import { SmartPricingAssistant } from "./components/SmartPricingAssistant";
+import { useHeartbeat } from "../lib/useHeartbeat";
 import { authApi, auditApi, categoriesApi, customersApi, ordersApi, couponsApi, campaignsApi, recipesApi, reviewsApi, wholesaleApi, productsApi, dashboardApi, settingsApi, collectionsApi, type CustomerDetails, type CustomerListItem } from "../lib/apiClient";
 
 // Brand Tokens 
@@ -7573,6 +7574,8 @@ export default function App() {
         document.addEventListener("mousedown", h);
         return () => document.removeEventListener("mousedown", h);
     }, [bellOpen]);
+
+    useHeartbeat(authenticated);
 
     if (!authenticated) return <AdminLogin onLogin={() => setAuthenticated(true)} />;
 
