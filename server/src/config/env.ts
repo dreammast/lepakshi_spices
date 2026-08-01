@@ -49,6 +49,7 @@ const envSchema = z.object({
   SMTP_PASS: z.string().min(1, 'SMTP_PASS is required'),
   MAIL_FROM: z.string().trim().min(1, 'MAIL_FROM is required'),
   FRONTEND_URL: z.string().optional().default('http://localhost:5174'),
+  ADMIN_FRONTEND_URL: z.string().optional().default('http://localhost:5173'),
   API_PUBLIC_URL: z.string().url().default('http://localhost:4000/api'),
 });
 
