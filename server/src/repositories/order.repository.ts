@@ -354,6 +354,15 @@ export async function updateOrderStatus(id: number, status: typeof orders.$infer
   return findOrderById(id);
 }
 
+export async function appendOrderTimeline(id: number, events: Array<{ time: string; event: string }>) {
+  const [order] = await db.select({ timeline: orders.timeline }).from(orders).where(eq(orders.id, id));
+  const existing = Array.isArray(order?.timeline) ? order!.timeline : [];
+  await db.update(orders)
+    .set({ timeline: [...existing, ...events], updatedAt: new Date() })
+    .where(eq(orders.id, id));
+  return events.length;
+}
+
 export async function verifyOrderPaymentInDb(id: number, adminName: string) {
   await db.update(orders)
     .set({

@@ -117,6 +117,7 @@ export async function sendWholesaleQuotation(quotation: WholesaleQuotationData, 
 
   const links = {
     acceptUrl: `${QUOTE_PUBLIC_BASE}/${id}/respond?action=accept&token=${signQuoteToken(id, 'accept')}`,
+    rejectUrl: `${QUOTE_PUBLIC_BASE}/${id}/respond?action=reject&token=${signQuoteToken(id, 'reject')}`,
     viewUrl: `${QUOTE_PUBLIC_BASE}/${id}/view?token=${signQuoteToken(id, 'view')}`,
   };
 
@@ -135,6 +136,38 @@ export async function sendWholesaleQuotation(quotation: WholesaleQuotationData, 
     to: quotation.email,
     subject: `Your wholesale quotation ${ref} from Lepakshi Spices`,
     html: wholesaleTemplates.wholesaleQuotationEmail(quotation, links),
+    attachments,
+  });
+}
+
+export async function sendWholesaleQuotationUpdated(quotation: WholesaleQuotationData, opts?: { attachPdf?: boolean; summary?: string }) {
+  const id = quoteId(quotation.id);
+  if (!quotation.email) {
+    logger.warn({ quoteId: id }, 'Cannot send quotation update email: no customer email on quotation');
+    return null;
+  }
+
+  const links = {
+    acceptUrl: `${QUOTE_PUBLIC_BASE}/${id}/respond?action=accept&token=${signQuoteToken(id, 'accept')}`,
+    rejectUrl: `${QUOTE_PUBLIC_BASE}/${id}/respond?action=reject&token=${signQuoteToken(id, 'reject')}`,
+    viewUrl: `${QUOTE_PUBLIC_BASE}/${id}/view?token=${signQuoteToken(id, 'view')}`,
+  };
+
+  let attachments: EmailAttachment[] = [];
+  if (opts?.attachPdf) {
+    try {
+      const pdf = await generateQuotationPdf(quotation);
+      attachments = [{ filename: pdf.filename, contentBase64: pdf.base64, contentType: pdf.contentType }];
+    } catch (error) {
+      logger.error({ err: error, quoteId: id }, 'Quotation PDF generation failed; sending HTML-only update email');
+    }
+  }
+
+  const ref = quotation.quoteNumber || `QT-${id}`;
+  return sendEmailSafely({
+    to: quotation.email,
+    subject: `Updated wholesale quotation ${ref} from Lepakshi Spices`,
+    html: wholesaleTemplates.wholesaleQuotationEmail(quotation, links, { updateBanner: opts?.summary || 'The quotation has been revised by our sales team — please review the updated terms and prices.' }),
     attachments,
   });
 }

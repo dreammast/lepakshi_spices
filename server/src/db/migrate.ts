@@ -54,6 +54,7 @@ export async function runMigrations() {
     `ALTER TABLE wholesale_inquiries ADD COLUMN volume VARCHAR(128) NULL`,
     `ALTER TABLE wholesale_inquiries ADD COLUMN notes JSON NULL`,
     `ALTER TABLE wholesale_inquiries ADD COLUMN timeline JSON NULL`,
+    `ALTER TABLE orders ADD COLUMN timeline JSON NULL`,
     `ALTER TABLE quotations ADD COLUMN business_name VARCHAR(255) NULL`,
     `ALTER TABLE quotations ADD COLUMN contact_person VARCHAR(255) NULL`,
     `ALTER TABLE quotations ADD COLUMN email VARCHAR(255) NULL`,

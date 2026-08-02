@@ -5,6 +5,7 @@ import {
   findOrdersByCustomerId,
   updateOrderStatus,
   verifyOrderPaymentInDb,
+  appendOrderTimeline,
   type CreateOrderInput
 } from '../repositories/order.repository.js';
 import { AppError } from '../utils/app-error.js';
@@ -12,9 +13,18 @@ import { orders } from '../db/schema.js';
 import { env } from '../config/env.js';
 import { validateCoupon } from './coupon.service.js';
 import { sendRetailOrderConfirmation, sendRetailOrderStatus, sendRetailReceipt, sendRetailPaymentVerified, sendRetailOrderCancelled } from '../mail/email.service.js';
+import { emailLogEntry } from '../mail/email-log.js';
 
 function canEmailOrder(order: Awaited<ReturnType<typeof findOrderById>>): order is NonNullable<Awaited<ReturnType<typeof findOrderById>>> & { customerEmail: string } {
   return Boolean(order?.customerEmail);
+}
+
+async function safeAppendOrderTimeline(orderId: number, events: Array<{ time: string; event: string }>) {
+  try {
+    await appendOrderTimeline(orderId, events);
+  } catch (e) {
+    console.warn('[order-timeline] Failed to append order timeline event:', e);
+  }
 }
 
 const ALLOWED_PAYMENT_METHODS = ['upi', 'cod'];
@@ -58,8 +68,12 @@ export async function createOrder(input: CreateOrderInput) {
   if (canEmailOrder(order)) {
     const orderUrl = `${env.FRONTEND_URL.replace(/\/$/, '')}/orders/${order.id}`;
     const emailData = { ...order, trackingUrl: orderUrl, invoiceUrl: `${orderUrl}?view=invoice` };
-    await sendRetailOrderConfirmation(emailData);
-    await sendRetailReceipt(emailData, order.customerEmail);
+    const confirmation = await sendRetailOrderConfirmation(emailData);
+    const receipt = await sendRetailReceipt(emailData, order.customerEmail);
+    await safeAppendOrderTimeline(order.id, [
+      emailLogEntry({ type: 'retail.order.confirmed', recipient: order.customerEmail, status: confirmation ? 'sent' : 'failed', messageId: confirmation?.messageId ?? null, relatedId: order.id }),
+      emailLogEntry({ type: 'retail.order.receipt', recipient: order.customerEmail, status: receipt ? 'sent' : 'failed', messageId: receipt?.messageId ?? null, relatedId: order.id }),
+    ]);
   }
   return order;
 }
@@ -93,11 +107,12 @@ export async function setOrderStatus(id: number, status: typeof orders.$inferIns
   const notificationStatus = status ?? updated.status;
   if (canEmailOrder(updated) && notificationStatus && ['processing', 'shipped', 'delivered', 'cancelled'].includes(notificationStatus)) {
     const orderUrl = `${env.FRONTEND_URL.replace(/\/$/, '')}/orders/${updated.id}`;
-    if (notificationStatus === 'cancelled') {
-      await sendRetailOrderCancelled({ ...updated, trackingUrl: orderUrl }, updated.customerEmail);
-    } else {
-      await sendRetailOrderStatus({ ...updated, trackingUrl: orderUrl }, updated.customerEmail);
-    }
+    const result = notificationStatus === 'cancelled'
+      ? await sendRetailOrderCancelled({ ...updated, trackingUrl: orderUrl }, updated.customerEmail)
+      : await sendRetailOrderStatus({ ...updated, trackingUrl: orderUrl }, updated.customerEmail);
+    await safeAppendOrderTimeline(updated.id, [
+      emailLogEntry({ type: `retail.order.${notificationStatus}`, recipient: updated.customerEmail, status: result ? 'sent' : 'failed', messageId: result?.messageId ?? null, relatedId: updated.id }),
+    ]);
   }
   return updated;
 }
@@ -116,7 +131,11 @@ export async function verifyOrderPayment(id: number, adminName: string) {
   }
   if (canEmailOrder(updated)) {
     const orderUrl = `${env.FRONTEND_URL.replace(/\/$/, '')}/orders/${updated.id}`;
-    await sendRetailPaymentVerified({ ...updated, trackingUrl: orderUrl }, updated.customerEmail);
+    const result = await sendRetailPaymentVerified({ ...updated, trackingUrl: orderUrl }, updated.customerEmail);
+    await safeAppendOrderTimeline(updated.id, [
+      emailLogEntry({ type: 'retail.order.payment_verified', recipient: updated.customerEmail, status: result ? 'sent' : 'failed', messageId: result?.messageId ?? null, relatedId: updated.id }),
+    ]);
   }
   return updated;
 }
+

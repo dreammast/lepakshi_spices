@@ -232,6 +232,7 @@ export const orders = mysqlTable('orders', {
   paymentVerifiedBy: varchar('payment_verified_by', { length: 128 }),
   placedAt: datetime('placed_at').notNull(),
   deliveredAt: datetime('delivered_at'),
+  timeline: json('timeline').$type<any[]>(),
   updatedAt: datetime('updated_at').notNull()
 }, (table) => ({
   customerIdx: index('orders_customer_idx').on(table.customerId),

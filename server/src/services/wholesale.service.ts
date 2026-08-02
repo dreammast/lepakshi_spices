@@ -1,6 +1,7 @@
 import { findAllWholesaleInquiries, findWholesaleInquiryById, createWholesaleInquiryRecord, updateWholesaleInquiryRecord, updateWholesaleInquiryStatus, findAllQuotations, findQuotationById, createQuotationRecord, updateQuotationRecord, deleteWholesaleInquiry, deleteQuotation } from '../repositories/wholesale.repository.js';
 import { AppError } from '../utils/app-error.js';
-import { sendWholesaleEnquiryReceived, sendWholesaleInquiryStatus, sendWholesaleQuotation, sendWholesaleQuotationAccepted, sendWholesaleQuotationRejected, sendWholesaleOrderConfirmation, sendWholesaleOrderStatus } from '../mail/email.service.js';
+import { sendWholesaleEnquiryReceived, sendWholesaleInquiryStatus, sendWholesaleQuotation, sendWholesaleQuotationUpdated, sendWholesaleQuotationAccepted, sendWholesaleQuotationRejected, sendWholesaleOrderConfirmation, sendWholesaleOrderStatus } from '../mail/email.service.js';
+import { emailLogEntry } from '../mail/email-log.js';
 import { logger } from '../utils/logger.js';
 import { listProducts } from './product.service.js';
 
@@ -72,7 +73,7 @@ export async function getWholesaleInquiry(id: number) {
 }
 export async function createWholesaleInquiry(data: Parameters<typeof createWholesaleInquiryRecord>[0]) {
   const id = await createWholesaleInquiryRecord(data);
-  await sendWholesaleEnquiryReceived({
+  const result = await sendWholesaleEnquiryReceived({
     contactName: data.contactName,
     companyName: data.companyName,
     email: data.email,
@@ -80,6 +81,18 @@ export async function createWholesaleInquiry(data: Parameters<typeof createWhole
     volume: data.volume,
     reference: `INQ-${id}`,
   });
+  const recipient = typeof data.email === 'string' ? data.email : null;
+  if (recipient) {
+    try {
+      const inq = await findWholesaleInquiryById(id);
+      const existingTimeline = (inq?.timeline as any[]) || [];
+      await updateWholesaleInquiryRecord(id, {
+        timeline: [...existingTimeline, emailLogEntry({ type: 'wholesale.enquiry.received', recipient, status: result ? 'sent' : 'failed', messageId: result?.messageId ?? null, relatedId: id })],
+      });
+    } catch (e) {
+      logger.warn({ err: e, inquiryId: id }, 'Failed to record enquiry email log');
+    }
+  }
   return id;
 }
 
@@ -90,12 +103,20 @@ export async function updateWholesaleInquiry(id: number, data: Record<string, an
 export async function setInquiryStatus(id: number, status: string) {
   const inquiry = await updateWholesaleInquiryStatus(id, status);
   if (status === 'approved' || status === 'rejected') {
-    await sendWholesaleInquiryStatus({
+    const result = await sendWholesaleInquiryStatus({
       contactName: inquiry.contactName,
       companyName: inquiry.companyName,
       email: inquiry.email,
       status: status as 'approved' | 'rejected',
     });
+    try {
+      const existingTimeline = (inquiry.timeline as any[]) || [];
+      await updateWholesaleInquiryRecord(id, {
+        timeline: [...existingTimeline, emailLogEntry({ type: `wholesale.inquiry.${status}`, recipient: inquiry.email, status: result ? 'sent' : 'failed', messageId: result?.messageId ?? null, relatedId: id })],
+      });
+    } catch (e) {
+      logger.warn({ err: e, inquiryId: id }, 'Failed to record inquiry status email log');
+    }
   }
   return inquiry;
 }
@@ -172,11 +193,15 @@ export async function updateQuotation(id: number, data: Record<string, any>) {
     mergedData = rest;
   }
 
+  const meaningfulKeys = Object.keys(data).filter((k) => !['id', 'status', 'attachPdf', 'timeline', 'createdAt', 'updatedAt'].includes(k));
+  const hasContentChanges = meaningfulKeys.length > 0;
+
   await updateQuotationRecord(id, mergedData);
   const full = await findQuotationById(id);
 
   const newStatus = String(mergedData.status ?? existing?.status ?? 'draft');
   const prevStatus = String(existing?.status ?? 'draft');
+  const isStatusTransition = newStatus !== prevStatus;
 
   const timeStr = new Date().toLocaleDateString('en-IN') + ' ' + new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
 
@@ -184,33 +209,72 @@ export async function updateQuotation(id: number, data: Record<string, any>) {
     if (full) await dispatchQuotationEmail(full, data.attachPdf === true, timeStr);
   } else if (newStatus === 'accepted' && prevStatus !== 'accepted' && full) {
     const orderRef = `ORD-${full.id}`;
-    await sendWholesaleQuotationAccepted(full, {
+    const result = await sendWholesaleQuotationAccepted(full, {
       orderReference: orderRef,
       paymentInstructions: `Payment is due as per the agreed terms (${full.paymentTerms || '50% advance, 50% on dispatch'}). Please transfer to our official bank account and share the UTR reference with your sales executive.`,
     });
-    await appendQuotationTimeline(full, [{ time: timeStr, event: 'Quotation Accepted by Customer' }]);
+    await appendQuotationTimeline(full, [
+      { time: timeStr, event: 'Quotation Accepted by Customer' },
+      emailLogEntry({ type: 'wholesale.quotation.accepted', recipient: full.email, status: result ? 'sent' : 'failed', messageId: result?.messageId ?? null, relatedId: full.id }),
+    ]);
   } else if (newStatus === 'rejected' && prevStatus !== 'rejected' && full) {
-    await sendWholesaleQuotationRejected(full);
-    await appendQuotationTimeline(full, [{ time: timeStr, event: 'Quotation Rejected by Customer' }]);
+    const result = await sendWholesaleQuotationRejected(full);
+    await appendQuotationTimeline(full, [
+      { time: timeStr, event: 'Quotation Rejected by Customer' },
+      emailLogEntry({ type: 'wholesale.quotation.rejected', recipient: full.email, status: result ? 'sent' : 'failed', messageId: result?.messageId ?? null, relatedId: full.id }),
+    ]);
   } else if (newStatus === 'converted' && prevStatus !== 'converted' && full) {
     const orderRef = `ORD-${full.id}`;
-    await sendWholesaleOrderConfirmation(full, { orderReference: orderRef });
-    await appendQuotationTimeline(full, [{ time: timeStr, event: `Wholesale Order ${orderRef} Created & Confirmed` }]);
+    const result = await sendWholesaleOrderConfirmation(full, { orderReference: orderRef });
+    await appendQuotationTimeline(full, [
+      { time: timeStr, event: `Wholesale Order ${orderRef} Created & Confirmed` },
+      emailLogEntry({ type: 'wholesale.order.confirmed', recipient: full.email, status: result ? 'sent' : 'failed', messageId: result?.messageId ?? null, relatedId: full.id }),
+    ]);
+  } else if (
+    !isStatusTransition &&
+    full &&
+    LIVE_QUOTE_STATUSES.includes(prevStatus) &&
+    (hasContentChanges || data.attachPdf === true)
+  ) {
+    await dispatchQuotationUpdateEmail(full, data.attachPdf === true, timeStr);
   }
 
   return full;
 }
+
+const LIVE_QUOTE_STATUSES = ['sent', 'viewed', 'negotiation'];
 
 async function dispatchQuotationEmail(quotation: any, attachPdf: boolean, timeStr: string) {
   try {
     const result = await sendWholesaleQuotation(quotation, { attachPdf });
     if (result) {
       await appendQuotationTimeline(quotation, [
-        { time: timeStr, event: `Quotation Email Sent to ${quotation.email || 'customer'}${attachPdf ? ' (PDF attached)' : ''}` },
+        emailLogEntry({ type: 'wholesale.quotation.sent', recipient: quotation.email, status: 'sent', messageId: result.messageId, relatedId: quotation.id }),
+      ]);
+    } else {
+      await appendQuotationTimeline(quotation, [
+        emailLogEntry({ type: 'wholesale.quotation.sent', recipient: quotation.email, status: 'failed', relatedId: quotation.id }),
       ]);
     }
   } catch (e) {
     logger.error({ err: e, quoteId: quotation.id }, 'Failed to send quotation email');
+  }
+}
+
+async function dispatchQuotationUpdateEmail(quotation: any, attachPdf: boolean, timeStr: string) {
+  try {
+    const result = await sendWholesaleQuotationUpdated(quotation, { attachPdf });
+    if (result) {
+      await appendQuotationTimeline(quotation, [
+        emailLogEntry({ type: 'wholesale.quotation.updated', recipient: quotation.email, status: 'sent', messageId: result.messageId, relatedId: quotation.id }),
+      ]);
+    } else {
+      await appendQuotationTimeline(quotation, [
+        emailLogEntry({ type: 'wholesale.quotation.updated', recipient: quotation.email, status: 'failed', relatedId: quotation.id }),
+      ]);
+    }
+  } catch (e) {
+    logger.error({ err: e, quoteId: quotation.id }, 'Failed to send quotation update email');
   }
 }
 
@@ -239,9 +303,9 @@ export async function notifyWholesaleOrderStatus(id: number, status: string) {
   }
 
   const orderRef = `ORD-${full.id}`;
-  await sendWholesaleOrderStatus(full, { orderReference: orderRef, status: normalized });
+  const result = await sendWholesaleOrderStatus(full, { orderReference: orderRef, status: normalized });
   await appendQuotationTimeline(full, [
-    { time: new Date().toLocaleDateString('en-IN') + ' ' + new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }), event: `Wholesale Order ${orderRef}: ${normalized} (email sent)` },
+    emailLogEntry({ type: `wholesale.order.${normalized}`, recipient: full.email, status: result ? 'sent' : 'failed', messageId: result?.messageId ?? null, relatedId: full.id }),
   ]);
   return findQuotationById(id);
 }

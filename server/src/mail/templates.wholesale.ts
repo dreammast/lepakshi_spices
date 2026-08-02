@@ -15,11 +15,13 @@ import {
   quotationTotalsBlock,
   commercialTermsBlock,
   successNotice,
+  infoBlock,
   mutedNote,
   smallDivider,
   escapeHtml,
   formatDate,
   BRAND,
+  COLORS,
   type QuotationEmailItem,
   type QuotationTotals,
 } from './components.js';
@@ -135,7 +137,7 @@ export function wholesaleInquiryStatusEmail(data: { contactName: string; company
   return emailLayout(title, html);
 }
 
-export function wholesaleQuotationEmail(data: WholesaleQuotationData, links?: { acceptUrl: string; viewUrl: string }) {
+export function wholesaleQuotationEmail(data: WholesaleQuotationData, links?: { acceptUrl: string; viewUrl: string; rejectUrl?: string }, opts?: { updateBanner?: string }) {
   const contactMail = `mailto:${BRAND.email}?subject=${encodeURIComponent(`Wholesale quotation ${quoteReference(data)}`)}&body=${encodeURIComponent(`Hi, I have a question about quotation ${quoteReference(data)} (${data.businessName || ''}).`)}`;
   const totals: QuotationTotals = {
     subtotalAmount: data.subtotalAmount,
@@ -146,6 +148,7 @@ export function wholesaleQuotationEmail(data: WholesaleQuotationData, links?: { 
   };
 
   const html = `
+    ${opts?.updateBanner ? infoBlock('Updated Quotation', `<strong>${escapeHtml('Quotation updated')}</strong><br>${escapeHtml(opts.updateBanner)}`, COLORS.infoBg, '#C5DFF9', COLORS.infoText) : ''}
     ${paragraph(`Dear ${escapeHtml(data.contactPerson || data.businessName || 'Wholesale Partner')},`)}
     ${paragraph(`Thank you for your interest in sourcing spices from <strong>${escapeHtml(BRAND.name)}</strong>. Please find your personalised quotation below — all prices are wholesale pack rates inclusive of GST.`)}
     ${sectionTitle('Customer & Quotation Details')}
@@ -158,6 +161,7 @@ export function wholesaleQuotationEmail(data: WholesaleQuotationData, links?: { 
     ${data.termsList?.length ? `${smallDivider()}${sectionTitle('Terms & Conditions')}${quoteTermsList(data)}` : ''}
     ${data.notes ? `${smallDivider()}${sectionTitle('Negotiation Notes')}${quoteNotes(data)}` : ''}
     ${links && links.acceptUrl ? buttonRow(buttonPrimary(links.acceptUrl, 'Accept Quotation'), buttonSecondary(contactMail, 'Contact Sales')) : buttonRow(buttonSecondary(contactMail, 'Contact Sales'))}
+    ${links && links.rejectUrl ? `<p style="text-align:center;margin:6px 0 0;"><a href="${escapeHtml(links.rejectUrl)}" style="color:${COLORS.muted};font-size:12px;text-decoration:underline;">No longer interested — decline this quotation</a></p>` : ''}
     ${links && links.viewUrl ? mutedNote(`Prefer to review this quotation on our website? <a href="${escapeHtml(links.viewUrl)}" style="color:${'#2A4A3C'};font-weight:600;">View quotation online</a> — this link is valid for the offer period.`) : ''}
     ${mutedNote(`Quotation reference <strong>${escapeHtml(quoteReference(data))}</strong> is valid until <strong>${escapeHtml(formatDate(data.validUntil))}</strong>. Prices and availability may change after this date.`)}
   `;

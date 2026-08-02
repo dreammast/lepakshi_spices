@@ -129,6 +129,8 @@ export async function syncOAuthUser(input: {
       avatarUrl,
       role: 'customer'
     });
+    const name = `${firstName} ${lastName}`.trim() || 'there';
+    await sendRetailWelcome(input.email, name);
   }
 
   if (!customer) {

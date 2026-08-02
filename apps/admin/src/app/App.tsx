@@ -5427,6 +5427,25 @@ function QuotationManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
         toast.success("Quote link copied to clipboard!");
     };
 
+    const handleNotifyOrderStatus = async (q: any, status: string) => {
+        try {
+            const dbId = typeof q.id === 'string' && q.id.match(/^\d+$/) ? Number(q.id) : null;
+            if (!dbId) throw new Error("This quotation has no server record yet. Save it first.");
+            await wholesaleApi.notifyOrderStatus(dbId, status);
+            const timeStr = new Date().toLocaleDateString('en-IN') + " " + new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+            const logEvent = `Wholesale Order Status Email Sent: ${status}`;
+            setQuotations(prev => prev.map(item => {
+                if (item.id === q.id) return { ...item, timeline: [...(item.timeline || []), { time: timeStr, event: logEvent }] };
+                return item;
+            }));
+            setActiveDetailQuote(prev => prev && prev.id === q.id ? { ...prev, timeline: [...(prev.timeline || []), { time: timeStr, event: logEvent }] } : prev);
+            addAuditLog("Wholesale Order Status Email", `Order for quote ${q.id} notified as ${status}`);
+            toast.success(`Order status email (${status}) sent`);
+        } catch (err: any) {
+            toast.error(err.message || "Failed to send order status email");
+        }
+    };
+
     // Filter quotation list
     const filtered = quotations.filter(q => {
         const matchesTab = activeTab === "all" || q.status === activeTab;
@@ -5913,6 +5932,22 @@ function QuotationManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
                                 <Mail className="w-4 h-4" /> Send Quotation Email{attachPdfToggle ? " (with PDF)" : ""}
                             </button>
                         </div>
+
+                        {/* Send wholesale order status email (converted quotes only) */}
+                        {activeDetailQuote.status === "converted" && (
+                            <div className="p-4 rounded-2xl bg-[#FAF8F5] border border-[#2C2416]/10 space-y-2">
+                                <p className="text-xs font-bold text-[#2C2416]">Send Wholesale Order Status Email</p>
+                                <p className="text-[11px] text-[#8B7355]">Notifies the customer about the live order tied to this quotation.</p>
+                                <div className="grid grid-cols-3 gap-2">
+                                    {["processing", "packed", "shipped", "delivered", "cancelled"].map(s => (
+                                        <button key={s} onClick={() => handleNotifyOrderStatus(activeDetailQuote, s)}
+                                            className="py-1.5 px-2 rounded-lg bg-white border border-[#2C2416]/10 text-[11px] font-semibold capitalize hover:bg-[#2D5016] hover:text-white cursor-pointer">
+                                            {s}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
 
                         {/* Convert to Order card trigger */}
                         {(activeDetailQuote.status === "accepted" || activeDetailQuote.status === "sent" || activeDetailQuote.status === "viewed") && (

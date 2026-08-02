@@ -254,12 +254,3 @@ export function retailVerifyEmailEmail(name: string, verificationUrl: string) {
   `;
   return emailLayout('Verify your email', html);
 }
-
-export function retailEmailAlreadyVerifiedEmail(name: string) {
-  const html = `
-    ${heading('Email already verified')}
-    ${paragraph(`Hi ${escapeHtml(name || 'there')},<br><br>Your email address is already verified on your Lepakshi Spices account. No further action is needed.`)}
-    ${buttonRow(buttonPrimary(`${BRAND.storefrontUrl}`, 'Continue Shopping'))}
-  `;
-  return emailLayout('Email already verified', html);
-}
