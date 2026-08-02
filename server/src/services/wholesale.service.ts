@@ -303,7 +303,11 @@ async function approveAndSend(quotation: any, opts: { attachPdf: boolean; sentBy
   // Duplicate guard: never email the same version twice automatically.
   if (Number(quotation.emailSentVersion) === Number(quotation.version)) {
     if (!quotation.approvedAt) await updateQuotationRecord(id, { approvedAt: now });
-    return findQuotationById(id);
+    const updated = await findQuotationById(id);
+    await appendQuotationTimeline(updated || quotation, [
+      { time: opts.timeStr, event: `Approve requested but v${quotation.version} was already emailed — no duplicate sent` },
+    ]);
+    return updated;
   }
 
   const result = await sendWholesaleQuotation(quotation, { attachPdf: opts.attachPdf });
@@ -314,7 +318,9 @@ async function approveAndSend(quotation: any, opts: { attachPdf: boolean; sentBy
     emailSentVersion: result ? Number(quotation.version) : undefined,
   });
   await appendQuotationTimeline(quotation, [
-    { time: opts.timeStr, event: `Quotation Approved & emailed (v${quotation.version}) by ${sentBy}` },
+    { time: opts.timeStr, event: result
+      ? `Quotation Approved & emailed (v${quotation.version}) by ${sentBy}`
+      : `Quotation Approved (v${quotation.version}) but email delivery FAILED — resend from admin` },
     emailLogEntry({ type: 'wholesale.quotation.approved', recipient: quotation.email, status: result ? 'sent' : 'failed', messageId: result?.messageId ?? null, relatedId: id }),
   ]);
   return findQuotationById(id);
@@ -334,7 +340,9 @@ async function resendQuotationEmail(quotation: any, opts: { attachPdf: boolean; 
     emailSentVersion: result ? Number(quotation.version) : undefined,
   });
   await appendQuotationTimeline(quotation, [
-    { time: opts.timeStr, event: `Quotation resent (v${quotation.version}) to ${quotation.email || 'customer'} by ${sentBy}` },
+    { time: opts.timeStr, event: result
+      ? `Quotation resent (v${quotation.version}) to ${quotation.email || 'customer'} by ${sentBy}`
+      : `Resend attempt for v${quotation.version} FAILED — check email settings` },
     emailLogEntry({ type: 'wholesale.quotation.resend', recipient: quotation.email, status: result ? 'sent' : 'failed', messageId: result?.messageId ?? null, relatedId: id }),
   ]);
   return findQuotationById(id);

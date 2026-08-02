@@ -3,6 +3,7 @@ import { listWholesaleInquiries, createWholesaleInquiry, updateWholesaleInquiry,
 import { sendSuccess, sendCreated } from '../utils/response.util.js';
 import { verifyQuoteToken } from '../mail/quote-token.js';
 import { wholesaleQuotationWebPage, brandedMessagePage } from '../mail/templates.wholesale.js';
+import { generateQuotationPdf } from '../mail/quotation-pdf.js';
 
 export async function listWholesaleInquiriesController(_req: Request, res: Response, next: NextFunction) {
   try { sendSuccess(res, await listWholesaleInquiries()); } catch (e) { next(e); }
@@ -30,6 +31,18 @@ export async function createQuotationController(req: Request, res: Response, nex
 
 export async function updateQuotationController(req: Request, res: Response, next: NextFunction) {
   try { sendSuccess(res, await updateQuotation(Number(req.params.id), req.body), 'Quotation updated'); } catch (e) { next(e); }
+}
+
+export async function downloadQuotationPdfController(req: Request, res: Response, next: NextFunction) {
+  try {
+    const q = await getQuotation(Number(req.params.id));
+    const pdf = await generateQuotationPdf(q);
+    const buffer = Buffer.from(pdf.base64, 'base64');
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${pdf.filename}"`);
+    res.setHeader('Content-Length', String(buffer.length));
+    res.send(buffer);
+  } catch (e) { next(e); }
 }
 
 export async function deleteWholesaleInquiryController(req: Request, res: Response, next: NextFunction) {

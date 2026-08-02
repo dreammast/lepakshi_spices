@@ -2,6 +2,29 @@ import { eq, desc } from 'drizzle-orm';
 import { db } from '../config/database.js';
 import { wholesaleInquiries, quotations, quotationItems } from '../db/schema.js';
 
+export function normalizeDate(value: any): Date | null {
+  if (!value) return null;
+  if (value instanceof Date) return isNaN(value.getTime()) ? null : value;
+  if (typeof value === 'number') return new Date(value);
+  const s = String(value).trim();
+  let dt: Date | null = null;
+  let m = s.match(/^(\d{4})-(\d{2})-(\d{2})(?:T|\s|$)/);
+  if (m) dt = new Date(`${m[1]}-${m[2]}-${m[3]}T00:00:00.000Z`);
+  if (!dt || isNaN(dt.getTime())) {
+    m = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})(?:[ T].*)?$/);
+    if (m) {
+      let y = m[3];
+      if (y.length === 2) y = '20' + y;
+      dt = new Date(`${y}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}T00:00:00.000Z`);
+    }
+  }
+  if (!dt || isNaN(dt.getTime())) {
+    const parsed = new Date(s);
+    if (!isNaN(parsed.getTime())) dt = parsed;
+  }
+  return dt && !isNaN(dt.getTime()) ? dt : null;
+}
+
 export async function findAllWholesaleInquiries() {
   return db.select().from(wholesaleInquiries).orderBy(desc(wholesaleInquiries.createdAt));
 }
@@ -113,11 +136,11 @@ export async function createQuotationRecord(data: Record<string, any>) {
     notes: data.notes,
     termsList: data.termsList || [],
     timeline: data.timeline || [],
-    validUntil: data.validUntil ? new Date(data.validUntil) : null,
+    validUntil: normalizeDate(data.validUntil),
     status: data.status || 'draft',
     version: Number(data.version) || 1,
-    approvedAt: data.approvedAt ? new Date(data.approvedAt) : null,
-    emailSentAt: data.emailSentAt ? new Date(data.emailSentAt) : null,
+    approvedAt: normalizeDate(data.approvedAt),
+    emailSentAt: normalizeDate(data.emailSentAt),
     emailSentBy: data.emailSentBy || null,
     emailSentVersion: data.emailSentVersion != null ? Number(data.emailSentVersion) : null,
     createdAt: now,
@@ -178,10 +201,10 @@ export async function updateQuotationRecord(id: number, data: Record<string, any
   if (rest.termsList !== undefined) updateFields.termsList = rest.termsList;
   if (rest.timeline !== undefined) updateFields.timeline = rest.timeline;
   if (rest.status !== undefined) updateFields.status = rest.status;
-  if (rest.validUntil !== undefined) updateFields.validUntil = rest.validUntil ? new Date(rest.validUntil) : null;
+  if (rest.validUntil !== undefined) updateFields.validUntil = normalizeDate(rest.validUntil);
   if (rest.version !== undefined) updateFields.version = Number(rest.version);
-  if (rest.approvedAt !== undefined) updateFields.approvedAt = rest.approvedAt ? new Date(rest.approvedAt) : null;
-  if (rest.emailSentAt !== undefined) updateFields.emailSentAt = rest.emailSentAt ? new Date(rest.emailSentAt) : null;
+  if (rest.approvedAt !== undefined) updateFields.approvedAt = normalizeDate(rest.approvedAt);
+  if (rest.emailSentAt !== undefined) updateFields.emailSentAt = normalizeDate(rest.emailSentAt);
   if (rest.emailSentBy !== undefined) updateFields.emailSentBy = rest.emailSentBy || null;
   if (rest.emailSentVersion !== undefined) updateFields.emailSentVersion = rest.emailSentVersion != null ? Number(rest.emailSentVersion) : null;
 

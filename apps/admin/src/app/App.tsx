@@ -54,6 +54,30 @@ const INIT_PRODUCTS: Product[] = [];
 const INR = String.fromCharCode(8377);
 const formatINR = (value: number | string | null | undefined) => `${INR}${Number(value || 0).toFixed(2)}`;
 
+const toISODate = (value: any): string => {
+    if (!value) return "";
+    const s = String(value).trim();
+    let m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+    m = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})$/);
+    if (m) {
+        let d = m[1], mo = m[2], y = m[3];
+        if (y.length === 2) y = "20" + y;
+        if (mo.length === 1) mo = "0" + mo;
+        if (d.length === 1) d = "0" + d;
+        return `${y}-${mo}-${d}`;
+    }
+    const dt = new Date(s);
+    return isNaN(dt.getTime()) ? "" : dt.toISOString().slice(0, 10);
+};
+
+const fmtDT = (value: any): string => {
+    if (!value) return "—";
+    const dt = new Date(value);
+    if (isNaN(dt.getTime())) return String(value);
+    return dt.toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+};
+
 const defaultPriceVariants = (basePrice: number) => ({
     p100: Math.round(basePrice * 0.6),
     p250: Math.round(basePrice * 1.3),
@@ -3423,7 +3447,7 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
             setEditingQuoteId(existingQuote.id);
         } else {
             const newId = "QT-2026-" + Math.floor(Math.random() * 90000 + 10000);
-            const today = new Date().toLocaleDateString('en-IN');
+            const today = toISODate(new Date());
             const futureDate = new Date(); futureDate.setDate(futureDate.getDate() + 15);
             const productName = inq.productInterest || "";
             const product = findCatalogProduct(catalogProducts, productName);
@@ -3432,7 +3456,7 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
             const matchedPack = matchPack(volStr, packs) || packs[0] || undefined;
             const matchedQty = parseQuantityHint(volStr) || 1;
             setQuoteForm({
-                id: newId, date: today, validUntil: futureDate.toLocaleDateString('en-IN'),
+                id: newId, date: today, validUntil: toISODate(futureDate),
                 businessName: inq.businessName, contactPerson: inq.contactName,
                 email: inq.email, phone: inq.phone,
                 billingAddress: inq.businessName + " Head Office",
@@ -3458,9 +3482,17 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
         if (!quoteForm.businessName || !quoteForm.contactPerson || !quoteForm.email) {
             toast.error("Please fill in Business Name, Contact Name, and Email."); return;
         }
+        const date = toISODate(quoteForm.date || new Date());
+        const validUntil = toISODate(quoteForm.validUntil);
+        if (!date || !validUntil) {
+            toast.error("Please set valid Quote Date and Valid Until values."); return;
+        }
         const calcs = calcTotals(quoteForm);
         const finalForm = {
             ...quoteForm,
+            date,
+            validUntil,
+            discountType: quoteForm.discountType === "flat" ? "flat" : "percentage",
             payableAmount: calcs.payableAmount,
             subtotalAmount: calcs.subtotal,
             discountAmount: calcs.discount,
@@ -3560,83 +3592,24 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
         setQuoteForm({ ...quoteForm, termsList: quoteForm.termsList.filter((t: string) => t !== term) });
     };
 
-    const downloadQuotePDF = (q: any) => {
+    const downloadQuotePDF = async (q: any) => {
+        const dbId = typeof q?.id === 'string' && q.id.match(/^\d+$/) ? Number(q.id) : typeof q?.id === 'number' ? q.id : null;
+        if (!dbId) {
+            toast.error("Save the quotation first", { description: "PDF Preview requires a saved quotation." });
+            return;
+        }
         try {
-            const { jsPDF } = (window as any).jspdf;
-            const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-            const primary: [number, number, number] = [42, 74, 60];
-            const secondary: [number, number, number] = [201, 146, 10];
-            doc.setFillColor(...primary); doc.rect(0, 0, 210, 40, "F");
-            doc.setFont("Helvetica", "bold"); doc.setFontSize(24); doc.setTextColor(...secondary);
-            doc.text("Lepakshi Spices", 15, 20);
-            doc.setFont("Helvetica", "normal"); doc.setFontSize(9); doc.setTextColor(255, 255, 255);
-            doc.text("PREMIUM WHOLESALE SPICE SOURCING", 15, 27);
-            doc.setFont("Helvetica", "bold"); doc.setFontSize(14); doc.setTextColor(...secondary);
-            doc.text("OFFICIAL QUOTATION", 130, 20);
-            doc.setFont("Helvetica", "normal"); doc.setFontSize(9); doc.setTextColor(255, 255, 255);
-            doc.text(`Quote No: ${q.id}`, 130, 27); doc.text(`Date: ${q.date}`, 130, 32);
-            doc.setFillColor(250, 248, 243); doc.rect(0, 40, 210, 25, "F");
-            doc.setFont("Helvetica", "bold"); doc.setFontSize(8.5); doc.setTextColor(26, 23, 20);
-            doc.text("Lepakshi Spices Sourcing Desk Gate 2, Guntur Industrial Area, AP, India", 15, 48);
-            doc.text("Support Desk: +91 9390645710 | Email: dreammasterorigin@gmail.com", 15, 53);
-            let cy = 78;
-            doc.setFont("Helvetica", "bold"); doc.setFontSize(11); doc.setTextColor(...primary);
-            doc.text("BILL TO:", 15, cy); doc.text("SHIP TO:", 110, cy);
-            doc.setFontSize(10); doc.setTextColor(26, 23, 20);
-            doc.text(q.businessName, 15, cy + 6); doc.text(q.businessName, 110, cy + 6);
-            doc.setFont("Helvetica", "normal"); doc.setFontSize(8.5); doc.setTextColor(74, 70, 64);
-            doc.text(`Contact: ${q.contactPerson}`, 15, cy + 11);
-            doc.text(`Phone: +91 ${q.phone}`, 15, cy + 16);
-            doc.text(`Email: ${q.email}`, 15, cy + 21);
-            if (q.gstin) doc.text(`GSTIN: ${q.gstin}`, 15, cy + 26);
-            doc.text(doc.splitTextToSize(q.billingAddress || "N/A", 80), 15, cy + 31);
-            doc.text(doc.splitTextToSize(q.shippingAddress || "N/A", 80), 110, cy + 11);
-            let tableY = 125;
-            doc.setFillColor(...primary); doc.rect(15, tableY, 180, 8, "F");
-            doc.setFont("Helvetica", "bold"); doc.setFontSize(8.5); doc.setTextColor(255, 255, 255);
-            ["Product Details", "Pack", "Qty", "Rate (INR)", "Disc%", "Net Total"].forEach((h, i) => {
-                doc.text(h, [18, 70, 90, 110, 135, 175][i], tableY + 5.5);
-            });
-            let rowY = tableY + 8, totalSub = 0;
-            (q.items || []).forEach((row: any, i: number) => {
-                if (i % 2 === 1) { doc.setFillColor(248, 246, 240); doc.rect(15, rowY, 180, 8, "F"); }
-                doc.setDrawColor(26, 23, 20); doc.rect(15, rowY, 180, 8, "S");
-                doc.setFont("Helvetica", "bold"); doc.setFontSize(8); doc.setTextColor(26, 23, 20);
-                doc.text(row.name, 18, rowY + 5.5);
-                doc.setFont("Helvetica", "normal"); doc.setTextColor(74, 70, 64);
-                doc.text(row.weight, 70, rowY + 5.5); doc.text(String(row.quantity), 90, rowY + 5.5);
-                doc.text(`Rs.${row.unitPrice}`, 110, rowY + 5.5);
-                doc.text(`${row.discount}%`, 135, rowY + 5.5);
-                const net = row.quantity * row.unitPrice * (1 - row.discount / 100);
-                totalSub += net;
-                doc.setFont("Helvetica", "bold"); doc.setTextColor(26, 23, 20);
-                doc.text(`Rs.${Math.round(net)}`, 175, rowY + 5.5);
-                rowY += 8;
-            });
-            rowY += 6;
-            doc.setFont("Helvetica", "normal"); doc.setFontSize(8.5); doc.setTextColor(74, 70, 64);
-            doc.text("Payment: " + (q.paymentTerms || "Direct Bank"), 15, rowY);
-            doc.text("Lead time: " + (q.leadTime || 5) + " days", 15, rowY + 5);
-            doc.text("Packaging: " + (q.packagingType || "Sack"), 15, rowY + 10);
-            doc.text("Delivery: " + (q.deliveryMethod || "Road"), 15, rowY + 15);
-            doc.text("* All wholesale pack prices are GST inclusive.", 15, rowY + 20);
-            let payY = rowY;
-            doc.setTextColor(26, 23, 20); doc.text("Subtotal:", 130, payY); doc.text(`Rs.${totalSub.toFixed(0)}`, 175, payY); payY += 5;
-            if (q.discountValue > 0) { doc.text("Discount:", 130, payY); doc.text(`-Rs.${(Number(q.discountAmount) || totalSub * (q.discountValue / 100)).toFixed(0)}`, 175, payY); payY += 5; }
-            doc.text("Freight:", 130, payY); doc.text(`Rs.${q.shippingCharges || 0}`, 175, payY); payY += 5;
-            doc.setFillColor(secondary[0], secondary[1], secondary[2]); doc.rect(125, payY - 3.8, 70, 7.5, "F");
-            doc.setFont("Helvetica", "bold"); doc.setTextColor(...primary);
-            doc.text("Total Payable:", 128, payY + 1.2); doc.text(`Rs.${q.payableAmount}`, 173, payY + 1.2);
-            payY += 15;
-            doc.setFont("Helvetica", "bold"); doc.setFontSize(8.5); doc.setTextColor(...primary);
-            doc.text("TERMS:", 15, payY); payY += 4.5;
-            doc.setFont("Helvetica", "normal"); doc.setFontSize(8); doc.setTextColor(74, 70, 64);
-            (q.termsList || []).forEach((t: string) => { doc.text(`• ${t}`, 18, payY); payY += 4.5; });
-            doc.setFont("Helvetica", "normal"); doc.setFontSize(8); doc.setTextColor(122, 112, 100);
-            doc.text("Page 1 of 1", 100, 285);
-            doc.save(`Lepakshi Spices_Quotation_${q.id}_${q.businessName.replace(/\s+/g, "_")}.pdf`);
+            const { blob, filename } = await wholesaleApi.downloadQuotationPdf(dbId);
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            setTimeout(() => URL.revokeObjectURL(url), 10000);
             toast.success("Quotation PDF generated");
-        } catch (e) { console.error(e); toast.error("Failed to generate PDF."); }
+        } catch (e: any) { console.error(e); toast.error(e?.message || "Failed to generate PDF."); }
     };
 
     // Filter inquiries
@@ -4495,7 +4468,7 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
                                             <div className="flex items-start justify-between">
                                                 <div>
                                                     <p className="font-bold text-xs text-[#2C2416]">{q.id}</p>
-                                                    <p className="text-[10px] text-[#8B7355]">{q.date} • {q.items?.length || 0} product{(q.items?.length || 0) !== 1 ? "s" : ""}</p>
+                                                    <p className="text-[10px] text-[#8B7355]">{fmtDT(q.createdAt)} • {q.items?.length || 0} product{(q.items?.length || 0) !== 1 ? "s" : ""}</p>
                                                 </div>
                                                 <div className="text-right">
                                                     <p className="font-bold text-xs text-[#2D5016]">₹{q.payableAmount?.toLocaleString('en-IN')}</p>
@@ -4659,7 +4632,6 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
                                                     className="w-full bg-[#FAF8F5] border border-[#2C2416]/10 rounded-xl px-3 py-2 text-sm outline-none cursor-pointer">
                                                     <option value="percentage">Percentage (%)</option>
                                                     <option value="flat">Flat Cash (INR)</option>
-                                                    <option value="volume">Volume Incentive</option>
                                                 </select>
                                             </div>
                                             <Field type="number" label="Discount Value" value={quoteForm.discountValue} onChange={v => setQuoteForm({ ...quoteForm, discountValue: Number(v) })} />
@@ -4807,10 +4779,10 @@ function QuotationManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
                 const matchedQty = parseQuantityHint(volStr) || 1;
 
                 const newQuoteId = "QT-2026-" + Math.floor(Math.random() * 90000 + 10000);
-                const today = new Date().toLocaleDateString('en-IN');
+                const today = toISODate(new Date());
                 const futureDate = new Date();
                 futureDate.setDate(futureDate.getDate() + 15);
-                const expDate = futureDate.toLocaleDateString('en-IN');
+                const expDate = toISODate(futureDate);
 
                 setQuoteForm({
                     id: newQuoteId,
@@ -4986,10 +4958,19 @@ function QuotationManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
             toast.error("Please fill in Business Name, Contact Name, and Email.");
             return;
         }
+        const date = toISODate(quoteForm.date || new Date());
+        const validUntil = toISODate(quoteForm.validUntil);
+        if (!date || !validUntil) {
+            toast.error("Please set valid Quote Date and Valid Until values.");
+            return;
+        }
 
         const calculatedPayable = calcs.payableAmount;
         const finalForm = {
             ...quoteForm,
+            date,
+            validUntil,
+            discountType: quoteForm.discountType === "flat" ? "flat" : "percentage",
             payableAmount: calculatedPayable,
             subtotalAmount: calcs.subtotal,
             discountAmount: calcs.discount,
@@ -5021,10 +5002,10 @@ function QuotationManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
 
     const handleOpenCreateNew = () => {
         const newId = "QT-2026-" + Math.floor(Math.random() * 90000 + 10000);
-        const today = new Date().toLocaleDateString('en-IN');
+        const today = toISODate(new Date());
         const futureDate = new Date();
         futureDate.setDate(futureDate.getDate() + 15);
-        const expDate = futureDate.toLocaleDateString('en-IN');
+        const expDate = toISODate(futureDate);
 
         setQuoteForm({
             id: newId,
@@ -5056,7 +5037,7 @@ function QuotationManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
     };
 
     const handleOpenEdit = (quote: any) => {
-        setQuoteForm(quote);
+        setQuoteForm({ ...quote, date: toISODate(quote.createdAt || quote.date || new Date()), validUntil: toISODate(quote.validUntil) });
         setEditingQuoteId(quote.id);
         setBuilderMode(true);
     };
@@ -5143,256 +5124,39 @@ function QuotationManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
 
     // Reusable dynamic PDF quote generator using jsPDF
     const downloadQuotationPDF = async (q: any) => {
+        const dbId = typeof q?.id === 'string' && q.id.match(/^\d+$/) ? Number(q.id) : typeof q?.id === 'number' ? q.id : null;
+        if (!dbId) {
+            toast.error("Save & Register the quotation first", { description: "PDF Preview requires a saved quotation." });
+            return;
+        }
         try {
-            const { jsPDF } = (window as any).jspdf;
-            const doc = new jsPDF({
-                orientation: "portrait",
-                unit: "mm",
-                format: "a4"
-            });
-
-            // Fetch template parameters
-            let template = {
-                watermark: "OFFICIAL QUOTATION",
-                primaryColor: [42, 74, 60],
-                secondaryColor: [201, 146, 10],
-                terms: "Terms: Ex-works / F.O.B Guntur yard dispatch."
-            };
-            try {
-                const templateData = await settingsApi.get('pdf_template');
-                if (templateData?.value) {
-                    const parsed = templateData.value;
-                    const colorMap: Record<string, number[]> = {
-                        green: [42, 74, 60],
-                        gold: [201, 146, 10],
-                        red: [180, 40, 40],
-                        blue: [25, 80, 150]
-                    };
-                    template.watermark = parsed.watermark || template.watermark;
-                    template.primaryColor = colorMap[parsed.primaryColor] || [42, 74, 60];
-                    template.secondaryColor = colorMap[parsed.secondaryColor] || [201, 146, 10];
-                }
-            } catch { }
-
-            const primary = template.primaryColor;
-            const secondary = template.secondaryColor;
-
-            // Header Branding
-            doc.setFillColor(primary[0], primary[1], primary[2]);
-            doc.rect(0, 0, 210, 40, "F");
-
-            doc.setFont("Helvetica", "bold");
-            doc.setFontSize(24);
-            doc.setTextColor(secondary[0], secondary[1], secondary[2]);
-            doc.text("Lepakshi Spices", 15, 20);
-
-            doc.setFont("Helvetica", "normal");
-            doc.setFontSize(9);
-            doc.setTextColor(255, 255, 255);
-            doc.text("PREMIUM WHOLESALE SPICE SOURCING", 15, 27);
-
-            doc.setFont("Helvetica", "bold");
-            doc.setFontSize(14);
-            doc.setTextColor(secondary[0], secondary[1], secondary[2]);
-            doc.text("OFFICIAL QUOTATION", 130, 20);
-
-            doc.setFont("Helvetica", "normal");
-            doc.setFontSize(9);
-            doc.setTextColor(255, 255, 255);
-            doc.text(`Quote No: ${q.id}`, 130, 27);
-            doc.text(`Date: ${q.date}`, 130, 32);
-
-            // Issuer Details
-            doc.setFillColor(250, 248, 243);
-            doc.rect(0, 40, 210, 25, "F");
-
-            doc.setFont("Helvetica", "bold");
-            doc.setFontSize(8.5);
-            doc.setTextColor(26, 23, 20);
-            doc.text("Lepakshi Spices Sourcing Desk Gate 2, Guntur Industrial Area, AP, India", 15, 48);
-            doc.text("Support Desk: +91 9390645710 | Email: dreammasterorigin@gmail.com", 15, 53);
-
-            // Customer Profiles
-            let cy = 78;
-            doc.setFont("Helvetica", "bold");
-            doc.setFontSize(11);
-            doc.setTextColor(primary[0], primary[1], primary[2]);
-            doc.text("BILL TO:", 15, cy);
-            doc.text("SHIP TO:", 110, cy);
-
-            doc.setFont("Helvetica", "bold");
-            doc.setFontSize(10);
-            doc.setTextColor(26, 23, 20);
-            doc.text(q.businessName, 15, cy + 6);
-            doc.text(q.businessName, 110, cy + 6);
-
-            doc.setFont("Helvetica", "normal");
-            doc.setFontSize(8.5);
-            doc.setTextColor(74, 70, 64);
-            doc.text(`Contact: ${q.contactPerson}`, 15, cy + 11);
-            doc.text(`Phone: +91 ${q.phone}`, 15, cy + 16);
-            doc.text(`Email: ${q.email}`, 15, cy + 21);
-            if (q.gstin) {
-                doc.text(`GSTIN: ${q.gstin}`, 15, cy + 26);
-            }
-
-            const billAddressSplit = doc.splitTextToSize(q.billingAddress || "N/A", 80);
-            const shipAddressSplit = doc.splitTextToSize(q.shippingAddress || "N/A", 80);
-            doc.text(billAddressSplit, 15, cy + 31);
-            doc.text(shipAddressSplit, 110, cy + 11);
-
-            // Line Items Table
-            let tableY = 125;
-            doc.setFillColor(primary[0], primary[1], primary[2]);
-            doc.rect(15, tableY, 180, 8, "F");
-
-            doc.setFont("Helvetica", "bold");
-            doc.setFontSize(8.5);
-            doc.setTextColor(255, 255, 255);
-            doc.text("Product Details", 18, tableY + 5.5);
-            doc.text("Pack", 70, tableY + 5.5);
-            doc.text("Qty", 90, tableY + 5.5);
-            doc.text("Rate (INR)", 110, tableY + 5.5);
-            doc.text("Disc%", 135, tableY + 5.5);
-            doc.text("Net Total", 175, tableY + 5.5);
-
-            let rowY = tableY + 8;
-            let totalSub = 0;
-
-            (q.items || []).forEach((row: any, idx: number) => {
-                if (idx % 2 === 1) {
-                    doc.setFillColor(248, 246, 240);
-                    doc.rect(15, rowY, 180, 8, "F");
-                }
-                doc.setDrawColor(26, 23, 20, 0.08);
-                doc.rect(15, rowY, 180, 8, "S");
-
-                doc.setFont("Helvetica", "bold");
-                doc.setFontSize(8);
-                doc.setTextColor(26, 23, 20);
-                doc.text(row.name, 18, rowY + 5.5);
-
-                doc.setFont("Helvetica", "normal");
-                doc.setTextColor(74, 70, 64);
-                doc.text(row.weight, 70, rowY + 5.5);
-                doc.text(String(row.quantity), 90, rowY + 5.5);
-                doc.text(`Rs.${row.unitPrice}`, 110, rowY + 5.5);
-                doc.text(`${row.discount}%`, 135, rowY + 5.5);
-
-                const netVal = (row.quantity * row.unitPrice) * (1 - row.discount / 100);
-                totalSub += netVal;
-
-                doc.setFont("Helvetica", "bold");
-                doc.setTextColor(26, 23, 20);
-                doc.text(`Rs.${Math.round(netVal)}`, 175, rowY + 5.5);
-
-                rowY += 8;
-            });
-
-            // Totals and summaries
-            rowY += 6;
-            doc.setFont("Helvetica", "normal");
-            doc.setFontSize(8.5);
-            doc.setTextColor(74, 70, 64);
-            doc.text("Payment structure: " + (q.paymentTerms || "Direct Bank"), 15, rowY);
-            doc.text("Lead Dispatch Time: " + (q.leadTime || "5") + " days from advance", 15, rowY + 5);
-            doc.text("Packaging standard: " + (q.packagingType || "Air-Tight sacks"), 15, rowY + 10);
-            doc.text("Logistics delivery method: " + (q.deliveryMethod || "Road transport"), 15, rowY + 15);
-            doc.text("* All wholesale pack prices are GST inclusive.", 15, rowY + 20);
-
-            // Pricing Panel
-            let payY = rowY;
-            doc.setFont("Helvetica", "normal");
-            doc.setTextColor(26, 23, 20);
-            doc.text("Subtotal:", 130, payY);
-            doc.text(`Rs.${totalSub.toFixed(0)}`, 175, payY);
-            payY += 5;
-
-            let overDisc = 0;
-            if (q.discountType === "percentage") {
-                overDisc = totalSub * (q.discountValue / 100);
-            } else if (q.discountType === "flat") {
-                overDisc = q.discountValue;
-            }
-            if (overDisc > 0) {
-                doc.text("Discount:", 130, payY);
-                doc.text(`-Rs.${overDisc.toFixed(0)}`, 175, payY);
-                payY += 5;
-            }
-
-            doc.text("Freight Logistics:", 130, payY);
-            doc.text(`Rs.${q.shippingCharges || 0}`, 175, payY);
-            payY += 5;
-
-            doc.setFillColor(secondary[0], secondary[1], secondary[2], 0.12);
-            doc.rect(125, payY - 3.8, 70, 7.5, "F");
-            doc.setFont("Helvetica", "bold");
-            doc.setTextColor(primary[0], primary[1], primary[2]);
-            doc.text("Total Payable amount:", 128, payY + 1.2);
-            doc.text(`Rs.${q.payableAmount}`, 173, payY + 1.2);
-
-            // Terms list
-            payY += 15;
-            doc.setFont("Helvetica", "bold");
-            doc.setFontSize(8.5);
-            doc.setTextColor(primary[0], primary[1], primary[2]);
-            doc.text("TERMS AND DISPATCH POLICIES:", 15, payY);
-            payY += 4.5;
-
-            doc.setFont("Helvetica", "normal");
-            doc.setFontSize(8);
-            doc.setTextColor(74, 70, 64);
-            (q.termsList || []).forEach((t: string) => {
-                doc.text(`• ${t}`, 18, payY);
-                payY += 4.5;
-            });
-
-            // Authorized signatures
-            payY += 8;
-            doc.setDrawColor(26, 23, 20, 0.12);
-            doc.line(140, payY, 190, payY);
-            doc.setFont("Helvetica", "bold");
-            doc.setFontSize(8.5);
-            doc.setTextColor(26, 23, 20);
-            doc.text("Authorized Signature", 145, payY + 5);
-            doc.setFont("Helvetica", "normal");
-            doc.setFontSize(7.5);
-            doc.setTextColor(122, 112, 100);
-            doc.text("Lepakshi Spices Global B2B Division", 145, payY + 9);
-
-            // Watermark
-            if (template.watermark) {
-                doc.setFont("Helvetica", "bold");
-                doc.setFontSize(36);
-                doc.setTextColor(200, 200, 200, 0.1);
-                doc.text(template.watermark, 30, 240, null, 45);
-            }
-
-            // Page numbering footer
-            doc.setFont("Helvetica", "normal");
-            doc.setFontSize(8);
-            doc.setTextColor(122, 112, 100);
-            doc.text("Page 1 of 1", 100, 285);
-
-            const cleanBiz = q.businessName.trim().replace(/\s+/g, "_");
-            doc.save(`Lepakshi Spices_Quotation_${q.id}_${cleanBiz}.pdf`);
+            const latest = await wholesaleApi.getQuotation(dbId);
+            const { blob, filename } = await wholesaleApi.downloadQuotationPdf(dbId);
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            setTimeout(() => URL.revokeObjectURL(url), 10000);
             toast.success("Quotation PDF generated", { description: `Downloaded successfully.` });
-
-            // Update activity logs
-            const timeStr = new Date().toLocaleDateString('en-IN') + " " + new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
-            const updated = quotations.map(item => {
-                if (item.id === q.id) {
-                    return {
-                        ...item,
-                        timeline: [...(item.timeline || []), { time: timeStr, event: "Quotation PDF Downloaded" }]
-                    };
-                }
-                return item;
-            });
-            saveQuotations(updated);
-        } catch (e) {
+            if (latest) {
+                const timeStr = new Date().toLocaleDateString('en-IN') + " " + new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+                const updated = quotations.map(item => {
+                    if (item.id === q.id) {
+                        return {
+                            ...item,
+                            timeline: [...(item.timeline || []), { time: timeStr, event: "Quotation PDF Downloaded" }]
+                        };
+                    }
+                    return item;
+                });
+                saveQuotations(updated);
+            }
+        } catch (e: any) {
             console.error(e);
-            toast.error("Failed to compile quotation PDF.");
+            toast.error(e?.message || "Failed to download quotation PDF.");
         }
     };
 
@@ -5684,8 +5448,6 @@ function QuotationManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
                                     className="w-full bg-[#FAF8F5] border border-[#2C2416]/10 rounded-xl px-3 py-2 text-sm outline-none cursor-pointer">
                                     <option value="percentage">Percentage Discount (%)</option>
                                     <option value="flat">Flat Cash Discount (INR)</option>
-                                    <option value="volume">Volume Incentive Discount</option>
-                                    <option value="custom">Custom Deal Waiver</option>
                                 </select>
                             </div>
 
@@ -5856,7 +5618,7 @@ function QuotationManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
                             <th className="px-4 py-3 text-left w-10">
                                 <input type="checkbox" checked={selectedIds.length === paginated.length && paginated.length > 0} onChange={toggleSelectAll} className="cursor-pointer" />
                             </th>
-                            {["Quote No", "Date", "Business Partner", "Contact Person", "Items Count", "Deal Value", "Status", "Executive", "Actions"].map(h => (
+                            {["Quote No", "Saved", "Business Partner", "Contact Person", "Items Count", "Deal Value", "Status", "Approved", "Email Sent", "Executive", "Actions"].map(h => (
                                 <th key={h} className="px-4 py-3 text-left text-xs font-semibold" style={{ color: C.muted }}>{h}</th>
                             ))}
                         </tr>
@@ -5868,7 +5630,7 @@ function QuotationManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
                                     <input type="checkbox" checked={selectedIds.includes(quote.id)} onChange={() => toggleSelect(quote.id)} className="cursor-pointer" />
                                 </td>
                                 <td className="px-4 py-3 text-xs font-mono font-bold text-[#2C2416]">{quote.id}</td>
-                                <td className="px-4 py-3 text-xs text-[#8B7355]">{quote.date}</td>
+                                <td className="px-4 py-3 text-xs text-[#8B7355]">{fmtDT(quote.createdAt)}</td>
                                 <td className="px-4 py-3 text-sm font-semibold text-[#2C2416]">{quote.businessName}</td>
                                 <td className="px-4 py-3 text-sm text-[#2C2416]">{quote.contactPerson}</td>
                                 <td className="px-4 py-3 text-xs text-[#8B7355] font-semibold">{quote.items?.length || 0} products</td>
@@ -5880,6 +5642,8 @@ function QuotationManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
                                         {statusColorMap[quote.status]?.label}
                                     </span>
                                 </td>
+                                <td className="px-4 py-3 text-xs text-[#8B7355]">{fmtDT(quote.approvedAt)}</td>
+                                <td className="px-4 py-3 text-xs text-[#8B7355]">{fmtDT(quote.emailSentAt)}</td>
                                 <td className="px-4 py-3 text-xs text-[#2C2416] font-medium">{quote.salesExecutive}</td>
                                 <td className="px-4 py-3">
                                     <div className="flex gap-1.5">
@@ -5898,7 +5662,7 @@ function QuotationManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
                         ))}
                         {paginated.length === 0 && (
                             <tr>
-                                <td colSpan={9} className="py-16 text-center text-[#8B7355] text-sm">
+                                <td colSpan={12} className="py-16 text-center text-[#8B7355] text-sm">
                                     <FileText className="w-10 h-10 mx-auto mb-3 opacity-25" />
                                     No quotation records found.
                                 </td>
@@ -6039,8 +5803,8 @@ function QuotationManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
                             <div>
                                 <p className="text-[10px] uppercase font-bold text-[#8B7355]">Quotation Info</p>
                                 <p className="font-mono font-bold text-xs">{activeDetailQuote.id}</p>
-                                <p className="text-xs text-[#8B7355]">Date: {activeDetailQuote.date}</p>
-                                <p className="text-xs text-[#8B7355]">Expiry: {activeDetailQuote.validUntil}</p>
+                                <p className="text-xs text-[#8B7355]">Saved: {fmtDT(activeDetailQuote.createdAt)}</p>
+                                <p className="text-xs text-[#8B7355]">Valid Until: {toISODate(activeDetailQuote.validUntil)}</p>
                             </div>
                         </div>
 

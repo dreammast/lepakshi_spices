@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { asyncHandler } from '../middleware/async-handler.js';
-import { listWholesaleInquiriesController, createWholesaleInquiryController, updateWholesaleInquiryController, updateInquiryStatusController, deleteWholesaleInquiryController, listQuotationsController, createQuotationController, updateQuotationController, deleteQuotationController, listWholesaleCatalogueController, viewQuotationController, respondQuotationController, notifyOrderStatusController, getQuotationController } from '../controllers/wholesale.controller.js';
+import { listWholesaleInquiriesController, createWholesaleInquiryController, updateWholesaleInquiryController, updateInquiryStatusController, deleteWholesaleInquiryController, listQuotationsController, createQuotationController, updateQuotationController, downloadQuotationPdfController, deleteQuotationController, listWholesaleCatalogueController, viewQuotationController, respondQuotationController, notifyOrderStatusController, getQuotationController } from '../controllers/wholesale.controller.js';
 
 const publicRouter = Router();
 publicRouter.post('/', asyncHandler(createWholesaleInquiryController));
@@ -20,6 +20,7 @@ adminRouter.put('/wholesale-inquiries/:id', asyncHandler(updateWholesaleInquiryC
 adminRouter.put('/wholesale-inquiries/:id/status', asyncHandler(updateInquiryStatusController));
 adminRouter.delete('/wholesale-inquiries/:id', asyncHandler(deleteWholesaleInquiryController));
 adminRouter.get('/quotations', asyncHandler(listQuotationsController));
+adminRouter.get('/quotations/:id/pdf', asyncHandler(downloadQuotationPdfController));
 adminRouter.get('/quotations/:id', asyncHandler(getQuotationController));
 adminRouter.post('/quotations', asyncHandler(createQuotationController));
 adminRouter.put('/quotations/:id', asyncHandler(updateQuotationController));

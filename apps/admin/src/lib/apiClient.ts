@@ -175,7 +175,24 @@ export const wholesaleApi = {
   deleteQuotation: (id: number) => api.delete<any>(`/admin/quotations/${id}`),
   approveAndSend: (id: number, attachPdf = false, sentBy = 'Admin') => api.put<any>(`/admin/quotations/${id}`, { status: 'approved', attachPdf, sentBy }),
   resendQuotation: (id: number, attachPdf = false, sentBy = 'Admin') => api.put<any>(`/admin/quotations/${id}`, { resend: true, attachPdf, sentBy }),
-  notifyOrderStatus: (id: number, status: string) => api.post<any>(`/admin/quotations/${id}/notify-order-status`, { status })
+  notifyOrderStatus: (id: number, status: string) => api.post<any>(`/admin/quotations/${id}/notify-order-status`, { status }),
+  downloadQuotationPdf: async (id: number): Promise<{ blob: Blob; filename: string }> => {
+    const token = getAuthToken();
+    const headers: Record<string, string> = {};
+    if (token) headers.Authorization = `Bearer ${token}`;
+    const res = await fetch(`${API_URL}/admin/quotations/${id}/pdf`, { headers });
+    if (!res.ok) {
+      let message = `PDF download failed (${res.status})`;
+      try {
+        const json = await res.json();
+        message = json.message || message;
+      } catch { /* not JSON */ }
+      throw new Error(message);
+    }
+    const disposition = res.headers.get('Content-Disposition') || '';
+    const match = disposition.match(/filename="([^"]+)"/);
+    return { blob: await res.blob(), filename: match ? match[1] : `Lepakshi_Spices_Quotation_${id}.pdf` };
+  }
 };
 
 export const packagingApi = {
