@@ -21,7 +21,7 @@ function figmaAssetResolver(): Plugin {
 }
 
 export default defineConfig({
-  envDir: path.resolve(__dirname, '../../'),
+  envDir: __dirname,
   plugins: [
     figmaAssetResolver(),
     react() as any,
