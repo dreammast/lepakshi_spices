@@ -11,30 +11,26 @@ export function calculateTotals(data: {
   shippingAmount?: number | string;
 }) {
   let subtotal = 0;
-  let taxTotal = 0;
 
   const rawItems = data.items || [];
   const processedItems = rawItems.map((item) => {
     const qty = Number(item.quantity || 0);
     const price = Number(item.unitPrice || 0);
     const discPct = Number(item.discountPercent ?? item.discount ?? 0);
-    const gstPct = Number(item.taxPercent ?? item.gst ?? 0);
 
     const gross = qty * price;
     const discAmount = gross * (discPct / 100);
     const net = Math.max(0, gross - discAmount);
-    const tax = net * (gstPct / 100);
 
     subtotal += net;
-    taxTotal += tax;
 
     return {
       ...item,
       quantity: qty,
       unitPrice: price,
       discountPercent: discPct,
-      taxPercent: gstPct,
-      lineTotal: (net + tax).toFixed(2)
+      taxPercent: 0,
+      lineTotal: net.toFixed(2)
     };
   });
 
@@ -50,16 +46,15 @@ export function calculateTotals(data: {
   overallDiscount = Math.max(0, Math.min(overallDiscount, subtotal));
 
   const netSubtotal = Math.max(0, subtotal - overallDiscount);
-  const taxAfterDiscount = subtotal > 0 ? taxTotal * (netSubtotal / subtotal) : 0;
   const shipCharges = Number(data.shippingCharges ?? data.shippingAmount ?? 0);
-  const grand = netSubtotal + taxAfterDiscount + shipCharges;
+  const grand = netSubtotal + shipCharges;
   const rounded = Math.round(grand);
   const roundOff = (rounded - grand).toFixed(2);
 
   return {
     subtotalAmount: subtotal.toFixed(2),
     discountAmount: overallDiscount.toFixed(2),
-    taxAmount: taxAfterDiscount.toFixed(2),
+    taxAmount: '0.00',
     shippingAmount: shipCharges.toFixed(2),
     totalAmount: grand.toFixed(2),
     payableAmount: rounded.toFixed(2),

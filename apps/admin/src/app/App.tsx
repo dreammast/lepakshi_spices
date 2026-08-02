@@ -3303,7 +3303,7 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
         discountType: "percentage", discountValue: 0, shippingCharges: 0,
         paymentTerms: "50% Advance, 50% on Dispatch", leadTime: 5,
         packagingType: "Bulk Crate", deliveryMethod: "Road Freight", notes: "",
-        termsList: ["Quotation Valid for 15 Days", "Prices Excluding GST"],
+        termsList: ["Quotation Valid for 15 Days", "Prices Include GST"],
         status: "draft", timeline: [], inquiryId: ""
     });
     const [customTerm, setCustomTerm] = useState<string>("");
@@ -3376,19 +3376,15 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
 
     const calcTotals = (form: any) => {
         let subtotal = 0;
-        let taxTotal = 0;
 
         (form.items || []).forEach((item: any) => {
             const qty = Number(item.quantity || 0);
             const price = Number(item.unitPrice || 0);
             const discPct = Number(item.discountPercent ?? item.discount ?? 0);
-            const gstPct = Number(item.taxPercent ?? item.gst ?? 0);
 
-            const itemGross = qty * price;
-            const itemDiscount = itemGross * (discPct / 100);
-            const itemNet = Math.max(0, itemGross - itemDiscount);
+            const lineTotal = qty * price;
+            const itemNet = Math.max(0, lineTotal - (lineTotal * (discPct / 100)));
             subtotal += itemNet;
-            taxTotal += itemNet * (gstPct / 100);
         });
 
         let overDisc = 0;
@@ -3400,17 +3396,16 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
         overDisc = Math.max(0, Math.min(overDisc, subtotal));
 
         const netSubtotal = Math.max(0, subtotal - overDisc);
-        const taxAfterDiscount = subtotal > 0 ? taxTotal * (netSubtotal / subtotal) : 0;
         const shipCharges = Number(form.shippingCharges || form.shippingAmount || 0);
-        const grand = netSubtotal + taxAfterDiscount + shipCharges;
+        const grand = netSubtotal + shipCharges;
         const rounded = Math.round(grand);
         return {
             subtotal: subtotal.toFixed(2),
             subtotalAmount: subtotal.toFixed(2),
             discount: overDisc.toFixed(2),
             discountAmount: overDisc.toFixed(2),
-            tax: taxAfterDiscount.toFixed(2),
-            taxAmount: taxAfterDiscount.toFixed(2),
+            tax: "0.00",
+            taxAmount: "0.00",
             shippingCharges: shipCharges.toFixed(2),
             shippingAmount: shipCharges.toFixed(2),
             grandTotal: grand.toFixed(2),
@@ -3449,7 +3444,7 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
                 paymentTerms: "50% Advance, 50% on Dispatch", leadTime: 7,
                 packagingType: "Commercial Bag", deliveryMethod: "Road Freight",
                 notes: inq.message || "",
-                termsList: ["Quotation Valid for 15 Days", "Prices Excluding GST", "Transportation Extra"],
+                termsList: ["Quotation Valid for 15 Days", "Prices Include GST", "Transportation Extra"],
                 status: "draft",
                 timeline: [{ time: today + " " + new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }), event: "Prefilled from Inquiry " + inq.id }],
                 inquiryId: inq.id
@@ -3599,10 +3594,10 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
             let tableY = 125;
             doc.setFillColor(...primary); doc.rect(15, tableY, 180, 8, "F");
             doc.setFont("Helvetica", "bold"); doc.setFontSize(8.5); doc.setTextColor(255, 255, 255);
-            ["Product Details", "Pack", "Qty", "Rate (INR)", "Disc%", "GST%", "Net Total"].forEach((h, i) => {
-                doc.text(h, [18, 70, 90, 110, 135, 155, 175][i], tableY + 5.5);
+            ["Product Details", "Pack", "Qty", "Rate (INR)", "Disc%", "Net Total"].forEach((h, i) => {
+                doc.text(h, [18, 70, 90, 110, 135, 175][i], tableY + 5.5);
             });
-            let rowY = tableY + 8, totalSub = 0, totalGst = 0;
+            let rowY = tableY + 8, totalSub = 0;
             (q.items || []).forEach((row: any, i: number) => {
                 if (i % 2 === 1) { doc.setFillColor(248, 246, 240); doc.rect(15, rowY, 180, 8, "F"); }
                 doc.setDrawColor(26, 23, 20); doc.rect(15, rowY, 180, 8, "S");
@@ -3611,11 +3606,11 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
                 doc.setFont("Helvetica", "normal"); doc.setTextColor(74, 70, 64);
                 doc.text(row.weight, 70, rowY + 5.5); doc.text(String(row.quantity), 90, rowY + 5.5);
                 doc.text(`Rs.${row.unitPrice}`, 110, rowY + 5.5);
-                doc.text(`${row.discount}%`, 135, rowY + 5.5); doc.text(`${row.gst}%`, 155, rowY + 5.5);
+                doc.text(`${row.discount}%`, 135, rowY + 5.5);
                 const net = row.quantity * row.unitPrice * (1 - row.discount / 100);
-                const gst = net * (row.gst / 100); totalSub += net; totalGst += gst;
+                totalSub += net;
                 doc.setFont("Helvetica", "bold"); doc.setTextColor(26, 23, 20);
-                doc.text(`Rs.${Math.round(net + gst)}`, 175, rowY + 5.5);
+                doc.text(`Rs.${Math.round(net)}`, 175, rowY + 5.5);
                 rowY += 8;
             });
             rowY += 6;
@@ -3624,10 +3619,10 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
             doc.text("Lead time: " + (q.leadTime || 5) + " days", 15, rowY + 5);
             doc.text("Packaging: " + (q.packagingType || "Sack"), 15, rowY + 10);
             doc.text("Delivery: " + (q.deliveryMethod || "Road"), 15, rowY + 15);
+            doc.text("* All wholesale pack prices are GST inclusive.", 15, rowY + 20);
             let payY = rowY;
-            doc.setTextColor(26, 23, 20); doc.text("Gross Subtotal:", 130, payY); doc.text(`Rs.${totalSub.toFixed(0)}`, 175, payY); payY += 5;
-            if (q.discountValue > 0) { doc.text("Overall Discount:", 130, payY); doc.text(`-Rs.${q.discountValue}`, 175, payY); payY += 5; }
-            doc.text("Tax (GST):", 130, payY); doc.text(`Rs.${totalGst.toFixed(0)}`, 175, payY); payY += 5;
+            doc.setTextColor(26, 23, 20); doc.text("Subtotal:", 130, payY); doc.text(`Rs.${totalSub.toFixed(0)}`, 175, payY); payY += 5;
+            if (q.discountValue > 0) { doc.text("Discount:", 130, payY); doc.text(`-Rs.${(Number(q.discountAmount) || totalSub * (q.discountValue / 100)).toFixed(0)}`, 175, payY); payY += 5; }
             doc.text("Freight:", 130, payY); doc.text(`Rs.${q.shippingCharges || 0}`, 175, payY); payY += 5;
             doc.setFillColor(secondary[0], secondary[1], secondary[2]); doc.rect(125, payY - 3.8, 70, 7.5, "F");
             doc.setFont("Helvetica", "bold"); doc.setTextColor(...primary);
@@ -4603,7 +4598,10 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
                                         <Card className="p-6 space-y-4">
                                             <div className="flex justify-between items-center">
                                                 <h3 className="font-bold text-sm uppercase tracking-wider text-[#8B7355]">3. Product Line Items</h3>
-                                                <button onClick={handleAddItemRow} className="px-3 py-1.5 bg-[#2D5016] text-white rounded-lg text-xs font-semibold cursor-pointer">+ Add Item</button>
+                                                <div className="flex items-center gap-3">
+                                                    <span className="text-[10px] text-[#8B7355] italic hidden md:inline">* All wholesale pack prices include GST</span>
+                                                    <button onClick={handleAddItemRow} className="px-3 py-1.5 bg-[#2D5016] text-white rounded-lg text-xs font-semibold cursor-pointer">+ Add Item</button>
+                                                </div>
                                             </div>
                                             <div className="space-y-3">
                                                 {quoteForm.items.map((it: any, idx: number) => (
@@ -4624,11 +4622,14 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
                                                                 {packsFor(it.name).map((pack: any) => <option key={pack.label} value={pack.label}>{pack.label}</option>)}
                                                             </select>
                                                         </div>
-                                                        <div className="md:col-span-1"><Field type="number" label="Qty" value={it.quantity} onChange={v => handleItemFieldChange(idx, "quantity", Number(v))} /></div>
-                                                        <div className="md:col-span-2"><Field type="number" label="Unit Price" value={it.unitPrice} onChange={v => handleItemFieldChange(idx, "unitPrice", Number(v))} /></div>
-                                                        <div className="md:col-span-1"><Field type="number" label="Disc%" value={it.discount} onChange={v => handleItemFieldChange(idx, "discount", Number(v))} /></div>
-                                                        <div className="md:col-span-1"><Field type="number" label="GST%" value={it.gst} onChange={v => handleItemFieldChange(idx, "gst", Number(v))} /></div>
-                                                        <div className="md:col-span-2 flex justify-end gap-1 mb-1">
+                                                        <div className="md:col-span-2"><Field type="number" label="Qty" value={it.quantity} onChange={v => handleItemFieldChange(idx, "quantity", Number(v))} /></div>
+                                                        <div className="md:col-span-2"><Field type="number" label="Unit Price (incl. GST)" value={it.unitPrice} onChange={v => handleItemFieldChange(idx, "unitPrice", Number(v))} /></div>
+                                                        <div className="md:col-span-2"><Field type="number" label="Disc %" value={it.discount} onChange={v => handleItemFieldChange(idx, "discount", Number(v))} /></div>
+                                                        <div className="md:col-span-1">
+                                                            <label className="block text-[10px] uppercase font-bold text-[#8B7355] mb-1.5">GST</label>
+                                                            <div className="bg-[#E8F2FE] text-[#1B5EAD] text-[10px] font-bold rounded-lg px-2 py-2.5 text-center">Incl.</div>
+                                                        </div>
+                                                        <div className="md:col-span-1 flex justify-end gap-1 mb-1">
                                                             <button onClick={() => handleRemoveItemRow(idx)} className="p-1.5 rounded bg-red-50 text-red-600 cursor-pointer"><Trash2 className="w-3.5 h-3.5" /></button>
                                                         </div>
                                                     </div>
@@ -4670,8 +4671,8 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
                                             <div className="space-y-2 text-sm">
                                                 <div className="flex justify-between"><span className="text-[#8B7355]">Subtotal:</span><span className="font-semibold">₹{calcs.subtotal}</span></div>
                                                 {Number(calcs.discount) > 0 && <div className="flex justify-between text-red-600"><span>Discount:</span><span>-₹{calcs.discount}</span></div>}
-                                                <div className="flex justify-between"><span className="text-[#8B7355]">Tax (GST):</span><span className="font-semibold">₹{calcs.tax}</span></div>
                                                 <div className="flex justify-between"><span className="text-[#8B7355]">Freight:</span><span className="font-semibold">₹{quoteForm.shippingCharges || 0}</span></div>
+                                                <div className="text-[10px] text-[#8B7355] italic">* All wholesale pack prices are GST inclusive. No tax added.</div>
                                                 <div className="flex justify-between text-base font-bold pt-2 border-t border-[#2C2416]/10" style={{ color: C.green }}>
                                                     <span>Final Payable:</span><span>₹{calcs.payableAmount.toLocaleString('en-IN')}</span>
                                                 </div>
@@ -4764,7 +4765,7 @@ function QuotationManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
         packagingType: "Bulk Crate",
         deliveryMethod: "Road Freight",
         notes: "",
-        termsList: ["Quotation Valid for 15 Days", "Prices Excluding GST"],
+        termsList: ["Quotation Valid for 15 Days", "Prices Include GST"],
         status: "draft",
         timeline: []
     });
@@ -4832,7 +4833,7 @@ function QuotationManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
                     packagingType: "Commercial Bag",
                     deliveryMethod: "Road Freight",
                     notes: lead.message || "",
-                    termsList: ["Quotation Valid for 15 Days", "Prices Excluding GST", "Transportation Extra"],
+                    termsList: ["Quotation Valid for 15 Days", "Prices Include GST", "Transportation Extra"],
                     status: "draft",
                     timeline: [{ time: today + " " + new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }), event: "Prefilled from Sourcing Inquiry" }]
                 });
@@ -4865,22 +4866,18 @@ function QuotationManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
         cancelled: { label: "Cancelled", bg: "#FAF8F5", text: "#7D7060", dot: "#A69888" },
     };
 
-    // Live Auto Calculations
+    // Live Auto Calculations (GST-inclusive wholesale pricing - no tax added)
     const calculateTotals = (form: any) => {
         let subtotal = 0;
-        let taxTotal = 0;
 
         (form.items || []).forEach((item: any) => {
             const qty = Number(item.quantity || 0);
             const price = Number(item.unitPrice || 0);
             const discPct = Number(item.discountPercent ?? item.discount ?? 0);
-            const gstPct = Number(item.taxPercent ?? item.gst ?? 0);
 
-            const itemGross = qty * price;
-            const itemDiscount = itemGross * (discPct / 100);
-            const itemNet = Math.max(0, itemGross - itemDiscount);
+            const lineTotal = qty * price;
+            const itemNet = Math.max(0, lineTotal - (lineTotal * (discPct / 100)));
             subtotal += itemNet;
-            taxTotal += itemNet * (gstPct / 100);
         });
 
         let overallDiscount = 0;
@@ -4892,9 +4889,8 @@ function QuotationManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
         overallDiscount = Math.max(0, Math.min(overallDiscount, subtotal));
 
         const netSubtotal = Math.max(0, subtotal - overallDiscount);
-        const taxAfterDiscount = subtotal > 0 ? taxTotal * (netSubtotal / subtotal) : 0;
         const shipCharges = Number(form.shippingCharges || form.shippingAmount || 0);
-        const grand = netSubtotal + taxAfterDiscount + shipCharges;
+        const grand = netSubtotal + shipCharges;
         const rounded = Math.round(grand);
         const roundOff = (rounded - grand).toFixed(2);
 
@@ -4903,8 +4899,8 @@ function QuotationManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
             subtotalAmount: subtotal.toFixed(2),
             discount: overallDiscount.toFixed(2),
             discountAmount: overallDiscount.toFixed(2),
-            tax: taxAfterDiscount.toFixed(2),
-            taxAmount: taxAfterDiscount.toFixed(2),
+            tax: "0.00",
+            taxAmount: "0.00",
             shippingCharges: shipCharges.toFixed(2),
             shippingAmount: shipCharges.toFixed(2),
             grandTotal: grand.toFixed(2),
@@ -5049,7 +5045,7 @@ function QuotationManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
             packagingType: "Bulk Crate",
             deliveryMethod: "Road Freight",
             notes: "",
-            termsList: ["Quotation Valid for 15 Days", "Prices Excluding GST", "Transportation Extra"],
+            termsList: ["Quotation Valid for 15 Days", "Prices Include GST", "Transportation Extra"],
             status: "draft",
             timeline: [{ time: today + " " + new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }), event: "Quotation Form Initialized" }]
         });
@@ -5255,12 +5251,10 @@ function QuotationManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
             doc.text("Qty", 90, tableY + 5.5);
             doc.text("Rate (INR)", 110, tableY + 5.5);
             doc.text("Disc%", 135, tableY + 5.5);
-            doc.text("GST%", 155, tableY + 5.5);
             doc.text("Net Total", 175, tableY + 5.5);
 
             let rowY = tableY + 8;
             let totalSub = 0;
-            let totalGst = 0;
 
             (q.items || []).forEach((row: any, idx: number) => {
                 if (idx % 2 === 1) {
@@ -5281,16 +5275,13 @@ function QuotationManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
                 doc.text(String(row.quantity), 90, rowY + 5.5);
                 doc.text(`Rs.${row.unitPrice}`, 110, rowY + 5.5);
                 doc.text(`${row.discount}%`, 135, rowY + 5.5);
-                doc.text(`${row.gst}%`, 155, rowY + 5.5);
 
                 const netVal = (row.quantity * row.unitPrice) * (1 - row.discount / 100);
-                const gstVal = netVal * (row.gst / 100);
                 totalSub += netVal;
-                totalGst += gstVal;
 
                 doc.setFont("Helvetica", "bold");
                 doc.setTextColor(26, 23, 20);
-                doc.text(`Rs.${Math.round(netVal + gstVal)}`, 175, rowY + 5.5);
+                doc.text(`Rs.${Math.round(netVal)}`, 175, rowY + 5.5);
 
                 rowY += 8;
             });
@@ -5304,12 +5295,13 @@ function QuotationManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
             doc.text("Lead Dispatch Time: " + (q.leadTime || "5") + " days from advance", 15, rowY + 5);
             doc.text("Packaging standard: " + (q.packagingType || "Air-Tight sacks"), 15, rowY + 10);
             doc.text("Logistics delivery method: " + (q.deliveryMethod || "Road transport"), 15, rowY + 15);
+            doc.text("* All wholesale pack prices are GST inclusive.", 15, rowY + 20);
 
             // Pricing Panel
             let payY = rowY;
             doc.setFont("Helvetica", "normal");
             doc.setTextColor(26, 23, 20);
-            doc.text("Gross Subtotal:", 130, payY);
+            doc.text("Subtotal:", 130, payY);
             doc.text(`Rs.${totalSub.toFixed(0)}`, 175, payY);
             payY += 5;
 
@@ -5320,14 +5312,10 @@ function QuotationManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
                 overDisc = q.discountValue;
             }
             if (overDisc > 0) {
-                doc.text("Overall Discount:", 130, payY);
+                doc.text("Discount:", 130, payY);
                 doc.text(`-Rs.${overDisc.toFixed(0)}`, 175, payY);
                 payY += 5;
             }
-
-            doc.text("Tax (CGST+SGST):", 130, payY);
-            doc.text(`Rs.${totalGst.toFixed(0)}`, 175, payY);
-            payY += 5;
 
             doc.text("Freight Logistics:", 130, payY);
             doc.text(`Rs.${q.shippingCharges || 0}`, 175, payY);
@@ -5552,7 +5540,10 @@ function QuotationManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
                         <Card className="p-6 space-y-4">
                             <div className="flex justify-between items-center">
                                 <h3 className="font-bold text-sm uppercase tracking-wider text-[#8B7355]">3. Product Sourcing Matrix</h3>
-                                <button onClick={handleAddItemRow} className="px-3 py-1.5 bg-[#2D5016] text-white rounded-lg text-xs font-semibold cursor-pointer">Add Line Item</button>
+                                <div className="flex items-center gap-3">
+                                    <span className="text-[10px] text-[#8B7355] italic hidden md:inline">* All wholesale pack prices include GST</span>
+                                    <button onClick={handleAddItemRow} className="px-3 py-1.5 bg-[#2D5016] text-white rounded-lg text-xs font-semibold cursor-pointer">Add Line Item</button>
+                                </div>
                             </div>
 
                             <div className="space-y-3">
@@ -5576,20 +5567,21 @@ function QuotationManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
                                             </select>
                                         </div>
 
-                                        <div className="md:col-span-1.5">
+                                        <div className="md:col-span-2">
                                             <Field type="number" label="Qty" value={it.quantity} onChange={v => handleItemFieldChange(idx, "quantity", Number(v))} />
                                         </div>
 
                                         <div className="md:col-span-2">
-                                            <Field type="number" label="Unit Price" value={it.unitPrice} onChange={v => handleItemFieldChange(idx, "unitPrice", Number(v))} />
+                                            <Field type="number" label="Unit Price (incl. GST)" value={it.unitPrice} onChange={v => handleItemFieldChange(idx, "unitPrice", Number(v))} />
                                         </div>
 
-                                        <div className="md:col-span-1.5">
-                                            <Field type="number" label="Disc%" value={it.discount} onChange={v => handleItemFieldChange(idx, "discount", Number(v))} />
+                                        <div className="md:col-span-2">
+                                            <Field type="number" label="Disc %" value={it.discount} onChange={v => handleItemFieldChange(idx, "discount", Number(v))} />
                                         </div>
 
-                                        <div className="md:col-span-1.5">
-                                            <Field type="number" label="GST%" value={it.gst} onChange={v => handleItemFieldChange(idx, "gst", Number(v))} />
+                                        <div className="md:col-span-1">
+                                            <label className="block text-[10px] uppercase font-bold text-[#8B7355]">GST</label>
+                                            <div className="mt-1 bg-[#E8F2FE] text-[#1B5EAD] text-[10px] font-bold rounded-lg px-2 py-2 text-center">Incl.</div>
                                         </div>
 
                                         <div className="md:col-span-1 flex justify-end gap-1 mb-1">
@@ -5656,13 +5648,10 @@ function QuotationManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
                                     </div>
                                 )}
                                 <div className="flex justify-between">
-                                    <span className="text-[#8B7355]">Tax (GST):</span>
-                                    <span className="font-semibold">₹{calcs.tax}</span>
-                                </div>
-                                <div className="flex justify-between">
                                     <span className="text-[#8B7355]">Freight Logistics:</span>
                                     <span className="font-semibold">₹{quoteForm.shippingCharges || 0}</span>
                                 </div>
+                                <div className="text-[10px] text-[#8B7355] italic">* All wholesale pack prices are GST inclusive. No tax added.</div>
                                 <div className="flex justify-between text-[11px] text-[#8B7355] border-t border-dashed pt-2">
                                     <span>Adjustment Round off:</span>
                                     <span>₹{calcs.roundOff}</span>
