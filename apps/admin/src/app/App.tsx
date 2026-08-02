@@ -275,6 +275,8 @@ function Field({ label, value, onChange, type = "text", placeholder = "", as = "
 function ImageDropzone({ value, onChange }: { value: string; onChange: (url: string) => void }) {
     const [uploading, setUploading] = useState(false);
     const [dragOver, setDragOver] = useState(false);
+    const [uploadError, setUploadError] = useState<string | null>(null);
+    const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:4000/api";
 
     const handleUploadFile = async (file: File) => {
         if (!file.type.startsWith("image/")) {
@@ -282,6 +284,7 @@ function ImageDropzone({ value, onChange }: { value: string; onChange: (url: str
             return;
         }
         setUploading(true);
+        setUploadError(null);
         try {
             const reader = new FileReader();
             reader.onload = async (e) => {
@@ -289,7 +292,7 @@ function ImageDropzone({ value, onChange }: { value: string; onChange: (url: str
                 try {
                     const stored = localStorage.getItem("spiceora_admin");
                     const token = stored ? JSON.parse(stored).token : null;
-                    const res = await fetch("http://localhost:4000/api/upload", {
+                    const res = await fetch(`${API_BASE}/upload`, {
                         method: "POST",
                         headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
                         body: JSON.stringify({ image: base64, filename: file.name })
@@ -300,12 +303,14 @@ function ImageDropzone({ value, onChange }: { value: string; onChange: (url: str
                     onChange(url);
                     toast.success("Image uploaded to Cloudinary!");
                 } catch (err) {
+                    setUploadError(err instanceof Error ? err.message : "Cloudinary upload failed");
                     toast.error(err instanceof Error ? err.message : "Cloudinary upload failed");
                 }
                 setUploading(false);
             };
             reader.readAsDataURL(file);
         } catch (err) {
+            setUploadError("Failed to upload image");
             toast.error("Failed to upload image");
             setUploading(false);
         }
@@ -348,10 +353,10 @@ function ImageDropzone({ value, onChange }: { value: string; onChange: (url: str
                         <p className="text-[10px] text-[#8B7355] truncate max-w-xs mx-auto">{value}</p>
                         <p className="text-xs text-[#2D5016] font-semibold underline">Click or drop another file to replace</p>
                     </div>
-                ) : loadError ? (
+                ) : uploadError ? (
                     <div className="p-12 text-center">
-                        <p className="text-sm font-semibold text-red-700">{loadError}</p>
-                        <button onClick={loadCustomersFromApi} className="mt-3 text-xs font-bold text-[#2D5016] hover:underline">Try again</button>
+                        <p className="text-sm font-semibold text-red-700">{uploadError}</p>
+                        <button onClick={() => setUploadError(null)} className="mt-3 text-xs font-bold text-[#2D5016] hover:underline">Try again</button>
                     </div>
                 ) : (
                     <div className="flex flex-col items-center py-4 space-y-2">
