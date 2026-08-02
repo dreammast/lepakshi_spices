@@ -22,6 +22,10 @@ app.use(helmet({
 const allowedOrigins: string[] = [
   ...(env.FRONTEND_URL ? env.FRONTEND_URL.split(',').map((s) => s.trim()) : []),
   ...(env.ADMIN_FRONTEND_URL ? env.ADMIN_FRONTEND_URL.split(',').map((s) => s.trim()) : []),
+  // Always allow all known Vercel frontend deployments
+  'https://lepakshi-spices-ck8k.vercel.app',
+  'https://lepakshi-spices-user.vercel.app',
+  'https://lepakshi-spices-admin.vercel.app',
   'http://localhost:5174',
   'http://localhost:5173',
 ].filter(Boolean);
