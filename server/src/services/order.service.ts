@@ -11,7 +11,7 @@ import { AppError } from '../utils/app-error.js';
 import { orders } from '../db/schema.js';
 import { env } from '../config/env.js';
 import { validateCoupon } from './coupon.service.js';
-import { orderConfirmationEmailTemplate, orderStatusEmailTemplate, receiptEmailTemplate, paymentVerifiedEmailTemplate, sendEmailSafely } from '../mail/send-email.js';
+import { sendRetailOrderConfirmation, sendRetailOrderStatus, sendRetailReceipt, sendRetailPaymentVerified, sendRetailOrderCancelled } from '../mail/email.service.js';
 
 function canEmailOrder(order: Awaited<ReturnType<typeof findOrderById>>): order is NonNullable<Awaited<ReturnType<typeof findOrderById>>> & { customerEmail: string } {
   return Boolean(order?.customerEmail);
@@ -57,16 +57,9 @@ export async function createOrder(input: CreateOrderInput) {
   const order = await createOrderRecord(input);
   if (canEmailOrder(order)) {
     const orderUrl = `${env.FRONTEND_URL.replace(/\/$/, '')}/orders/${order.id}`;
-    await sendEmailSafely({
-      to: order.customerEmail,
-      subject: `Order confirmed: ${order.orderNumber}`,
-      html: orderConfirmationEmailTemplate({ ...order, trackingUrl: orderUrl, invoiceUrl: `${orderUrl}?view=invoice` }),
-    });
-    await sendEmailSafely({
-      to: order.customerEmail,
-      subject: `Invoice / receipt for ${order.orderNumber}`,
-      html: receiptEmailTemplate({ ...order, trackingUrl: orderUrl, invoiceUrl: `${orderUrl}?view=invoice` }),
-    });
+    const emailData = { ...order, trackingUrl: orderUrl, invoiceUrl: `${orderUrl}?view=invoice` };
+    await sendRetailOrderConfirmation(emailData);
+    await sendRetailReceipt(emailData, order.customerEmail);
   }
   return order;
 }
@@ -98,13 +91,13 @@ export async function setOrderStatus(id: number, status: typeof orders.$inferIns
     throw new AppError(404, 'Order not found');
   }
   const notificationStatus = status ?? updated.status;
-  if (canEmailOrder(updated) && notificationStatus && ['shipped', 'delivered', 'cancelled'].includes(notificationStatus)) {
+  if (canEmailOrder(updated) && notificationStatus && ['processing', 'shipped', 'delivered', 'cancelled'].includes(notificationStatus)) {
     const orderUrl = `${env.FRONTEND_URL.replace(/\/$/, '')}/orders/${updated.id}`;
-    await sendEmailSafely({
-      to: updated.customerEmail,
-      subject: `Order ${notificationStatus}: ${updated.orderNumber}`,
-      html: orderStatusEmailTemplate({ ...updated, trackingUrl: orderUrl }),
-    });
+    if (notificationStatus === 'cancelled') {
+      await sendRetailOrderCancelled({ ...updated, trackingUrl: orderUrl }, updated.customerEmail);
+    } else {
+      await sendRetailOrderStatus({ ...updated, trackingUrl: orderUrl }, updated.customerEmail);
+    }
   }
   return updated;
 }
@@ -123,11 +116,7 @@ export async function verifyOrderPayment(id: number, adminName: string) {
   }
   if (canEmailOrder(updated)) {
     const orderUrl = `${env.FRONTEND_URL.replace(/\/$/, '')}/orders/${updated.id}`;
-    await sendEmailSafely({
-      to: updated.customerEmail,
-      subject: `Payment Verified for Order ${updated.orderNumber}`,
-      html: paymentVerifiedEmailTemplate({ ...updated, trackingUrl: orderUrl }),
-    });
+    await sendRetailPaymentVerified({ ...updated, trackingUrl: orderUrl }, updated.customerEmail);
   }
   return updated;
 }

@@ -32,7 +32,11 @@ export async function registerController(req: Request, res: Response, next: Next
 export async function loginController(req: Request, res: Response, next: NextFunction) {
   try {
     const { email, password } = req.body;
-    const result = await authenticateCustomer(email, password);
+    const result = await authenticateCustomer(email, password, {
+      ip: req.ip || req.socket?.remoteAddress,
+      browser: req.get('user-agent'),
+      time: new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }),
+    });
     if (!result) {
       return res.status(401).json({ success: false, message: 'Invalid credentials' });
     }

@@ -1,6 +1,8 @@
 import type { Request, Response, NextFunction } from 'express';
-import { listWholesaleInquiries, createWholesaleInquiry, updateWholesaleInquiry, setInquiryStatus, listQuotations, createQuotation, updateQuotation, removeWholesaleInquiry, removeQuotation, listWholesaleCatalogueData } from '../services/wholesale.service.js';
+import { listWholesaleInquiries, createWholesaleInquiry, updateWholesaleInquiry, setInquiryStatus, listQuotations, createQuotation, updateQuotation, removeWholesaleInquiry, removeQuotation, listWholesaleCatalogueData, respondToQuotation, recordQuotationView, notifyWholesaleOrderStatus, getQuotation } from '../services/wholesale.service.js';
 import { sendSuccess, sendCreated } from '../utils/response.util.js';
+import { verifyQuoteToken } from '../mail/quote-token.js';
+import { wholesaleQuotationWebPage, brandedMessagePage } from '../mail/templates.wholesale.js';
 
 export async function listWholesaleInquiriesController(_req: Request, res: Response, next: NextFunction) {
   try { sendSuccess(res, await listWholesaleInquiries()); } catch (e) { next(e); }
@@ -40,4 +42,88 @@ export async function deleteQuotationController(req: Request, res: Response, nex
 
 export async function listWholesaleCatalogueController(_req: Request, res: Response, next: NextFunction) {
   try { sendSuccess(res, await listWholesaleCatalogueData(), 'Wholesale catalogue data loaded'); } catch (e) { next(e); }
+}
+
+// ---------------------------------------------------------------------------
+// Public quotation endpoints (signed links inside emails)
+// ---------------------------------------------------------------------------
+
+function invalidLinkPage() {
+  return brandedMessagePage(
+    'Invalid or expired link',
+    'This link is invalid or has expired. Quotation links are valid for 14 days from the date they are issued.',
+    { label: 'Contact Wholesale Team', href: `mailto:lepakshispices@gmail.com?subject=Quotation link expired` },
+  );
+}
+
+export async function viewQuotationController(req: Request, res: Response) {
+  try {
+    const id = Number(req.params.id);
+    const token = String(req.query.token || '');
+    const verified = verifyQuoteToken(token);
+    if (!verified || verified.id !== id || verified.action !== 'view') {
+      res.status(401).send(invalidLinkPage());
+      return;
+    }
+    const quotation = await recordQuotationView(id);
+    if (!quotation) {
+      res.status(404).send(invalidLinkPage());
+      return;
+    }
+    res.set('Content-Type', 'text/html; charset=utf-8');
+    res.send(wholesaleQuotationWebPage(quotation, { viewedAt: new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }) }));
+  } catch (e: any) {
+    res.status(e?.statusCode === 404 ? 404 : 500).send(invalidLinkPage());
+  }
+}
+
+export async function respondQuotationController(req: Request, res: Response) {
+  try {
+    const id = Number(req.params.id);
+    const action = String(req.query.action || req.body.action || '');
+    const token = String(req.query.token || '');
+    const verified = verifyQuoteToken(token);
+    if (!verified || verified.id !== id || verified.action !== action || (action !== 'accept' && action !== 'reject')) {
+      res.status(401).send(invalidLinkPage());
+      return;
+    }
+    const quotation = await respondToQuotation(id, action);
+    if (!quotation) {
+      res.status(404).send(invalidLinkPage());
+      return;
+    }
+    const ref = quotation.quoteNumber || `QT-${id}`;
+    if (action === 'accept') {
+      res.set('Content-Type', 'text/html; charset=utf-8');
+      res.send(brandedMessagePage(
+        'Quotation Accepted',
+        `Thank you ${quotation.contactPerson || 'for your business'}! Quotation ${ref} has been accepted. A confirmation email with your order reference and next steps is on its way to you.`,
+        { label: 'Contact Sales', href: `mailto:lepakshispices@gmail.com?subject=${encodeURIComponent(`Order follow-up for quotation ${ref}`)}` },
+      ));
+    } else {
+      res.set('Content-Type', 'text/html; charset=utf-8');
+      res.send(brandedMessagePage(
+        'Quotation Declined',
+        `Quotation ${ref} has been marked as declined. We appreciate your time and would be glad to revisit pricing or terms in the future.`,
+        { label: 'Discuss a revised quotation', href: `mailto:lepakshispices@gmail.com?subject=${encodeURIComponent(`Revised quotation request for ${ref}`)}` },
+      ));
+    }
+  } catch (e: any) {
+    res.status(e?.statusCode === 404 ? 404 : 500).send(invalidLinkPage());
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Admin: notify a converted quotation's customer of an order status change
+// ---------------------------------------------------------------------------
+
+export async function notifyOrderStatusController(req: Request, res: Response, next: NextFunction) {
+  try {
+    const quotation = await notifyWholesaleOrderStatus(Number(req.params.id), req.body.status);
+    sendSuccess(res, quotation, 'Wholesale order status notification sent');
+  } catch (e) { next(e); }
+}
+
+export async function getQuotationController(req: Request, res: Response, next: NextFunction) {
+  try { sendSuccess(res, await getQuotation(Number(req.params.id))); } catch (e) { next(e); }
 }

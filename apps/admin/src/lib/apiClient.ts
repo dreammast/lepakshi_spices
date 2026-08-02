@@ -169,9 +169,12 @@ export const wholesaleApi = {
   updateInquiryStatus: (id: number, status: string) => api.put<any>(`/admin/wholesale-inquiries/${id}/status`, { status }),
   deleteInquiry: (id: number) => api.delete<any>(`/admin/wholesale-inquiries/${id}`),
   listQuotations: () => api.get<any[]>('/admin/quotations'),
+  getQuotation: (id: number) => api.get<any>(`/admin/quotations/${id}`),
   createQuotation: (body: unknown) => api.post<any>('/admin/quotations', body),
   updateQuotation: (id: number, body: unknown) => api.put<any>(`/admin/quotations/${id}`, body),
-  deleteQuotation: (id: number) => api.delete<any>(`/admin/quotations/${id}`)
+  deleteQuotation: (id: number) => api.delete<any>(`/admin/quotations/${id}`),
+  sendQuotation: (id: number, attachPdf = false) => api.put<any>(`/admin/quotations/${id}`, { status: 'sent', attachPdf }),
+  notifyOrderStatus: (id: number, status: string) => api.post<any>(`/admin/quotations/${id}/notify-order-status`, { status })
 };
 
 export const packagingApi = {

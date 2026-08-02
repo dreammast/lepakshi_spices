@@ -26,6 +26,7 @@
     "helmet": "^7.0.0",
     "jsonwebtoken": "^9.0.3",
     "mysql2": "^3.6.0",
+    "pdfkit": "^0.15.0",
     "pino": "^8.18.0",
     "pino-http": "^8.2.0",
     "swagger-jsdoc": "^6.3.0",
@@ -34,6 +35,7 @@
     "zod": "^3.22.2"
   },
   "devDependencies": {
+    "@types/pdfkit": "^0.13.0",
     "@typescript-eslint/eslint-plugin": "^7.10.2",
     "@typescript-eslint/parser": "^7.10.2",
     "eslint": "^8.57.0",

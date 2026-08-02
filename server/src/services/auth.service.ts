@@ -5,7 +5,7 @@ import { customerProfiles } from '../db/schema.js';
 import { createCustomerProfile, findCustomerByEmail, findCustomerById } from '../repositories/auth.repository.js';
 import { signToken } from '../utils/jwt.util.js';
 import { AppError } from '../utils/app-error.js';
-import { sendEmailSafely, verificationEmailTemplate, forgotPasswordOtpTemplate, passwordResetSuccessTemplate, welcomeEmailTemplate } from '../mail/send-email.js';
+import { sendRetailWelcome, sendRetailLoginNotification, sendRetailPasswordReset, sendRetailPasswordResetSuccess, sendRetailVerifyEmail } from '../mail/email.service.js';
 import { env } from '../config/env.js';
 
 const SALT_ROUNDS = 10;
@@ -43,14 +43,14 @@ export async function registerCustomer(input: {
   }
 
   const name = `${customer.firstName} ${customer.lastName}`.trim() || 'there';
-  await sendEmailSafely({ to: customer.email, subject: 'Welcome to Lepakshi Spices', html: welcomeEmailTemplate(name) });
+  await sendRetailWelcome(customer.email, name);
   await sendVerificationEmail(customer.email);
 
   const token = signToken({ sub: customer.id, email: customer.email, role: customer.role });
   return { user: sanitizeCustomer(customer), token };
 }
 
-export async function authenticateCustomer(email: string, password: string) {
+export async function authenticateCustomer(email: string, password: string, loginMeta?: { ip?: string; browser?: string; time?: string }) {
   const customer = await findCustomerByEmail(email);
   if (!customer) return null;
 
@@ -64,6 +64,9 @@ export async function authenticateCustomer(email: string, password: string) {
   if (!customer.isActive) {
     throw new AppError(403, 'Account has been suspended. Please contact support.');
   }
+
+  const name = `${customer.firstName} ${customer.lastName}`.trim() || 'there';
+  await sendRetailLoginNotification(customer.email, name, loginMeta);
 
   const token = signToken({ sub: customer.id, email: customer.email, role: customer.role });
   return { user: sanitizeCustomer(customer), token };
@@ -145,11 +148,7 @@ export async function sendForgotPasswordOtp(email: string) {
   const { otp } = await generateOtp(email, 'PASSWORD_RESET');
   const name = `${customer.firstName} ${customer.lastName}`.trim() || 'there';
 
-  await sendEmailSafely({
-    to: email,
-    subject: 'Reset Your Password - Lepakshi Spices',
-    html: forgotPasswordOtpTemplate(name, otp),
-  });
+  await sendRetailPasswordReset(email, name, otp);
 
   return { message: 'Verification code sent to your email.' };
 }
@@ -173,11 +172,7 @@ export async function resetPassword(email: string, newPassword: string) {
 
   const name = `${customer.firstName} ${customer.lastName}`.trim() || 'there';
 
-  await sendEmailSafely({
-    to: email,
-    subject: 'Password Reset Successful - Lepakshi Spices',
-    html: passwordResetSuccessTemplate(name),
-  });
+  await sendRetailPasswordResetSuccess(email, name);
 
   return { message: 'Password has been reset successfully.' };
 }
@@ -251,11 +246,7 @@ export async function sendVerificationEmail(email: string) {
   const name = `${customer.firstName} ${customer.lastName}`.trim() || 'there';
   const verificationUrl = `${env.API_PUBLIC_URL.replace(/\/$/, '')}/auth/verify-email?email=${encodeURIComponent(email)}&token=${otp}`;
 
-  await sendEmailSafely({
-    to: email,
-    subject: 'Verify Your Email - Lepakshi Spices',
-    html: verificationEmailTemplate(name, verificationUrl),
-  });
+  await sendRetailVerifyEmail(email, name, verificationUrl);
 
   return { message: 'Verification email sent.' };
 }

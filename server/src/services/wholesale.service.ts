@@ -1,6 +1,7 @@
 import { findAllWholesaleInquiries, findWholesaleInquiryById, createWholesaleInquiryRecord, updateWholesaleInquiryRecord, updateWholesaleInquiryStatus, findAllQuotations, findQuotationById, createQuotationRecord, updateQuotationRecord, deleteWholesaleInquiry, deleteQuotation } from '../repositories/wholesale.repository.js';
 import { AppError } from '../utils/app-error.js';
-import { sendEmailSafely, wholesaleInquiryEmailTemplate } from '../mail/send-email.js';
+import { sendWholesaleEnquiryReceived, sendWholesaleInquiryStatus, sendWholesaleQuotation, sendWholesaleQuotationAccepted, sendWholesaleQuotationRejected, sendWholesaleOrderConfirmation, sendWholesaleOrderStatus } from '../mail/email.service.js';
+import { logger } from '../utils/logger.js';
 import { listProducts } from './product.service.js';
 
 export function calculateTotals(data: {
@@ -71,10 +72,13 @@ export async function getWholesaleInquiry(id: number) {
 }
 export async function createWholesaleInquiry(data: Parameters<typeof createWholesaleInquiryRecord>[0]) {
   const id = await createWholesaleInquiryRecord(data);
-  await sendEmailSafely({
-    to: data.email,
-    subject: 'Wholesale request received',
-    html: wholesaleInquiryEmailTemplate(data.contactName, data.companyName, 'received'),
+  await sendWholesaleEnquiryReceived({
+    contactName: data.contactName,
+    companyName: data.companyName,
+    email: data.email,
+    productInterest: data.productInterest,
+    volume: data.volume,
+    reference: `INQ-${id}`,
   });
   return id;
 }
@@ -86,10 +90,11 @@ export async function updateWholesaleInquiry(id: number, data: Record<string, an
 export async function setInquiryStatus(id: number, status: string) {
   const inquiry = await updateWholesaleInquiryStatus(id, status);
   if (status === 'approved' || status === 'rejected') {
-    await sendEmailSafely({
-      to: inquiry.email,
-      subject: `Wholesale request ${status}`,
-      html: wholesaleInquiryEmailTemplate(inquiry.contactName, inquiry.companyName, status as 'approved' | 'rejected'),
+    await sendWholesaleInquiryStatus({
+      contactName: inquiry.contactName,
+      companyName: inquiry.companyName,
+      email: inquiry.email,
+      status: status as 'approved' | 'rejected',
     });
   }
   return inquiry;
@@ -117,12 +122,12 @@ export async function createQuotation(data: Record<string, any>) {
   };
 
   const created = await createQuotationRecord(mergedData);
+  const timeStr = new Date().toLocaleDateString('en-IN') + ' ' + new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
 
   if (created?.inquiryId) {
     try {
       const inq = await findWholesaleInquiryById(created.inquiryId);
       if (inq) {
-        const timeStr = new Date().toLocaleDateString('en-IN') + ' ' + new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
         const existingNotes = (inq.notes as any[]) || [];
         const existingTimeline = (inq.timeline as any[]) || [];
         await updateWholesaleInquiryRecord(created.inquiryId, {
@@ -136,24 +141,135 @@ export async function createQuotation(data: Record<string, any>) {
     }
   }
 
+  if (String(created?.status || data.status || 'draft') === 'sent') {
+    await dispatchQuotationEmail(created, data.attachPdf === true, timeStr);
+  }
+
   return created;
 }
 
 export async function updateQuotation(id: number, data: Record<string, any>) {
-  const calculated = calculateTotals(data);
-  const mergedData = {
-    ...data,
-    subtotalAmount: calculated.subtotalAmount,
-    discountAmount: calculated.discountAmount,
-    taxAmount: calculated.taxAmount,
-    shippingAmount: calculated.shippingAmount,
-    totalAmount: calculated.totalAmount,
-    payableAmount: calculated.payableAmount,
-    roundOff: calculated.roundOff,
-    items: calculated.items
-  };
+  const existing = await findQuotationById(id);
 
-  return updateQuotationRecord(id, mergedData);
+  const hasItems = Array.isArray(data.items) && data.items.length > 0;
+  let mergedData: Record<string, any>;
+  if (hasItems) {
+    const calculated = calculateTotals(data);
+    mergedData = {
+      ...data,
+      subtotalAmount: calculated.subtotalAmount,
+      discountAmount: calculated.discountAmount,
+      taxAmount: calculated.taxAmount,
+      shippingAmount: calculated.shippingAmount,
+      totalAmount: calculated.totalAmount,
+      payableAmount: calculated.payableAmount,
+      roundOff: calculated.roundOff,
+      items: calculated.items
+    };
+  } else {
+    const rest: Record<string, any> = { ...data };
+    delete rest.items;
+    mergedData = rest;
+  }
+
+  await updateQuotationRecord(id, mergedData);
+  const full = await findQuotationById(id);
+
+  const newStatus = String(mergedData.status ?? existing?.status ?? 'draft');
+  const prevStatus = String(existing?.status ?? 'draft');
+
+  const timeStr = new Date().toLocaleDateString('en-IN') + ' ' + new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+
+  if (newStatus === 'sent' && prevStatus !== 'sent') {
+    if (full) await dispatchQuotationEmail(full, data.attachPdf === true, timeStr);
+  } else if (newStatus === 'accepted' && prevStatus !== 'accepted' && full) {
+    const orderRef = `ORD-${full.id}`;
+    await sendWholesaleQuotationAccepted(full, {
+      orderReference: orderRef,
+      paymentInstructions: `Payment is due as per the agreed terms (${full.paymentTerms || '50% advance, 50% on dispatch'}). Please transfer to our official bank account and share the UTR reference with your sales executive.`,
+    });
+    await appendQuotationTimeline(full, [{ time: timeStr, event: 'Quotation Accepted by Customer' }]);
+  } else if (newStatus === 'rejected' && prevStatus !== 'rejected' && full) {
+    await sendWholesaleQuotationRejected(full);
+    await appendQuotationTimeline(full, [{ time: timeStr, event: 'Quotation Rejected by Customer' }]);
+  } else if (newStatus === 'converted' && prevStatus !== 'converted' && full) {
+    const orderRef = `ORD-${full.id}`;
+    await sendWholesaleOrderConfirmation(full, { orderReference: orderRef });
+    await appendQuotationTimeline(full, [{ time: timeStr, event: `Wholesale Order ${orderRef} Created & Confirmed` }]);
+  }
+
+  return full;
+}
+
+async function dispatchQuotationEmail(quotation: any, attachPdf: boolean, timeStr: string) {
+  try {
+    const result = await sendWholesaleQuotation(quotation, { attachPdf });
+    if (result) {
+      await appendQuotationTimeline(quotation, [
+        { time: timeStr, event: `Quotation Email Sent to ${quotation.email || 'customer'}${attachPdf ? ' (PDF attached)' : ''}` },
+      ]);
+    }
+  } catch (e) {
+    logger.error({ err: e, quoteId: quotation.id }, 'Failed to send quotation email');
+  }
+}
+
+async function appendQuotationTimeline(quotation: any, events: Array<{ time: string; event: string }>) {
+  try {
+    const existingTimeline = (quotation.timeline as any[]) || [];
+    await updateQuotationRecord(quotation.id, {
+      timeline: [...existingTimeline, ...events],
+    });
+  } catch (e) {
+    logger.warn({ err: e, quoteId: quotation.id }, 'Failed to append quotation timeline event');
+  }
+}
+
+const WHOLESALE_ORDER_STATUSES = ['processing', 'packed', 'shipped', 'delivered', 'cancelled'];
+
+export async function notifyWholesaleOrderStatus(id: number, status: string) {
+  const normalized = String(status || '').toLowerCase();
+  if (!WHOLESALE_ORDER_STATUSES.includes(normalized)) {
+    throw new AppError(400, `Unsupported wholesale order status: ${status}. Supported: ${WHOLESALE_ORDER_STATUSES.join(', ')}`);
+  }
+  const full = await findQuotationById(id);
+  if (!full) throw new AppError(404, 'Quotation not found');
+  if (String(full.status) !== 'converted') {
+    throw new AppError(409, 'Order status notifications are only available for converted (ordered) quotations');
+  }
+
+  const orderRef = `ORD-${full.id}`;
+  await sendWholesaleOrderStatus(full, { orderReference: orderRef, status: normalized });
+  await appendQuotationTimeline(full, [
+    { time: new Date().toLocaleDateString('en-IN') + ' ' + new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }), event: `Wholesale Order ${orderRef}: ${normalized} (email sent)` },
+  ]);
+  return findQuotationById(id);
+}
+
+export async function respondToQuotation(id: number, action: 'accept' | 'reject') {
+  const full = await findQuotationById(id);
+  if (!full) throw new AppError(404, 'Quotation not found');
+  const current = String(full.status || 'draft');
+  if (current === 'accepted' || current === 'rejected' || current === 'converted' || current === 'expired') {
+    return full;
+  }
+  if (action !== 'accept' && action !== 'reject') {
+    throw new AppError(400, 'Action must be accept or reject');
+  }
+  return updateQuotation(id, { status: action });
+}
+
+export async function recordQuotationView(id: number) {
+  const full = await findQuotationById(id);
+  if (!full) throw new AppError(404, 'Quotation not found');
+  const events = (full.timeline as any[]) || [];
+  const alreadyViewed = events.some((e) => String(e.event || '').toLowerCase().includes('viewed'));
+  if (!alreadyViewed) {
+    await appendQuotationTimeline(full, [
+      { time: new Date().toLocaleDateString('en-IN') + ' ' + new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }), event: 'Quotation Viewed (online)' },
+    ]);
+  }
+  return findQuotationById(id);
 }
 
 export async function removeWholesaleInquiry(id: number) { return deleteWholesaleInquiry(id); }

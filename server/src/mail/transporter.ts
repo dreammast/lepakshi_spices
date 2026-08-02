@@ -1,5 +1,6 @@
 import { env } from '../config/env.js';
 import { logger } from '../utils/logger.js';
+import type { EmailAttachment } from './send-email.js';
 
 const BREVO_API_BASE = 'https://api.brevo.com/v3';
 
@@ -9,6 +10,7 @@ export interface BrevoSendMailRequest {
   subject: string;
   htmlContent: string;
   textContent?: string;
+  attachments?: EmailAttachment[];
 }
 
 export interface BrevoSendMailResponse {
@@ -33,6 +35,9 @@ async function brevoSendMail(payload: BrevoSendMailRequest, retries = 2): Promis
           subject: payload.subject,
           htmlContent: payload.htmlContent,
           ...(payload.textContent ? { textContent: payload.textContent } : {}),
+          ...(payload.attachments?.length
+            ? { attachment: payload.attachments.map((a) => ({ name: a.filename, content: a.contentBase64, ...(a.contentType ? { type: a.contentType } : {}) })) }
+            : {}),
         }),
         signal: controller.signal,
       });

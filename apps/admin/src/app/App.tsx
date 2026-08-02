@@ -5398,6 +5398,30 @@ function QuotationManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
         toast.success("Quotation marked as Sent!");
     };
 
+    const [attachPdfToggle, setAttachPdfToggle] = useState(false);
+
+    const handleSendQuotationEmail = async (q: any, attachPdf: boolean) => {
+        try {
+            const dbId = typeof q.id === 'string' && q.id.match(/^\d+$/) ? Number(q.id) : null;
+            if (!dbId) throw new Error("This quotation has no server record to email from yet. Save it first.");
+            const result: any = await wholesaleApi.sendQuotation(dbId, attachPdf);
+            const timeStr = new Date().toLocaleDateString('en-IN') + " " + new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+            const logEvent = `Quotation Email Sent to ${q.email || "customer"}${attachPdf ? " (PDF attached)" : ""}`;
+            const updated = quotations.map(item => {
+                if (item.id === q.id) return { ...item, status: "sent", timeline: [...(item.timeline || []), { time: timeStr, event: logEvent }] };
+                return item;
+            });
+            setQuotations(updated);
+            if (activeDetailQuote && activeDetailQuote.id === q.id) {
+                setActiveDetailQuote({ ...activeDetailQuote, status: "sent", timeline: [...(activeDetailQuote.timeline || []), { time: timeStr, event: logEvent }] });
+            }
+            addAuditLog("Quotation Email Sent", `Quotation ${q.id} emailed to ${q.email || "customer"}${attachPdf ? " with PDF" : ""}`);
+            toast.success(`Quotation email sent${attachPdf ? " with PDF attached" : ""}`);
+        } catch (err: any) {
+            toast.error(err.message || "Failed to send quotation email");
+        }
+    };
+
     const handleShareQuoteLink = (q: any) => {
         navigator.clipboard.writeText(`https://lepakshispices.in/quote/view/${q.id}`);
         toast.success("Quote link copied to clipboard!");
@@ -5872,6 +5896,21 @@ function QuotationManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
                             <button onClick={() => handleShareQuoteLink(activeDetailQuote)}
                                 className="flex-1 py-2 bg-[#FAF8F5] border border-[#2C2416]/10 text-[#2C2416] font-semibold rounded-xl text-xs flex items-center justify-center gap-1.5 hover:bg-[#F0EDE8] cursor-pointer">
                                 <Layers className="w-3.5 h-3.5" /> Copy Share Link
+                            </button>
+                        </div>
+
+                        {/* Send quotation email */}
+                        <div className="p-4 rounded-2xl bg-[#FAF8F5] border border-[#2C2416]/10 space-y-2">
+                            <p className="text-xs font-bold text-[#2C2416]">Email this quotation to the customer</p>
+                            <p className="text-[11px] text-[#8B7355]">Sends a branded inline quotation via email with accept / reject links. Optionally attach a server-generated PDF.</p>
+                            <label className="flex items-center gap-2 text-xs text-[#2C2416] cursor-pointer">
+                                <input type="checkbox" checked={attachPdfToggle} onChange={e => setAttachPdfToggle(e.target.checked)}
+                                    className="w-3.5 h-3.5 accent-[#2D5016]" />
+                                Attach PDF copy of the quotation
+                            </label>
+                            <button onClick={() => handleSendQuotationEmail(activeDetailQuote, attachPdfToggle)}
+                                className="w-full py-2 bg-[#2D5016] hover:bg-[#1A3A0A] text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer">
+                                <Mail className="w-4 h-4" /> Send Quotation Email{attachPdfToggle ? " (with PDF)" : ""}
                             </button>
                         </div>
 
