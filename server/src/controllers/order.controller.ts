@@ -9,6 +9,7 @@ export async function createOrderController(req: AuthenticatedRequest, res: Resp
     if (!req.user) {
       throw new AppError(401, 'Authentication required');
     }
+    console.log(`[phone-flow] createOrderController: received shippingAddress.phone=${req.body.shippingAddress?.phone ? `"${req.body.shippingAddress.phone}"` : '(empty)'} shippingAddressId=${req.body.shippingAddressId ?? '(none)'}`);
     const order = await createOrder({
       customerId: req.user.sub,
       items: req.body.items,

@@ -24,6 +24,7 @@ export async function createOrder(input: CreateOrderInput) {
   if (!input.items?.length) {
     throw new AppError(400, 'Order must contain at least one item');
   }
+  console.log(`[phone-flow] createOrderService: received shippingAddress.phone=${input.shippingAddress?.phone ? `"${input.shippingAddress.phone}"` : '(empty)'}`);
 
   // Validate payment method
   const paymentMethod = input.paymentMethod || 'upi';

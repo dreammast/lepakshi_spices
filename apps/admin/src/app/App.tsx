@@ -1699,6 +1699,7 @@ function OrdersPage() {
         try {
             const response = await ordersApi.adminList();
             const ordersList = Array.isArray(response) ? response : Array.isArray((response as any)?.data) ? (response as any).data : [];
+            ordersList.forEach((o: any) => console.log(`[phone-flow] admin API: order ${o.id} shippingAddress.phone=${o.shippingAddress?.phone ? `"${o.shippingAddress.phone}"` : '(empty)'} customerPhone=${o.customerPhone ? `"${o.customerPhone}"` : '(empty)'}`));
             setOrders(ordersList.map((order: any) => ({
                 id: String(order.id),
                 customer: order.customerName || order.customer || "Customer",

@@ -57,6 +57,36 @@ function normalizeShippingAddress(address: ShippingAddressSnapshot | string | nu
   };
 }
 
+function addressRecordToSnapshot(addr: typeof addresses.$inferSelect): ShippingAddressSnapshot {
+  return {
+    name: addr.fullName || addr.label || undefined,
+    phone: addr.phone || undefined,
+    line1: addr.line1,
+    line2: addr.line2 || undefined,
+    city: addr.city,
+    state: addr.state,
+    postalCode: addr.postalCode,
+    country: addr.country || 'India',
+  };
+}
+
+// The checkout phone lives in the order's shipping_address JSON snapshot. A saved
+// address row may be stale (no phone), so when a record lacks a phone/name we fall
+// back to the snapshot captured at checkout time so the value is never lost.
+function mergeSnapshotOverRecord(record: ShippingAddressSnapshot | null | undefined, snapshot: ShippingAddressSnapshot | null | undefined): ShippingAddressSnapshot | null {
+  if (!record) return snapshot || null;
+  if (!snapshot) return record;
+  return {
+    ...record,
+    name: record.name || snapshot.name,
+    phone: record.phone || snapshot.phone,
+  };
+}
+
+function logPhone(stage: string, phone: string | undefined | null) {
+  console.log(`[phone-flow] ${stage}: ${phone ? `"${phone}"` : '(empty)'}`);
+}
+
 function generateOrderNumber() {
   return `ORD-${Date.now()}-${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`;
 }
@@ -85,6 +115,8 @@ export async function createOrderRecord(input: CreateOrderInput) {
       : null;
   }
   const finalShippingAddressSnapshot = shippingAddressSnapshot || shippingAddressSnapshotFromRecord;
+  logPhone('createOrderRecord: received snapshot', shippingAddressSnapshot?.phone);
+  logPhone('createOrderRecord: final snapshot stored', finalShippingAddressSnapshot?.phone);
   if (!shippingAddressId && input.shippingAddress) {
     const createdAddr = await createAddressRecord(input.customerId, {
       label: input.shippingAddress.name || 'Shipping Address',
@@ -101,6 +133,18 @@ export async function createOrderRecord(input: CreateOrderInput) {
     if (createdAddr) {
       shippingAddressId = createdAddr.id;
     }
+  }
+
+  // When checkout supplied a phone alongside an existing saved address, persist it
+  // onto the address row too so later reads (which prefer the row) keep the value.
+  if (shippingAddressId && shippingAddressSnapshot?.phone) {
+    await db.update(addresses)
+      .set({
+        phone: shippingAddressSnapshot.phone,
+        fullName: shippingAddressSnapshot.name || undefined,
+        updatedAt: now
+      })
+      .where(eq(addresses.id, shippingAddressId));
   }
 
   // Build customer note: include UPI transaction details if provided
@@ -173,16 +217,20 @@ export async function findOrderById(id: number) {
   if (order.shippingAddressId) {
     const [addr] = await db.select().from(addresses).where(eq(addresses.id, order.shippingAddressId));
     if (addr) {
-      shippingAddress = addr;
+      shippingAddress = addressRecordToSnapshot(addr);
     }
   } else if (order.shippingAddress) {
     shippingAddress = normalizeShippingAddress(order.shippingAddress);
   } else if (order.customerId) {
     const [addr] = await db.select().from(addresses).where(eq(addresses.customerId, order.customerId));
     if (addr) {
-      shippingAddress = addr;
+      shippingAddress = addressRecordToSnapshot(addr);
     }
   }
+  // Prefer the phone captured at checkout if the saved address row is stale.
+  shippingAddress = mergeSnapshotOverRecord(shippingAddress, normalizeShippingAddress(order.shippingAddress));
+  logPhone('findOrderById: returned', shippingAddress?.phone);
+  logPhone('findOrderById: customerPhone', customer?.phone);
 
   const items = await db
     .select({
@@ -273,9 +321,15 @@ async function hydrateOrders(rows: (typeof orders.$inferSelect)[]) {
   return rows.map(order => {
     const customer = order.customerId ? customerMap.get(order.customerId) : null;
     const snapshotAddress = normalizeShippingAddress(order.shippingAddress as any);
-    const shippingAddress = order.shippingAddressId
-      ? addrMap.get(order.shippingAddressId) || snapshotAddress
-      : (snapshotAddress || (order.customerId ? fallbackCustomerAddrs.get(order.customerId) || null : null));
+    let recordAddress: typeof addresses.$inferSelect | undefined;
+    if (order.shippingAddressId) {
+      recordAddress = addrMap.get(order.shippingAddressId);
+    } else if (!snapshotAddress && order.customerId) {
+      recordAddress = fallbackCustomerAddrs.get(order.customerId);
+    }
+    // Prefer the phone captured at checkout if the saved address row is stale.
+    const shippingAddress = mergeSnapshotOverRecord(recordAddress ? addressRecordToSnapshot(recordAddress) : snapshotAddress, snapshotAddress);
+    logPhone(`hydrateOrders: order ${order.id}`, shippingAddress?.phone);
     const items = (itemsByOrder.get(order.id) || []).map(row => ({
       ...row.item,
       variant: row.variant,

@@ -2323,6 +2323,7 @@ function CheckoutPage() {
  country: "India",
  };
  }
+ console.log(`[phone-flow] checkout: captured phone=${addr.phone ? `"${addr.phone}"` : '(empty)'}, payload.shippingAddress.phone=${orderPayload.shippingAddress?.phone ? `"${orderPayload.shippingAddress.phone}"` : '(empty)'}, shippingAddressId=${orderPayload.shippingAddressId ?? '(none)'}`);
  const order = await ordersApi.create(orderPayload);
  setPlacedOrder(order);
  await cartApi.clear();
