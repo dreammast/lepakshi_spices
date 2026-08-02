@@ -31,6 +31,7 @@ export async function sendEmailSafely(options: SendEmailOptions) {
 export async function verifyEmailTransport() {
   // Brevo API key validation — no SMTP verify needed
   try {
+<<<<<<< HEAD
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 10_000);
     const res = await fetch('https://api.brevo.com/v3/account', {
@@ -49,6 +50,21 @@ export async function verifyEmailTransport() {
   } catch (error) {
     logger.warn({ err: error }, 'Brevo account verification failed; emails will be retried on the next action');
     return false;
+=======
+    await transporter.verify();
+    console.log("✅ SMTP Connected");
+
+    const info = await transporter.sendMail({
+      from: env.MAIL_FROM,
+      to: "YOUR_TEST_EMAIL@gmail.com",
+      subject: "SMTP Test",
+      text: "SMTP is working!",
+    });
+
+    console.log(info);
+  } catch (err) {
+    console.error(err);
+>>>>>>> b874e7ff0ddaf75bfef18313145bea6ffb439c17
   }
 }
 

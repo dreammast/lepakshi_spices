@@ -1,7 +1,29 @@
 import { env } from '../config/env.js';
+<<<<<<< HEAD
 import { logger } from '../utils/logger.js';
 
 const BREVO_API_BASE = 'https://api.brevo.com/v3';
+=======
+import dns from "node:dns";
+
+dns.setDefaultResultOrder("ipv4first");
+
+const transporter = nodemailer.createTransport({
+  host: env.SMTP_HOST,
+  port: env.SMTP_PORT,
+
+  secure: env.SMTP_SECURE === 'true',
+  requireTLS: env.SMTP_SECURE !== 'true',
+  tls: { minVersion: 'TLSv1.2' },
+  connectionTimeout: 10000,
+  greetingTimeout: 10000,
+  socketTimeout: 10000,
+  auth: {
+    user: env.SMTP_USER,
+    pass: env.SMTP_PASS,
+  },
+} as any);
+>>>>>>> b874e7ff0ddaf75bfef18313145bea6ffb439c17
 
 export interface BrevoSendMailRequest {
   sender: { name: string; email: string };
