@@ -73,8 +73,8 @@ export async function createOrderRecord(input: CreateOrderInput) {
     const [existingAddress] = await db.select().from(addresses).where(eq(addresses.id, shippingAddressId));
     shippingAddressSnapshotFromRecord = existingAddress
       ? {
-          name: existingAddress.label || undefined,
-          phone: undefined,
+          name: existingAddress.fullName || existingAddress.label || undefined,
+          phone: existingAddress.phone || undefined,
           line1: existingAddress.line1,
           line2: existingAddress.line2 || undefined,
           city: existingAddress.city,
@@ -88,6 +88,8 @@ export async function createOrderRecord(input: CreateOrderInput) {
   if (!shippingAddressId && input.shippingAddress) {
     const createdAddr = await createAddressRecord(input.customerId, {
       label: input.shippingAddress.name || 'Shipping Address',
+      fullName: input.shippingAddress.name || undefined,
+      phone: input.shippingAddress.phone || undefined,
       line1: input.shippingAddress.line1,
       line2: input.shippingAddress.line2,
       city: input.shippingAddress.city,

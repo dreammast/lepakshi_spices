@@ -1963,7 +1963,12 @@ function OrdersPage() {
                                         <p className="text-[10px] font-bold text-[#8B7355] uppercase tracking-widest mb-2">Customer Profile</p>
                                         <p className="text-sm font-semibold text-[#2C2416]">{drawerTarget.customer}</p>
                                         <p className="text-xs text-[#8B7355]">{drawerTarget.customerEmail}</p>
-                                        {drawerTarget.shippingAddress?.phone ? <p className="text-xs text-[#8B7355]">{drawerTarget.shippingAddress.phone}</p> : <p className="text-xs text-[#C94040]">Phone Number: Not Available</p>}
+                                        {(() => {
+                                            const phone = drawerTarget.shippingAddress?.phone || drawerTarget.customerPhone;
+                                            return phone
+                                                ? <p className="text-xs text-[#8B7355]">{phone}</p>
+                                                : <p className="text-xs text-[#C94040]">Phone Number: Not Available</p>;
+                                        })()}
                                         <div className="mt-2 space-y-0.5">
                                             {(() => {
                                                 const pm = drawerTarget.paymentMethod?.toLowerCase();
