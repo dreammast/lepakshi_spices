@@ -55,6 +55,11 @@ export type WholesaleQuotationData = {
   termsList?: string[] | null;
   validUntil?: string | Date | null;
   status?: string | null;
+  version?: number | string | null;
+  approvedAt?: string | Date | null;
+  emailSentAt?: string | Date | null;
+  emailSentBy?: string | null;
+  emailSentVersion?: number | string | null;
   createdAt?: string | Date | null;
   items?: Array<QuotationEmailItem>;
 };
@@ -72,6 +77,7 @@ function quoteCustomerCard(data: WholesaleQuotationData) {
       { label: 'Phone', value: escapeHtml(data.phone ? `+91 ${data.phone}` : '—') },
       ...(data.gstin ? [{ label: 'GSTIN', value: escapeHtml(data.gstin) }] : []),
       { label: 'Quotation No.', value: `<span style="font-family:monospace;font-weight:700;">${escapeHtml(quoteReference(data))}</span>` },
+      { label: 'Version', value: escapeHtml(data.version ? `v${data.version}` : '—') },
       { label: 'Valid Until', value: escapeHtml(formatDate(data.validUntil)) },
       { label: 'Prepared By', value: escapeHtml(data.salesExecutive || 'Lepakshi Spices Sales Team') },
     ])}

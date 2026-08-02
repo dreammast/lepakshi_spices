@@ -56,6 +56,18 @@ function invalidLinkPage() {
   );
 }
 
+function notAvailablePage() {
+  return brandedMessagePage(
+    'Quotation not yet available',
+    'This quotation has not been released to the customer yet. Once it is approved and sent, the customer can review it here.',
+    { label: 'Contact Wholesale Team', href: `mailto:lepakshispices@gmail.com?subject=Quotation status` },
+  );
+}
+
+function isReleasedQuotation(quotation: any) {
+  return quotation && !['draft', 'pending_approval', 'cancelled'].includes(String(quotation.status || 'draft'));
+}
+
 export async function viewQuotationController(req: Request, res: Response) {
   try {
     const id = Number(req.params.id);
@@ -68,6 +80,10 @@ export async function viewQuotationController(req: Request, res: Response) {
     const quotation = await recordQuotationView(id);
     if (!quotation) {
       res.status(404).send(invalidLinkPage());
+      return;
+    }
+    if (!isReleasedQuotation(quotation)) {
+      res.status(403).send(notAvailablePage());
       return;
     }
     res.set('Content-Type', 'text/html; charset=utf-8');
@@ -90,6 +106,10 @@ export async function respondQuotationController(req: Request, res: Response) {
     const quotation = await respondToQuotation(id, action);
     if (!quotation) {
       res.status(404).send(invalidLinkPage());
+      return;
+    }
+    if (!isReleasedQuotation(quotation)) {
+      res.status(403).send(notAvailablePage());
       return;
     }
     const ref = quotation.quoteNumber || `QT-${id}`;

@@ -1,7 +1,7 @@
 import { findAllWholesaleInquiries, findWholesaleInquiryById, createWholesaleInquiryRecord, updateWholesaleInquiryRecord, updateWholesaleInquiryStatus, findAllQuotations, findQuotationById, createQuotationRecord, updateQuotationRecord, deleteWholesaleInquiry, deleteQuotation } from '../repositories/wholesale.repository.js';
 import { AppError } from '../utils/app-error.js';
 import { sendWholesaleEnquiryReceived, sendWholesaleInquiryStatus, sendWholesaleQuotation, sendWholesaleQuotationUpdated, sendWholesaleQuotationAccepted, sendWholesaleQuotationRejected, sendWholesaleOrderConfirmation, sendWholesaleOrderStatus } from '../mail/email.service.js';
-import { emailLogEntry } from '../mail/email-log.js';
+import { emailLogEntry, formatTimelineTime } from '../mail/email-log.js';
 import { logger } from '../utils/logger.js';
 import { listProducts } from './product.service.js';
 
@@ -128,6 +128,53 @@ export async function getQuotation(id: number) {
   return q;
 }
 
+const QUOTE_CONTROL_FIELDS = new Set(['id', 'date', 'status', 'attachPdf', 'resend', 'sentBy', 'timeline', 'createdAt', 'updatedAt', 'version', 'approvedAt', 'emailSentAt', 'emailSentBy', 'emailSentVersion', 'inquiryId', 'customerId', 'quoteNumber']);
+const QUOTE_CONTENT_FIELDS = ['businessName', 'contactPerson', 'email', 'phone', 'billingAddress', 'shippingAddress', 'gstin', 'salesExecutive', 'discountType', 'discountValue', 'shippingCharges', 'paymentTerms', 'leadTimeDays', 'leadTime', 'packagingType', 'deliveryMethod', 'notes', 'termsList', 'validUntil', 'currency', 'items'];
+const QUOTE_EMITTED_STATUSES = ['approved', 'updated', 'sent', 'viewed'];
+
+function scalarDiffers(a: any, b: any) {
+  const numA = parseFloat(String(a));
+  const numB = parseFloat(String(b));
+  if (!isNaN(numA) && !isNaN(numB)) return Math.abs(numA - numB) > 1e-9;
+  return String(a ?? '') !== String(b ?? '');
+}
+
+function dateKey(value: any) {
+  if (value == null || value === '') return '__empty__';
+  const d = new Date(value);
+  if (isNaN(d.getTime())) return String(value);
+  return Math.floor(d.getTime() / 86400000);
+}
+
+function normalizeItems(items: any[]) {
+  return (items || []).map((it: any) => [
+    String(it.productName ?? it.name ?? ''),
+    String(it.weightLabel ?? it.weight ?? ''),
+    Number(it.quantity ?? 1),
+    Number(it.unitPrice ?? 0),
+    Number(it.discount ?? it.discountPercent ?? 0),
+    Number(it.gst ?? it.taxPercent ?? 0),
+  ]).sort();
+}
+
+// True only when the incoming payload actually changes quotation content, so
+// no-op saves never bump the version or flip a sent quotation to "Updated".
+function quotationContentDiffers(existing: any, data: Record<string, any>) {
+  if ('items' in data && JSON.stringify(normalizeItems(data.items)) !== JSON.stringify(normalizeItems(existing?.items))) {
+    return true;
+  }
+  for (const key of QUOTE_CONTENT_FIELDS) {
+    if (key === 'items' || !(key in data)) continue;
+    const existingKey = key === 'leadTime' ? 'leadTimeDays' : key;
+    if (key === 'validUntil') {
+      if (dateKey(data[key]) !== dateKey(existing?.[existingKey])) return true;
+    } else if (scalarDiffers(data[key], existing?.[existingKey])) {
+      return true;
+    }
+  }
+  return false;
+}
+
 export async function createQuotation(data: Record<string, any>) {
   const calculated = calculateTotals(data);
   const mergedData = {
@@ -143,7 +190,7 @@ export async function createQuotation(data: Record<string, any>) {
   };
 
   const created = await createQuotationRecord(mergedData);
-  const timeStr = new Date().toLocaleDateString('en-IN') + ' ' + new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+  const timeStr = formatTimelineTime();
 
   if (created?.inquiryId) {
     try {
@@ -154,7 +201,7 @@ export async function createQuotation(data: Record<string, any>) {
         await updateWholesaleInquiryRecord(created.inquiryId, {
           status: 'quotation_sent',
           notes: [...existingNotes, `[${timeStr}] Quotation ${created.quoteNumber || created.id} generated.`],
-          timeline: [...existingTimeline, { time: timeStr, event: `Quotation ${created.quoteNumber || created.id} Sent` }]
+          timeline: [...existingTimeline, { time: timeStr, event: `Quotation ${created.quoteNumber || created.id} Generated` }]
         });
       }
     } catch (e) {
@@ -162,8 +209,8 @@ export async function createQuotation(data: Record<string, any>) {
     }
   }
 
-  if (String(created?.status || data.status || 'draft') === 'sent') {
-    await dispatchQuotationEmail(created, data.attachPdf === true, timeStr);
+  if (String(created?.status || 'draft') === 'approved') {
+    await approveAndSend(created, { attachPdf: data.attachPdf === true, sentBy: data.sentBy, timeStr });
   }
 
   return created;
@@ -171,6 +218,7 @@ export async function createQuotation(data: Record<string, any>) {
 
 export async function updateQuotation(id: number, data: Record<string, any>) {
   const existing = await findQuotationById(id);
+  if (!existing) throw new AppError(404, 'Quotation not found');
 
   const hasItems = Array.isArray(data.items) && data.items.length > 0;
   let mergedData: Record<string, any>;
@@ -193,20 +241,25 @@ export async function updateQuotation(id: number, data: Record<string, any>) {
     mergedData = rest;
   }
 
-  const meaningfulKeys = Object.keys(data).filter((k) => !['id', 'status', 'attachPdf', 'timeline', 'createdAt', 'updatedAt'].includes(k));
-  const hasContentChanges = meaningfulKeys.length > 0;
+  const prevStatus = String(existing.status || 'draft');
+  const newStatus = mergedData.status !== undefined ? String(mergedData.status) : prevStatus;
+  const hasContentChanges = quotationContentDiffers(existing, mergedData);
 
-  await updateQuotationRecord(id, mergedData);
-  const full = await findQuotationById(id);
+  let nextVersion = Number(existing.version ?? 1);
+  if (hasContentChanges) nextVersion += 1;
 
-  const newStatus = String(mergedData.status ?? existing?.status ?? 'draft');
-  const prevStatus = String(existing?.status ?? 'draft');
-  const isStatusTransition = newStatus !== prevStatus;
+  const saveData: Record<string, any> = { ...mergedData };
+  if (hasContentChanges) saveData.version = nextVersion;
 
-  const timeStr = new Date().toLocaleDateString('en-IN') + ' ' + new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+  await updateQuotationRecord(id, saveData);
+  let full = await findQuotationById(id);
+  const timeStr = formatTimelineTime();
 
-  if (newStatus === 'sent' && prevStatus !== 'sent') {
-    if (full) await dispatchQuotationEmail(full, data.attachPdf === true, timeStr);
+  // Approval is the ONLY automatic trigger for a quotation email.
+  if (newStatus === 'approved' && prevStatus !== 'approved') {
+    full = await approveAndSend(full, { attachPdf: data.attachPdf === true, sentBy: data.sentBy, timeStr });
+  } else if (data.resend === true) {
+    full = await resendQuotationEmail(full, { attachPdf: data.attachPdf === true, sentBy: data.sentBy, timeStr });
   } else if (newStatus === 'accepted' && prevStatus !== 'accepted' && full) {
     const orderRef = `ORD-${full.id}`;
     const result = await sendWholesaleQuotationAccepted(full, {
@@ -230,52 +283,61 @@ export async function updateQuotation(id: number, data: Record<string, any>) {
       { time: timeStr, event: `Wholesale Order ${orderRef} Created & Confirmed` },
       emailLogEntry({ type: 'wholesale.order.confirmed', recipient: full.email, status: result ? 'sent' : 'failed', messageId: result?.messageId ?? null, relatedId: full.id }),
     ]);
-  } else if (
-    !isStatusTransition &&
-    full &&
-    LIVE_QUOTE_STATUSES.includes(prevStatus) &&
-    (hasContentChanges || data.attachPdf === true)
-  ) {
-    await dispatchQuotationUpdateEmail(full, data.attachPdf === true, timeStr);
+  } else if (hasContentChanges && newStatus === prevStatus && QUOTE_EMITTED_STATUSES.includes(prevStatus)) {
+    // Edited after it was already sent: mark as Updated, never auto-email.
+    await updateQuotationRecord(id, { status: 'updated' });
+    full = await findQuotationById(id);
+    await appendQuotationTimeline(full, [
+      { time: timeStr, event: `Quotation revised to version ${full?.version} — awaiting resend by admin` },
+    ]);
   }
 
   return full;
 }
 
-const LIVE_QUOTE_STATUSES = ['sent', 'viewed', 'negotiation'];
+async function approveAndSend(quotation: any, opts: { attachPdf: boolean; sentBy?: string; timeStr: string }) {
+  const id = Number(quotation.id);
+  const sentBy = opts.sentBy || quotation.salesExecutive || 'Admin';
+  const now = new Date();
 
-async function dispatchQuotationEmail(quotation: any, attachPdf: boolean, timeStr: string) {
-  try {
-    const result = await sendWholesaleQuotation(quotation, { attachPdf });
-    if (result) {
-      await appendQuotationTimeline(quotation, [
-        emailLogEntry({ type: 'wholesale.quotation.sent', recipient: quotation.email, status: 'sent', messageId: result.messageId, relatedId: quotation.id }),
-      ]);
-    } else {
-      await appendQuotationTimeline(quotation, [
-        emailLogEntry({ type: 'wholesale.quotation.sent', recipient: quotation.email, status: 'failed', relatedId: quotation.id }),
-      ]);
-    }
-  } catch (e) {
-    logger.error({ err: e, quoteId: quotation.id }, 'Failed to send quotation email');
+  // Duplicate guard: never email the same version twice automatically.
+  if (Number(quotation.emailSentVersion) === Number(quotation.version)) {
+    if (!quotation.approvedAt) await updateQuotationRecord(id, { approvedAt: now });
+    return findQuotationById(id);
   }
+
+  const result = await sendWholesaleQuotation(quotation, { attachPdf: opts.attachPdf });
+  await updateQuotationRecord(id, {
+    approvedAt: quotation.approvedAt ? new Date(quotation.approvedAt) : now,
+    emailSentAt: result ? now : undefined,
+    emailSentBy: result ? sentBy : undefined,
+    emailSentVersion: result ? Number(quotation.version) : undefined,
+  });
+  await appendQuotationTimeline(quotation, [
+    { time: opts.timeStr, event: `Quotation Approved & emailed (v${quotation.version}) by ${sentBy}` },
+    emailLogEntry({ type: 'wholesale.quotation.approved', recipient: quotation.email, status: result ? 'sent' : 'failed', messageId: result?.messageId ?? null, relatedId: id }),
+  ]);
+  return findQuotationById(id);
 }
 
-async function dispatchQuotationUpdateEmail(quotation: any, attachPdf: boolean, timeStr: string) {
-  try {
-    const result = await sendWholesaleQuotationUpdated(quotation, { attachPdf });
-    if (result) {
-      await appendQuotationTimeline(quotation, [
-        emailLogEntry({ type: 'wholesale.quotation.updated', recipient: quotation.email, status: 'sent', messageId: result.messageId, relatedId: quotation.id }),
-      ]);
-    } else {
-      await appendQuotationTimeline(quotation, [
-        emailLogEntry({ type: 'wholesale.quotation.updated', recipient: quotation.email, status: 'failed', relatedId: quotation.id }),
-      ]);
-    }
-  } catch (e) {
-    logger.error({ err: e, quoteId: quotation.id }, 'Failed to send quotation update email');
-  }
+async function resendQuotationEmail(quotation: any, opts: { attachPdf: boolean; sentBy?: string; timeStr: string }) {
+  const id = Number(quotation.id);
+  const sentBy = opts.sentBy || quotation.salesExecutive || 'Admin';
+  const now = new Date();
+  const isRevision = String(quotation.status) === 'updated';
+  const result = isRevision
+    ? await sendWholesaleQuotationUpdated(quotation, { attachPdf: opts.attachPdf })
+    : await sendWholesaleQuotation(quotation, { attachPdf: opts.attachPdf });
+  await updateQuotationRecord(id, {
+    emailSentAt: result ? now : undefined,
+    emailSentBy: result ? sentBy : undefined,
+    emailSentVersion: result ? Number(quotation.version) : undefined,
+  });
+  await appendQuotationTimeline(quotation, [
+    { time: opts.timeStr, event: `Quotation resent (v${quotation.version}) to ${quotation.email || 'customer'} by ${sentBy}` },
+    emailLogEntry({ type: 'wholesale.quotation.resend', recipient: quotation.email, status: result ? 'sent' : 'failed', messageId: result?.messageId ?? null, relatedId: id }),
+  ]);
+  return findQuotationById(id);
 }
 
 async function appendQuotationTimeline(quotation: any, events: Array<{ time: string; event: string }>) {
@@ -314,7 +376,8 @@ export async function respondToQuotation(id: number, action: 'accept' | 'reject'
   const full = await findQuotationById(id);
   if (!full) throw new AppError(404, 'Quotation not found');
   const current = String(full.status || 'draft');
-  if (current === 'accepted' || current === 'rejected' || current === 'converted' || current === 'expired') {
+  const nonRespondable = ['accepted', 'rejected', 'converted', 'expired', 'cancelled', 'draft', 'pending_approval'];
+  if (nonRespondable.includes(current)) {
     return full;
   }
   if (action !== 'accept' && action !== 'reject') {

@@ -113,7 +113,13 @@ export async function createQuotationRecord(data: Record<string, any>) {
     notes: data.notes,
     termsList: data.termsList || [],
     timeline: data.timeline || [],
+    validUntil: data.validUntil ? new Date(data.validUntil) : null,
     status: data.status || 'draft',
+    version: Number(data.version) || 1,
+    approvedAt: data.approvedAt ? new Date(data.approvedAt) : null,
+    emailSentAt: data.emailSentAt ? new Date(data.emailSentAt) : null,
+    emailSentBy: data.emailSentBy || null,
+    emailSentVersion: data.emailSentVersion != null ? Number(data.emailSentVersion) : null,
     createdAt: now,
     updatedAt: now
   });
@@ -172,6 +178,12 @@ export async function updateQuotationRecord(id: number, data: Record<string, any
   if (rest.termsList !== undefined) updateFields.termsList = rest.termsList;
   if (rest.timeline !== undefined) updateFields.timeline = rest.timeline;
   if (rest.status !== undefined) updateFields.status = rest.status;
+  if (rest.validUntil !== undefined) updateFields.validUntil = rest.validUntil ? new Date(rest.validUntil) : null;
+  if (rest.version !== undefined) updateFields.version = Number(rest.version);
+  if (rest.approvedAt !== undefined) updateFields.approvedAt = rest.approvedAt ? new Date(rest.approvedAt) : null;
+  if (rest.emailSentAt !== undefined) updateFields.emailSentAt = rest.emailSentAt ? new Date(rest.emailSentAt) : null;
+  if (rest.emailSentBy !== undefined) updateFields.emailSentBy = rest.emailSentBy || null;
+  if (rest.emailSentVersion !== undefined) updateFields.emailSentVersion = rest.emailSentVersion != null ? Number(rest.emailSentVersion) : null;
 
   await db.update(quotations).set(updateFields).where(eq(quotations.id, id));
 

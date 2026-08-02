@@ -408,7 +408,12 @@ export const quotations = mysqlTable('quotations', {
   termsList: json('terms_list').$type<string[]>(),
   timeline: json('timeline').$type<any[]>(),
   validUntil: datetime('valid_until'),
-  status: mysqlEnum('status', ['draft', 'sent', 'accepted', 'rejected', 'expired', 'converted']).notNull().default('draft'),
+  status: mysqlEnum('status', ['draft', 'pending_approval', 'approved', 'updated', 'sent', 'viewed', 'accepted', 'rejected', 'expired', 'cancelled', 'converted']).notNull().default('draft'),
+  version: int('version').notNull().default(1),
+  approvedAt: datetime('approved_at'),
+  emailSentAt: datetime('email_sent_at'),
+  emailSentBy: varchar('email_sent_by', { length: 128 }),
+  emailSentVersion: int('email_sent_version'),
   createdAt: datetime('created_at').notNull(),
   updatedAt: datetime('updated_at').notNull()
 }, (table) => ({

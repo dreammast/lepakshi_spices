@@ -4857,6 +4857,8 @@ function QuotationManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
     const statusColorMap: Record<string, { label: string; bg: string; text: string; dot: string }> = {
         draft: { label: "Draft", bg: "#F0EDE8", text: "#7D7060", dot: "#A69888" },
         pending_approval: { label: "Pending Approval", bg: "#FFF4E5", text: "#B26A00", dot: "#ED8936" },
+        approved: { label: "Approved", bg: "#EBF5E6", text: "#2D5016", dot: "#4A7A2A" },
+        updated: { label: "Updated", bg: "#FFF4E5", text: "#B26A00", dot: "#ED8936" },
         sent: { label: "Sent", bg: "#E8F2FE", text: "#1B5EAD", dot: "#2B7FE2" },
         viewed: { label: "Viewed", bg: "#FAF0FF", text: "#8A2BE2", dot: "#C77DFF" },
         accepted: { label: "Accepted", bg: "#EBF5E6", text: "#2D5016", dot: "#4A7A2A" },
@@ -5080,6 +5082,7 @@ function QuotationManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
             if (activeDetailQuote && activeDetailQuote.id === id) {
                 setActiveDetailQuote({ ...activeDetailQuote, status: newStatus, timeline: [...(activeDetailQuote.timeline || []), { time: timeStr, event: logEvent }] });
             }
+            refreshQuoteList().catch(() => {});
         } catch (err: any) {
             toast.error(err.message || "Failed to update quotation status");
         }
@@ -5393,32 +5396,46 @@ function QuotationManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
         }
     };
 
-    const handleMarkAsSent = (q: any) => {
-        handleUpdateStatusSingle(q.id, "sent");
-        toast.success("Quotation marked as Sent!");
+    const [attachPdfToggle, setAttachPdfToggle] = useState(false);
+    const [sentByName, setSentByName] = useState("");
+
+    const refreshQuoteList = async () => {
+        const data = await wholesaleApi.listQuotations();
+        if (Array.isArray(data)) {
+            setQuotations(data);
+            setActiveDetailQuote(prev => prev ? (data.find(x => String(x.id) === String(prev.id)) || prev) : prev);
+        }
     };
 
-    const [attachPdfToggle, setAttachPdfToggle] = useState(false);
+    const dbIdOf = (q: any) => {
+        const dbId = typeof q?.id === 'string' && q.id.match(/^\d+$/) ? Number(q.id) : (typeof q?.id === 'number' ? q.id : null);
+        if (!dbId) throw new Error("This quotation has no server record yet. Save it first.");
+        return dbId;
+    };
 
-    const handleSendQuotationEmail = async (q: any, attachPdf: boolean) => {
+    const handleApproveAndSend = async (q: any, attachPdf: boolean) => {
         try {
-            const dbId = typeof q.id === 'string' && q.id.match(/^\d+$/) ? Number(q.id) : null;
-            if (!dbId) throw new Error("This quotation has no server record to email from yet. Save it first.");
-            const result: any = await wholesaleApi.sendQuotation(dbId, attachPdf);
-            const timeStr = new Date().toLocaleDateString('en-IN') + " " + new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
-            const logEvent = `Quotation Email Sent to ${q.email || "customer"}${attachPdf ? " (PDF attached)" : ""}`;
-            const updated = quotations.map(item => {
-                if (item.id === q.id) return { ...item, status: "sent", timeline: [...(item.timeline || []), { time: timeStr, event: logEvent }] };
-                return item;
-            });
-            setQuotations(updated);
-            if (activeDetailQuote && activeDetailQuote.id === q.id) {
-                setActiveDetailQuote({ ...activeDetailQuote, status: "sent", timeline: [...(activeDetailQuote.timeline || []), { time: timeStr, event: logEvent }] });
-            }
-            addAuditLog("Quotation Email Sent", `Quotation ${q.id} emailed to ${q.email || "customer"}${attachPdf ? " with PDF" : ""}`);
-            toast.success(`Quotation email sent${attachPdf ? " with PDF attached" : ""}`);
+            const dbId = dbIdOf(q);
+            const sentBy = sentByName.trim() || q.salesExecutive || "Admin";
+            await wholesaleApi.approveAndSend(dbId, attachPdf, sentBy);
+            await refreshQuoteList();
+            addAuditLog("Quotation Approved & Sent", `Quotation ${q.id} approved and emailed to ${q.email || "customer"} by ${sentBy}${attachPdf ? " with PDF" : ""}`);
+            toast.success(`Quotation approved and emailed${attachPdf ? " with PDF attached" : ""}`);
         } catch (err: any) {
-            toast.error(err.message || "Failed to send quotation email");
+            toast.error(err.message || "Failed to approve and send quotation");
+        }
+    };
+
+    const handleResendQuotation = async (q: any, attachPdf: boolean) => {
+        try {
+            const dbId = dbIdOf(q);
+            const sentBy = sentByName.trim() || q.salesExecutive || "Admin";
+            await wholesaleApi.resendQuotation(dbId, attachPdf, sentBy);
+            await refreshQuoteList();
+            addAuditLog("Quotation Resent", `Quotation ${q.id} (v${q.version || "?"}) resent to ${q.email || "customer"} by ${sentBy}${attachPdf ? " with PDF" : ""}`);
+            toast.success(`Latest quotation version emailed${attachPdf ? " with PDF attached" : ""}`);
+        } catch (err: any) {
+            toast.error(err.message || "Failed to resend quotation");
         }
     };
 
@@ -5765,7 +5782,7 @@ function QuotationManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
             {/* Action controls */}
             <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[#2C2416]/10 pb-4">
                 <div className="flex flex-wrap gap-2">
-                    {["all", "draft", "sent", "accepted", "rejected", "expired", "converted"].map(tab => (
+                    {["all", "draft", "pending_approval", "approved", "updated", "sent", "accepted", "rejected", "expired", "converted"].map(tab => (
                         <button key={tab} onClick={() => { setActiveTab(tab); setCurrentPage(1); }}
                             className={`px-4 py-2 rounded-full text-xs font-semibold uppercase tracking-wider transition-all duration-150 ${activeTab === tab ? "bg-[#2D5016] text-white" : "bg-white text-[#2C2416] border border-[#2C2416]/10"}`}>
                             {tab.replace("_", " ")} ({tab === "all" ? quotations.length : quotations.filter(x => x.status === tab).length})
@@ -5908,29 +5925,78 @@ function QuotationManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
                     <div className="p-6 space-y-6 text-[#2C2416]">
                         {/* Status updates buttons */}
                         <div className="flex gap-2">
-                            <button onClick={() => handleMarkAsSent(activeDetailQuote)}
-                                className="flex-1 py-2 bg-[#2D5016] text-white font-semibold rounded-xl text-xs flex items-center justify-center gap-1.5 hover:bg-[#1A3A0A] cursor-pointer">
-                                <Check className="w-3.5 h-3.5" /> Mark as Sent
-                            </button>
+                            {["draft", "pending_approval"].includes(activeDetailQuote.status) ? (
+                                <button onClick={() => handleApproveAndSend(activeDetailQuote, attachPdfToggle)}
+                                    className="flex-1 py-2 bg-[#2D5016] text-white font-semibold rounded-xl text-xs flex items-center justify-center gap-1.5 hover:bg-[#1A3A0A] cursor-pointer">
+                                    <Check className="w-3.5 h-3.5" /> Approve & Send Quotation
+                                </button>
+                            ) : (
+                                <button onClick={() => handleResendQuotation(activeDetailQuote, attachPdfToggle)}
+                                    className="flex-1 py-2 bg-[#2D5016] text-white font-semibold rounded-xl text-xs flex items-center justify-center gap-1.5 hover:bg-[#1A3A0A] cursor-pointer">
+                                    <Mail className="w-3.5 h-3.5" /> Resend Quotation
+                                </button>
+                            )}
                             <button onClick={() => handleShareQuoteLink(activeDetailQuote)}
                                 className="flex-1 py-2 bg-[#FAF8F5] border border-[#2C2416]/10 text-[#2C2416] font-semibold rounded-xl text-xs flex items-center justify-center gap-1.5 hover:bg-[#F0EDE8] cursor-pointer">
                                 <Layers className="w-3.5 h-3.5" /> Copy Share Link
                             </button>
                         </div>
 
-                        {/* Send quotation email */}
+                        {/* Approve & Send / Resend quotation email */}
                         <div className="p-4 rounded-2xl bg-[#FAF8F5] border border-[#2C2416]/10 space-y-2">
-                            <p className="text-xs font-bold text-[#2C2416]">Email this quotation to the customer</p>
-                            <p className="text-[11px] text-[#8B7355]">Sends a branded inline quotation via email with accept / reject links. Optionally attach a server-generated PDF.</p>
+                            <p className="text-xs font-bold text-[#2C2416]">
+                                {["draft", "pending_approval"].includes(activeDetailQuote.status) ? "Approve & email the quotation to the customer" : "Resend the latest approved quotation to the customer"}
+                            </p>
+                            <p className="text-[11px] text-[#8B7355]">
+                                Emails the LATEST saved version from the server to {activeDetailQuote.email || "the quotation customer"}. Approving is the only action that emails; editing a sent quotation marks it "Updated" without emailing until you resend.
+                            </p>
+                            <input value={sentByName} onChange={e => setSentByName(e.target.value)}
+                                placeholder={`Sent By (e.g. ${activeDetailQuote.salesExecutive || "Admin"})`}
+                                className="w-full bg-white border border-[#2C2416]/10 rounded-xl px-3 py-2 text-xs outline-none text-[#2C2416] placeholder:text-gray-400" />
                             <label className="flex items-center gap-2 text-xs text-[#2C2416] cursor-pointer">
                                 <input type="checkbox" checked={attachPdfToggle} onChange={e => setAttachPdfToggle(e.target.checked)}
                                     className="w-3.5 h-3.5 accent-[#2D5016]" />
                                 Attach PDF copy of the quotation
                             </label>
-                            <button onClick={() => handleSendQuotationEmail(activeDetailQuote, attachPdfToggle)}
-                                className="w-full py-2 bg-[#2D5016] hover:bg-[#1A3A0A] text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer">
-                                <Mail className="w-4 h-4" /> Send Quotation Email{attachPdfToggle ? " (with PDF)" : ""}
-                            </button>
+                            {["draft", "pending_approval"].includes(activeDetailQuote.status) ? (
+                                <button onClick={() => handleApproveAndSend(activeDetailQuote, attachPdfToggle)}
+                                    className="w-full py-2 bg-[#2D5016] hover:bg-[#1A3A0A] text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer">
+                                    <Check className="w-4 h-4" /> Approve & Send Quotation{attachPdfToggle ? " (with PDF)" : ""}
+                                </button>
+                            ) : (
+                                <button onClick={() => handleResendQuotation(activeDetailQuote, attachPdfToggle)}
+                                    className="w-full py-2 bg-[#2D5016] hover:bg-[#1A3A0A] text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer">
+                                    <Mail className="w-4 h-4" /> Resend Quotation{attachPdfToggle ? " (with PDF)" : ""}
+                                </button>
+                            )}
+                        </div>
+
+                        {/* Version & delivery tracking */}
+                        <div className="p-4 rounded-2xl bg-[#FAF8F5] border border-[#2C2416]/10 grid grid-cols-2 gap-3 text-xs">
+                            <div>
+                                <p className="text-[10px] uppercase font-bold text-[#8B7355]">Quotation Version</p>
+                                <p className="font-bold text-[#2D5016]">v{activeDetailQuote.version || 1}</p>
+                            </div>
+                            <div>
+                                <p className="text-[10px] uppercase font-bold text-[#8B7355]">Last Updated</p>
+                                <p className="font-semibold">{activeDetailQuote.updatedAt ? new Date(activeDetailQuote.updatedAt).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : "—"}</p>
+                            </div>
+                            <div>
+                                <p className="text-[10px] uppercase font-bold text-[#8B7355]">Approved At</p>
+                                <p className="font-semibold">{activeDetailQuote.approvedAt ? new Date(activeDetailQuote.approvedAt).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : "—"}</p>
+                            </div>
+                            <div>
+                                <p className="text-[10px] uppercase font-bold text-[#8B7355]">Email Sent At</p>
+                                <p className="font-semibold">{activeDetailQuote.emailSentAt ? new Date(activeDetailQuote.emailSentAt).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : "—"}</p>
+                            </div>
+                            <div>
+                                <p className="text-[10px] uppercase font-bold text-[#8B7355]">Sent By</p>
+                                <p className="font-semibold">{activeDetailQuote.emailSentBy || "—"}</p>
+                            </div>
+                            <div>
+                                <p className="text-[10px] uppercase font-bold text-[#8B7355]">Emailed Version</p>
+                                <p className="font-semibold">{activeDetailQuote.emailSentVersion ? `v${activeDetailQuote.emailSentVersion}` : "—"}</p>
+                            </div>
                         </div>
 
                         {/* Send wholesale order status email (converted quotes only) */}

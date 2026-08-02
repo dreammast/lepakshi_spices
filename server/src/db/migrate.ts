@@ -66,7 +66,13 @@ export async function runMigrations() {
     `ALTER TABLE quotations ADD COLUMN payable_amount DECIMAL(12,2) NOT NULL DEFAULT '0.00'`,
     `ALTER TABLE quotations ADD COLUMN round_off DECIMAL(12,2) NOT NULL DEFAULT '0.00'`,
     `ALTER TABLE quotations ADD COLUMN terms_list JSON NULL`,
-    `ALTER TABLE quotations ADD COLUMN timeline JSON NULL`
+    `ALTER TABLE quotations ADD COLUMN timeline JSON NULL`,
+    `ALTER TABLE quotations MODIFY COLUMN status ENUM('draft', 'pending_approval', 'approved', 'updated', 'sent', 'viewed', 'accepted', 'rejected', 'expired', 'cancelled', 'converted') NOT NULL DEFAULT 'draft'`,
+    `ALTER TABLE quotations ADD COLUMN version INT NOT NULL DEFAULT 1`,
+    `ALTER TABLE quotations ADD COLUMN approved_at DATETIME NULL`,
+    `ALTER TABLE quotations ADD COLUMN email_sent_at DATETIME NULL`,
+    `ALTER TABLE quotations ADD COLUMN email_sent_by VARCHAR(128) NULL`,
+    `ALTER TABLE quotations ADD COLUMN email_sent_version INT NULL`
   ];
 
   for (const statement of columnMigrations) {

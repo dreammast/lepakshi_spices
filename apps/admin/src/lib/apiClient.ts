@@ -173,7 +173,8 @@ export const wholesaleApi = {
   createQuotation: (body: unknown) => api.post<any>('/admin/quotations', body),
   updateQuotation: (id: number, body: unknown) => api.put<any>(`/admin/quotations/${id}`, body),
   deleteQuotation: (id: number) => api.delete<any>(`/admin/quotations/${id}`),
-  sendQuotation: (id: number, attachPdf = false) => api.put<any>(`/admin/quotations/${id}`, { status: 'sent', attachPdf }),
+  approveAndSend: (id: number, attachPdf = false, sentBy = 'Admin') => api.put<any>(`/admin/quotations/${id}`, { status: 'approved', attachPdf, sentBy }),
+  resendQuotation: (id: number, attachPdf = false, sentBy = 'Admin') => api.put<any>(`/admin/quotations/${id}`, { resend: true, attachPdf, sentBy }),
   notifyOrderStatus: (id: number, status: string) => api.post<any>(`/admin/quotations/${id}/notify-order-status`, { status })
 };
 
