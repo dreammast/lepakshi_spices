@@ -10,7 +10,7 @@ import { notFoundHandler, errorHandler } from './middleware/error.middleware.js'
 import { swaggerSpec } from './utils/swagger.js';
 import { adminActivity } from './middleware/admin-activity.middleware.js';
 import { runMigrations } from './db/migrate.js';
-import { verifyEmailTransport } from './mail/send-email.js';
+
 
 const app = express();
 app.use(requestLogger);
@@ -55,9 +55,11 @@ app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 app.use(notFoundHandler);
 app.use(errorHandler);
 
-export function startServer() {
+export async function startServer() {
   const port = Number(env.PORT);
   runMigrations().catch(err => console.warn('[migrate] Migration check failed:', err.message));
+  // Brevo transport is verified on-demand during startup — no SMTP verify needed
+  const { verifyEmailTransport } = await import('./mail/send-email.js');
   void verifyEmailTransport();
   app.listen(port, () => {
     console.log(`Lepakshi Spices backend listening on port ${port}`);
