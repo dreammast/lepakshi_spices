@@ -31,11 +31,18 @@ export async function sendEmailSafely(options: SendEmailOptions) {
 export async function verifyEmailTransport() {
   try {
     await transporter.verify();
-    logger.info('SMTP transport is ready');
-    return true;
-  } catch (error) {
-    logger.warn({ err: error }, 'SMTP transport verification failed; customer emails will be retried on the next action');
-    return false;
+    console.log("✅ SMTP Connected");
+
+    const info = await transporter.sendMail({
+      from: env.MAIL_FROM,
+      to: "YOUR_TEST_EMAIL@gmail.com",
+      subject: "SMTP Test",
+      text: "SMTP is working!",
+    });
+
+    console.log(info);
+  } catch (err) {
+    console.error(err);
   }
 }
 
