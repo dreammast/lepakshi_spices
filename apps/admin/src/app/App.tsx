@@ -23,6 +23,7 @@ import {
 } from "recharts";
 import { SmartPricingAssistant } from "./components/SmartPricingAssistant";
 import { useHeartbeat } from "../lib/useHeartbeat";
+import { catalogPacks, findCatalogProduct, makeEmptyItem, matchPack, packPrice, parseQuantityHint } from "../lib/quoteCatalog";
 import { authApi, auditApi, categoriesApi, customersApi, ordersApi, couponsApi, campaignsApi, recipesApi, reviewsApi, wholesaleApi, productsApi, dashboardApi, settingsApi, collectionsApi, type CustomerDetails, type CustomerListItem } from "../lib/apiClient";
 
 // Brand Tokens 
@@ -3298,7 +3299,7 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
         id: "", date: "", validUntil: "", businessName: "", contactPerson: "",
         email: "", phone: "", billingAddress: "", shippingAddress: "", gstin: "",
         salesExecutive: "Unassigned",
-        items: [{ name: "Chilli Powder", weight: "25kg Bag", quantity: 1, unitPrice: 2750, discount: 0, gst: 5 }],
+        items: [],
         discountType: "percentage", discountValue: 0, shippingCharges: 0,
         paymentTerms: "50% Advance, 50% on Dispatch", leadTime: 5,
         packagingType: "Bulk Crate", deliveryMethod: "Road Freight", notes: "",
@@ -3306,6 +3307,20 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
         status: "draft", timeline: [], inquiryId: ""
     });
     const [customTerm, setCustomTerm] = useState<string>("");
+    const [catalogProducts, setCatalogProducts] = useState<any[]>([]);
+    const [defaultGst, setDefaultGst] = useState<number | null>(null);
+
+    useEffect(() => {
+        productsApi.list().then((list: any[]) => {
+            if (Array.isArray(list)) setCatalogProducts(list);
+        }).catch((error: any) => console.warn("Unable to load product catalog", error));
+        settingsApi.get("tax_settings").then((d: any) => {
+            const gst = Number(d?.value?.gst);
+            if (Number.isFinite(gst) && gst >= 0) setDefaultGst(gst);
+        }).catch(() => {});
+    }, []);
+
+    const packsFor = (name: string) => catalogPacks(findCatalogProduct(catalogProducts, name));
 
     const refreshInquiries = () => wholesaleApi.listInquiries()
         .then((items: any[]) => setInquiries(items.map(item => ({
@@ -3411,9 +3426,12 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
             const newId = "QT-2026-" + Math.floor(Math.random() * 90000 + 10000);
             const today = new Date().toLocaleDateString('en-IN');
             const futureDate = new Date(); futureDate.setDate(futureDate.getDate() + 15);
-            const volStr = inq.volume || "5kg Pack";
-            const matchedQty = parseInt(volStr) || 1;
-            const sizeTag = volStr.includes("kg") ? volStr.substring(0, volStr.indexOf("kg") + 2).trim() : "5kg Pack";
+            const productName = inq.productInterest || "";
+            const product = findCatalogProduct(catalogProducts, productName);
+            const packs = catalogPacks(product);
+            const volStr = inq.volume || "";
+            const matchedPack = matchPack(volStr, packs) || packs[0] || undefined;
+            const matchedQty = parseQuantityHint(volStr) || 1;
             setQuoteForm({
                 id: newId, date: today, validUntil: futureDate.toLocaleDateString('en-IN'),
                 businessName: inq.businessName, contactPerson: inq.contactName,
@@ -3422,7 +3440,7 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
                 shippingAddress: inq.businessName + " Storage / Yard",
                 gstin: "",
                 salesExecutive: inq.assignedExecutive !== "Unassigned" ? inq.assignedExecutive : "Amit Verma",
-                items: [{ name: inq.productInterest || "Chilli Powder", weight: sizeTag, quantity: matchedQty, unitPrice: 2750, discount: 0, gst: 5 }],
+                items: [{ name: productName, weight: matchedPack ? matchedPack.label : "", quantity: matchedQty, unitPrice: packPrice(matchedPack), discount: 0, gst: defaultGst ?? 0 }],
                 discountType: "percentage", discountValue: 0, shippingCharges: 350,
                 paymentTerms: "50% Advance, 50% on Dispatch", leadTime: 7,
                 packagingType: "Commercial Bag", deliveryMethod: "Road Freight",
@@ -3506,7 +3524,10 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
     };
 
     const handleAddItemRow = () => {
-        setQuoteForm({ ...quoteForm, items: [...quoteForm.items, { name: "Turmeric Powder", weight: "10kg Bag", quantity: 1, unitPrice: 1100, discount: 0, gst: 5 }] });
+        if (quoteForm.items.some((it: any) => !String(it.name || "").trim())) {
+            toast.error("Complete the empty line item before adding another."); return;
+        }
+        setQuoteForm({ ...quoteForm, items: [...quoteForm.items, makeEmptyItem(defaultGst)] });
     };
     const handleRemoveItemRow = (idx: number) => {
         if (quoteForm.items.length <= 1) { toast.error("Must have at least one line item."); return; }
@@ -3514,6 +3535,19 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
     };
     const handleItemFieldChange = (idx: number, field: string, value: any) => {
         const updated = [...quoteForm.items]; updated[idx][field] = value;
+        if (field === "name") {
+            const product = findCatalogProduct(catalogProducts, value);
+            const packs = catalogPacks(product);
+            const first = packs[0];
+            updated[idx].weight = first ? first.label : "";
+            updated[idx].unitPrice = packPrice(first);
+            if (updated[idx].gst == null || updated[idx].gst === "") updated[idx].gst = defaultGst ?? 0;
+        } else if (field === "weight") {
+            const product = findCatalogProduct(catalogProducts, updated[idx].name);
+            const packs = catalogPacks(product);
+            const pack = packs.find((p: any) => p.label === value) || packs[0];
+            updated[idx].unitPrice = packPrice(pack);
+        }
         setQuoteForm({ ...quoteForm, items: updated });
     };
     const handleAddCustomTerm = () => {
@@ -4150,11 +4184,7 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
                     <select value={productFilter} onChange={e => { setProductFilter(e.target.value); setCurrentPage(1); }}
                         className="px-3 py-2 rounded-xl text-xs font-medium bg-white border border-[#2C2416]/10 outline-none cursor-pointer">
                         <option value="all">All Products</option>
-                        <option value="Chilli Powder">Chilli Powder</option>
-                        <option value="Turmeric Powder">Turmeric Powder</option>
-                        <option value="Coriander Powder">Coriander Powder</option>
-                        <option value="Ginger Garlic Paste">Ginger Garlic Paste</option>
-                        <option value="Garam Masala">Garam Masala</option>
+                        {catalogProducts.map((p: any) => <option key={p.id} value={p.name}>{p.name}</option>)}
                     </select>
 
                     <select value={volumeFilter} onChange={e => { setVolumeFilter(e.target.value); setCurrentPage(1); }}
@@ -4576,10 +4606,18 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
                                                             <label className="block text-[10px] uppercase font-bold text-[#8B7355] mb-1">Product</label>
                                                             <select value={it.name} onChange={e => handleItemFieldChange(idx, "name", e.target.value)}
                                                                 className="w-full bg-white border border-[#2C2416]/10 rounded-lg p-2 text-xs outline-none cursor-pointer">
-                                                                {["Chilli Powder", "Turmeric Powder", "Coriander Powder", "Ginger Garlic Paste", "Garam Masala"].map(n => <option key={n} value={n}>{n}</option>)}
+                                                                <option value="">Select Product...</option>
+                                                                {catalogProducts.map((p: any) => <option key={p.id} value={p.name}>{p.name}</option>)}
                                                             </select>
                                                         </div>
-                                                        <div className="md:col-span-2"><Field label="Sack Weight" value={it.weight} onChange={v => handleItemFieldChange(idx, "weight", v)} placeholder="25kg Sack" /></div>
+                                                        <div className="md:col-span-2">
+                                                            <label className="block text-[10px] uppercase font-bold text-[#8B7355] mb-1">Sack Weight</label>
+                                                            <select value={it.weight} onChange={e => handleItemFieldChange(idx, "weight", e.target.value)}
+                                                                className="w-full bg-white border border-[#2C2416]/10 rounded-lg p-2 text-xs outline-none cursor-pointer">
+                                                                <option value="">Select Weight...</option>
+                                                                {packsFor(it.name).map((pack: any) => <option key={pack.label} value={pack.label}>{pack.label}</option>)}
+                                                            </select>
+                                                        </div>
                                                         <div className="md:col-span-1"><Field type="number" label="Qty" value={it.quantity} onChange={v => handleItemFieldChange(idx, "quantity", Number(v))} /></div>
                                                         <div className="md:col-span-2"><Field type="number" label="Unit Price" value={it.unitPrice} onChange={v => handleItemFieldChange(idx, "unitPrice", Number(v))} /></div>
                                                         <div className="md:col-span-1"><Field type="number" label="Disc%" value={it.discount} onChange={v => handleItemFieldChange(idx, "discount", Number(v))} /></div>
@@ -4711,7 +4749,7 @@ function QuotationManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
         shippingAddress: "",
         gstin: "",
         salesExecutive: "Unassigned",
-        items: [{ name: "Chilli Powder", weight: "25kg Bag", quantity: 1, unitPrice: 2750, discount: 0, gst: 5 }],
+        items: [],
         discountType: "percentage",
         discountValue: 0,
         shippingCharges: 0,
@@ -4727,6 +4765,20 @@ function QuotationManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
 
     const [customTerm, setCustomTerm] = useState<string>("");
     const [activeDetailQuote, setActiveDetailQuote] = useState<any | null>(null);
+    const [catalogProducts, setCatalogProducts] = useState<any[]>([]);
+    const [defaultGst, setDefaultGst] = useState<number | null>(null);
+
+    useEffect(() => {
+        productsApi.list().then((list: any[]) => {
+            if (Array.isArray(list)) setCatalogProducts(list);
+        }).catch((error: any) => console.warn("Unable to load product catalog", error));
+        settingsApi.get("tax_settings").then((d: any) => {
+            const gst = Number(d?.value?.gst);
+            if (Number.isFinite(gst) && gst >= 0) setDefaultGst(gst);
+        }).catch(() => {});
+    }, []);
+
+    const packsFor = (name: string) => catalogPacks(findCatalogProduct(catalogProducts, name));
 
     // Check for prefilled wholesale inquiry lead redirected from WholesalePage
     useEffect(() => {
@@ -4736,12 +4788,12 @@ function QuotationManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
                 const lead = JSON.parse(prefill);
                 localStorage.removeItem("Lepakshi Spices_prefilled_quote_lead");
 
-                const qtyMap: Record<string, number> = {
-                    "5kg": 1, "10kg": 1, "15kg": 1, "25kg": 1
-                };
-                const volStr = lead.volume || "5kg Pack";
-                const matchedQty = parseInt(volStr) || 1;
-                const sizeTag = volStr.includes("kg") ? volStr.substring(volStr.indexOf("kg") - 2).trim() : "5kg Pack";
+                const productName = lead.productInterest || "";
+                const product = findCatalogProduct(catalogProducts, productName);
+                const packs = catalogPacks(product);
+                const volStr = lead.volume || "";
+                const matchedPack = matchPack(volStr, packs) || packs[0] || undefined;
+                const matchedQty = parseQuantityHint(volStr) || 1;
 
                 const newQuoteId = "QT-2026-" + Math.floor(Math.random() * 90000 + 10000);
                 const today = new Date().toLocaleDateString('en-IN');
@@ -4761,7 +4813,7 @@ function QuotationManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
                     shippingAddress: lead.businessName + " Storage / Yard",
                     gstin: "",
                     salesExecutive: lead.assignedExecutive !== "Unassigned" ? lead.assignedExecutive : "Amit Verma",
-                    items: [{ name: lead.productInterest || "Chilli Powder", weight: sizeTag, quantity: matchedQty, unitPrice: 2750, discount: 0, gst: 5 }],
+                    items: [{ name: productName, weight: matchedPack ? matchedPack.label : "", quantity: matchedQty, unitPrice: packPrice(matchedPack), discount: 0, gst: defaultGst ?? 0 }],
                     discountType: "percentage",
                     discountValue: 0,
                     shippingCharges: 350,
@@ -4855,9 +4907,13 @@ function QuotationManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
     const calcs = calculateTotals(quoteForm);
 
     const handleAddItemRow = () => {
+        if (quoteForm.items.some((it: any) => !String(it.name || "").trim())) {
+            toast.error("Complete the empty line item before adding another.");
+            return;
+        }
         setQuoteForm({
             ...quoteForm,
-            items: [...quoteForm.items, { name: "Turmeric Powder", weight: "10kg Bag", quantity: 1, unitPrice: 1100, discount: 0, gst: 5 }]
+            items: [...quoteForm.items, makeEmptyItem(defaultGst)]
         });
     };
 
@@ -4882,6 +4938,19 @@ function QuotationManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
     const handleItemFieldChange = (idx: number, field: string, value: any) => {
         const updated = [...quoteForm.items];
         updated[idx][field] = value;
+        if (field === "name") {
+            const product = findCatalogProduct(catalogProducts, value);
+            const packs = catalogPacks(product);
+            const first = packs[0];
+            updated[idx].weight = first ? first.label : "";
+            updated[idx].unitPrice = packPrice(first);
+            if (updated[idx].gst == null || updated[idx].gst === "") updated[idx].gst = defaultGst ?? 0;
+        } else if (field === "weight") {
+            const product = findCatalogProduct(catalogProducts, updated[idx].name);
+            const packs = catalogPacks(product);
+            const pack = packs.find((p: any) => p.label === value) || packs[0];
+            updated[idx].unitPrice = packPrice(pack);
+        }
         setQuoteForm({ ...quoteForm, items: updated });
     };
 
@@ -4959,7 +5028,7 @@ function QuotationManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
             shippingAddress: "",
             gstin: "",
             salesExecutive: "Amit Verma",
-            items: [{ name: "Chilli Powder", weight: "25kg Bag", quantity: 5, unitPrice: 2750, discount: 0, gst: 5 }],
+            items: [makeEmptyItem(defaultGst)],
             discountType: "percentage",
             discountValue: 0,
             shippingCharges: 400,
@@ -5481,16 +5550,18 @@ function QuotationManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
                                             <label className="block text-[10px] uppercase font-bold text-[#8B7355]">Product Name</label>
                                             <select value={it.name} onChange={e => handleItemFieldChange(idx, "name", e.target.value)}
                                                 className="mt-1 w-full bg-white border border-[#2C2416]/10 rounded-lg p-2 text-xs outline-none cursor-pointer">
-                                                <option value="Chilli Powder">Chilli Powder</option>
-                                                <option value="Turmeric Powder">Turmeric Powder</option>
-                                                <option value="Coriander Powder">Coriander Powder</option>
-                                                <option value="Ginger Garlic Paste">Ginger Garlic Paste</option>
-                                                <option value="Garam Masala">Garam Masala</option>
+                                                <option value="">Select Product...</option>
+                                                {catalogProducts.map((p: any) => <option key={p.id} value={p.name}>{p.name}</option>)}
                                             </select>
                                         </div>
 
                                         <div className="md:col-span-2">
-                                            <Field label="Sack Weight" value={it.weight} onChange={v => handleItemFieldChange(idx, "weight", v)} placeholder="e.g. 25kg Sack" />
+                                            <label className="block text-[10px] uppercase font-bold text-[#8B7355]">Sack Weight</label>
+                                            <select value={it.weight} onChange={e => handleItemFieldChange(idx, "weight", e.target.value)}
+                                                className="mt-1 w-full bg-white border border-[#2C2416]/10 rounded-lg p-2 text-xs outline-none cursor-pointer">
+                                                <option value="">Select Weight...</option>
+                                                {packsFor(it.name).map((pack: any) => <option key={pack.label} value={pack.label}>{pack.label}</option>)}
+                                            </select>
                                         </div>
 
                                         <div className="md:col-span-1.5">
@@ -5682,11 +5753,7 @@ function QuotationManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
                     <select value={productFilter} onChange={e => { setProductFilter(e.target.value); setCurrentPage(1); }}
                         className="px-3 py-2 rounded-xl text-xs font-medium bg-white border border-[#2C2416]/10 outline-none cursor-pointer">
                         <option value="all">All Products</option>
-                        <option value="Chilli Powder">Chilli Powder</option>
-                        <option value="Turmeric Powder">Turmeric Powder</option>
-                        <option value="Coriander Powder">Coriander Powder</option>
-                        <option value="Ginger Garlic Paste">Ginger Garlic Paste</option>
-                        <option value="Garam Masala">Garam Masala</option>
+                        {catalogProducts.map((p: any) => <option key={p.id} value={p.name}>{p.name}</option>)}
                     </select>
 
                     <select value={sortBy} onChange={e => setSortBy(e.target.value)}
