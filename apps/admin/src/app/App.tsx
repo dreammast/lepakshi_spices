@@ -3312,12 +3312,16 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
 
     useEffect(() => {
         productsApi.list().then((list: any[]) => {
+            console.log("[QuoteBuilder] GET /products -> live DB products:", list.length, list.map((p: any) => p.name).join(", "));
             if (Array.isArray(list)) setCatalogProducts(list);
-        }).catch((error: any) => console.warn("Unable to load product catalog", error));
+        }).catch((error: any) => console.warn("[QuoteBuilder] GET /products FAILED (product list unavailable):", error));
         settingsApi.get("tax_settings").then((d: any) => {
             const gst = Number(d?.value?.gst);
-            if (Number.isFinite(gst) && gst >= 0) setDefaultGst(gst);
-        }).catch(() => {});
+            if (Number.isFinite(gst) && gst >= 0) {
+                console.log("[QuoteBuilder] Default GST from tax_settings:", gst + "%");
+                setDefaultGst(gst);
+            }
+        }).catch((error: any) => console.warn("[QuoteBuilder] tax_settings load failed:", error));
     }, []);
 
     const packsFor = (name: string) => catalogPacks(findCatalogProduct(catalogProducts, name));
@@ -3542,11 +3546,13 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
             updated[idx].weight = first ? first.label : "";
             updated[idx].unitPrice = packPrice(first);
             if (updated[idx].gst == null || updated[idx].gst === "") updated[idx].gst = defaultGst ?? 0;
+            console.log("[QuoteBuilder] Product changed ->", product?.id ?? "?", product?.name ?? value, "| wholesale packs:", packs.map((p: any) => `${p.label}=₹${p.price}`).join(", "));
         } else if (field === "weight") {
             const product = findCatalogProduct(catalogProducts, updated[idx].name);
             const packs = catalogPacks(product);
             const pack = packs.find((p: any) => p.label === value) || packs[0];
             updated[idx].unitPrice = packPrice(pack);
+            console.log("[QuoteBuilder] Pack changed ->", pack?.id ?? "?", pack?.label ?? value, "| wholesale price ₹" + (pack?.price ?? 0), "| GST " + (updated[idx].gst ?? 0) + "%");
         }
         setQuoteForm({ ...quoteForm, items: updated });
     };
@@ -4770,12 +4776,16 @@ function QuotationManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
 
     useEffect(() => {
         productsApi.list().then((list: any[]) => {
+            console.log("[QuoteBuilder] GET /products -> live DB products:", list.length, list.map((p: any) => p.name).join(", "));
             if (Array.isArray(list)) setCatalogProducts(list);
-        }).catch((error: any) => console.warn("Unable to load product catalog", error));
+        }).catch((error: any) => console.warn("[QuoteBuilder] GET /products FAILED (product list unavailable):", error));
         settingsApi.get("tax_settings").then((d: any) => {
             const gst = Number(d?.value?.gst);
-            if (Number.isFinite(gst) && gst >= 0) setDefaultGst(gst);
-        }).catch(() => {});
+            if (Number.isFinite(gst) && gst >= 0) {
+                console.log("[QuoteBuilder] Default GST from tax_settings:", gst + "%");
+                setDefaultGst(gst);
+            }
+        }).catch((error: any) => console.warn("[QuoteBuilder] tax_settings load failed:", error));
     }, []);
 
     const packsFor = (name: string) => catalogPacks(findCatalogProduct(catalogProducts, name));
@@ -4945,11 +4955,13 @@ function QuotationManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
             updated[idx].weight = first ? first.label : "";
             updated[idx].unitPrice = packPrice(first);
             if (updated[idx].gst == null || updated[idx].gst === "") updated[idx].gst = defaultGst ?? 0;
+            console.log("[QuoteBuilder] Product changed ->", product?.id ?? "?", product?.name ?? value, "| wholesale packs:", packs.map((p: any) => `${p.label}=₹${p.price}`).join(", "));
         } else if (field === "weight") {
             const product = findCatalogProduct(catalogProducts, updated[idx].name);
             const packs = catalogPacks(product);
             const pack = packs.find((p: any) => p.label === value) || packs[0];
             updated[idx].unitPrice = packPrice(pack);
+            console.log("[QuoteBuilder] Pack changed ->", pack?.id ?? "?", pack?.label ?? value, "| wholesale price ₹" + (pack?.price ?? 0), "| GST " + (updated[idx].gst ?? 0) + "%");
         }
         setQuoteForm({ ...quoteForm, items: updated });
     };
