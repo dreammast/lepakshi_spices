@@ -7,6 +7,7 @@ dns.setDefaultResultOrder("ipv4first");
 const transporter = nodemailer.createTransport({
   host: env.SMTP_HOST,
   port: env.SMTP_PORT,
+
   secure: env.SMTP_SECURE === 'true',
   requireTLS: env.SMTP_SECURE !== 'true',
   tls: { minVersion: 'TLSv1.2' },
@@ -17,6 +18,6 @@ const transporter = nodemailer.createTransport({
     user: env.SMTP_USER,
     pass: env.SMTP_PASS,
   },
-});
+} as any);
 
 export default transporter;
