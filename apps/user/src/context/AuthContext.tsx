@@ -74,27 +74,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           const firstName = nameParts[0] || "User";
           const lastName = nameParts.slice(1).join(" ") || "";
 
-          const API_URL = import.meta.env.VITE_API_URL || "http://localhost:4000/api";
-          const res = await fetch(`${API_URL}/auth/sync-firebase`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              email,
-              firstName,
-              lastName,
-              avatarUrl: fbUser.photoURL || "",
-              firebaseUid: fbUser.uid,
-            }),
+          // Use the centralized authApi.client — no direct fetch, no hardcoded URL
+          const syncResult = await authApi.syncFirebase({
+            email,
+            firstName,
+            lastName,
+            avatarUrl: fbUser.photoURL || "",
+            firebaseUid: fbUser.uid,
           });
-
-          if (!res.ok) {
-            const errBody = await res.json().catch(() => ({}));
-            throw new Error(errBody.message || `Sync failed (${res.status})`);
-          }
-
-          const json = await res.json();
-          const localUser = json.data?.user || {};
-          const appToken = json.data?.token || token;
+          const localUser = syncResult?.user || {};
+          const appToken = syncResult?.token || token;
 
           const userData: AuthUser = {
             id: localUser.id || fbUser.uid,

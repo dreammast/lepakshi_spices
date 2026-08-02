@@ -1,4 +1,19 @@
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api';
+const VITE_API_URL = import.meta.env.VITE_API_URL;
+
+// Production safety: in production, if VITE_API_URL is not set, crash instead of silently
+// falling back to localhost which would fail all requests.
+if (import.meta.env.PROD && !VITE_API_URL) {
+  throw new Error(
+    'VITE_API_URL is not set in production. Set VITE_API_URL=https://lepakshi-spices-cpsf.onrender.com/api in .env.production'
+  );
+}
+
+const API_URL = VITE_API_URL || 'http://localhost:4000/api';
+
+// Development-only debug log to help verify the resolved API base URL
+if (import.meta.env.DEV) {
+  console.log(`[apiClient] API base URL: ${API_URL}`);
+}
 
 export type ApiResponse<T> = {
   success: boolean;
@@ -73,6 +88,8 @@ export const authApi = {
     api.post<{ user: any; token: string }>('/auth/login', { email, password }),
   register: (body: { email: string; password: string; firstName: string; lastName?: string; phone?: string }) =>
     api.post<{ user: any; token: string }>('/auth/register', body),
+  syncFirebase: (body: { email: string; firstName?: string; lastName?: string; avatarUrl?: string; firebaseUid: string }) =>
+    api.post<{ user: any; token: string }>('/auth/sync-firebase', body),
   syncOAuth: (body: { email: string; firstName?: string; lastName?: string; avatarUrl?: string }) =>
     api.post<{ user: any; token: string }>('/auth/sync-oauth', body),
   me: () => api.get<any>('/auth/me'),

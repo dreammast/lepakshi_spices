@@ -276,7 +276,14 @@ function ImageDropzone({ value, onChange }: { value: string; onChange: (url: str
     const [uploading, setUploading] = useState(false);
     const [dragOver, setDragOver] = useState(false);
     const [uploadError, setUploadError] = useState<string | null>(null);
-    const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:4000/api";
+    const VITE_API_URL = import.meta.env.VITE_API_URL;
+    if (import.meta.env.PROD && !VITE_API_URL) {
+      throw new Error('VITE_API_URL is not set in production. Set VITE_API_URL=https://lepakshi-spices-cpsf.onrender.com/api in .env.production');
+    }
+    const API_BASE = VITE_API_URL || "http://localhost:4000/api";
+    if (import.meta.env.DEV) {
+      console.log(`[ImageDropzone] Upload URL: ${API_BASE}/upload`);
+    }
 
     const handleUploadFile = async (file: File) => {
         if (!file.type.startsWith("image/")) {
@@ -928,30 +935,22 @@ function ProductsPage() {
 
     const loadDbData = async () => {
         try {
-            const resP = await fetch("http://localhost:4000/api/products");
-            if (resP.ok) {
-                const jsonP = await resP.json();
-                const dataP = jsonP.data || jsonP;
-                if (Array.isArray(dataP)) {
-                    const normalizedProducts = dataP.map(normalizeAdminPrices);
-                    setProducts(normalizedProducts);
-                    localStorage.setItem("Lepakshi Spices_products", JSON.stringify(normalizedProducts));
-                }
+            const dataP = await productsApi.list();
+            if (Array.isArray(dataP)) {
+                const normalizedProducts = dataP.map(normalizeAdminPrices);
+                setProducts(normalizedProducts);
+                localStorage.setItem("Lepakshi Spices_products", JSON.stringify(normalizedProducts));
             }
-            const resC = await fetch("http://localhost:4000/api/categories");
-            if (resC.ok) {
-                const jsonC = await resC.json();
-                const dataC = jsonC.data || jsonC;
-                if (Array.isArray(dataC)) {
-                    setCategories(dataC.map((c: any) => ({
-                        id: String(c.id),
-                        name: c.name,
-                        count: 0,
-                        description: c.description || "",
-                        imageUrl: c.imageUrl || ""
-                    })));
-                    localStorage.setItem("Lepakshi Spices_categories", JSON.stringify(dataC));
-                }
+            const dataC = await categoriesApi.list();
+            if (Array.isArray(dataC)) {
+                setCategories(dataC.map((c: any) => ({
+                    id: String(c.id),
+                    name: c.name,
+                    count: 0,
+                    description: c.description || "",
+                    imageUrl: c.imageUrl || ""
+                })));
+                localStorage.setItem("Lepakshi Spices_categories", JSON.stringify(dataC));
             }
             const reviewRows = await reviewsApi.adminList();
             setReviews((reviewRows || []).map((row: any) => ({
@@ -2141,16 +2140,9 @@ function CategoriesPage() {
         if (!name) return toast.error('Category name is required');
         const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
         try {
-            const res = await fetch('http://localhost:4000/api/categories', {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name, slug, description: createForm.description })
-            });
-            const json = await res.json();
-            if (!res.ok || !json.success) throw new Error((json && json.message) || 'Failed to create');
+            await categoriesApi.create({ name, slug, description: createForm.description });
             // refetch categories from API to get canonical IDs
-            const resC = await fetch('http://localhost:4000/api/categories');
-            const jsonC = await resC.json();
-            const dataC = jsonC.data || jsonC;
+            const dataC = await categoriesApi.list();
             setCategories(dataC.map((c: any) => ({ id: String(c.id), name: c.name, count: 0, description: c.description || '' })));
             setCreateOpen(false);
             setCreateForm({ name: '', description: '' });
