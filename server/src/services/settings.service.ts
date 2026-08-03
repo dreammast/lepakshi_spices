@@ -1,4 +1,5 @@
 import { findSettingByKey, upsertSetting } from '../repositories/settings.repository.js';
+import { emitAdminAndPublic } from '../realtime/events.js';
 
 export async function getSetting(key: string) {
   const setting = await findSettingByKey(key);
@@ -8,5 +9,7 @@ export async function getSetting(key: string) {
 
 export async function setSetting(key: string, value: unknown) {
   const serialized = typeof value === 'string' ? value : JSON.stringify(value);
-  return upsertSetting(key, serialized);
+  const updated = await upsertSetting(key, serialized);
+  emitAdminAndPublic('settings.updated', { key, at: new Date() });
+  return updated;
 }

@@ -1,5 +1,6 @@
 import { findAllRecipes, findPublishedRecipes, findRecipeBySlug, findRecipeById, createRecipeRecord, updateRecipeRecord, deleteRecipeRecord } from '../repositories/recipe.repository.js';
 import { AppError } from '../utils/app-error.js';
+import { emitAdminAndPublic } from '../realtime/events.js';
 
 const YOUTUBE_REGEX = /(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
 const VIDEO_EXT_REGEX = /\.(mp4|webm|mov|avi|mkv|ogg)(\?.*)?$/i;
@@ -38,6 +39,18 @@ export async function getRecipeBySlug(slug: string) {
   return enrichRecipe(r);
 }
 
-export async function createRecipe(data: Parameters<typeof createRecipeRecord>[0]) { return createRecipeRecord(data); }
-export async function updateRecipe(id: number, data: Record<string, any>) { return updateRecipeRecord(id, data); }
-export async function deleteRecipe(id: number) { return deleteRecipeRecord(id); }
+export async function createRecipe(data: Parameters<typeof createRecipeRecord>[0]) {
+  const created = await createRecipeRecord(data);
+  emitAdminAndPublic('recipe.created', { recipeId: created, title: data.title ?? null, slug: data.slug ?? null, at: new Date() });
+  return created;
+}
+export async function updateRecipe(id: number, data: Record<string, any>) {
+  const updated = await updateRecipeRecord(id, data);
+  emitAdminAndPublic('recipe.updated', { recipeId: id, title: data.title ?? null, at: new Date() });
+  return updated;
+}
+export async function deleteRecipe(id: number) {
+  const result = await deleteRecipeRecord(id);
+  emitAdminAndPublic('recipe.deleted', { recipeId: id, at: new Date() });
+  return result;
+}

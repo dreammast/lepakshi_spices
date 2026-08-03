@@ -9,8 +9,9 @@ import {
  Instagram, Facebook, Twitter, Youtube, Mail, Globe, Zap, CheckCircle,
  AlertCircle, AlertTriangle, BookOpen, Tag, Clock, HelpCircle, FileText, Phone
 } from "lucide-react";
-import { authApi, campaignsApi, cartApi, ordersApi, productsApi, categoriesApi, couponsApi, locationApi, recipesApi, reviewsApi, settingsApi, wholesaleInquiryApi, wholesaleCatalogueApi, addressesApi, wishlistApi } from "../lib/apiClient";
+import { authApi, campaignsApi, cartApi, ordersApi, productsApi, categoriesApi, couponsApi, locationApi, recipesApi, reviewsApi, settingsApi, wholesaleInquiryApi, wholesaleCatalogueApi, wholesaleQuotesApi, addressesApi, wishlistApi } from "../lib/apiClient";
 import { useAuth } from "../context/AuthContext";
+import { configureRealtime, startRealtime, stopRealtime, onRealtimeEvent, onRealtimeNotification, type RealtimeNotification } from "../lib/realtime";
 
 
 // --- DATA & LIVE API INTEGRATION --------------------------------------------------
@@ -344,7 +345,7 @@ function ProductCard({ product, index = 0 }: { product: Product; index?: number 
 // --- HEADER --------------------------------------------------------------------
 
 function Header() {
- const { navigate, cart, wishlist, currentPage, user, setAuthModalOpen, logout, products, orders, campaigns, deliveryNotifications, clearDeliveryNotifications } = useApp();
+ const { navigate, cart, wishlist, currentPage, user, setAuthModalOpen, logout, products, orders, campaigns, deliveryNotifications, clearDeliveryNotifications, realtimeNotifications } = useApp();
  const scrolled = useScrolled();
  const [searchOpen, setSearchOpen] = useState(false);
  const [query, setQuery] = useState("");
@@ -383,6 +384,10 @@ function Header() {
  icon: Tag,
  color: "#C55A20"
  })));
+
+ for (const rn of realtimeNotifications) {
+ notifs.unshift(rn);
+ }
 
  for (const dn of deliveryNotifications) {
  notifs.unshift(dn);
@@ -1974,6 +1979,12 @@ function CartPage() {
 
  useEffect(() => { couponsApi.available().then(setAvailableCoupons).catch(() => setAvailableCoupons([])); }, []);
 
+ useEffect(() => {
+  const handler = () => couponsApi.available().then(setAvailableCoupons).catch(() => setAvailableCoupons([]));
+  window.addEventListener("couponsRefresh", handler);
+  return () => window.removeEventListener("couponsRefresh", handler);
+ }, []);
+
  const subtotal = cart.reduce((s: number, i: CartItem) => s + i.price * i.quantity, 0);
  const shipping = subtotal > 499 ? 0 : 49;
  const total = subtotal - discount + shipping;
@@ -2622,7 +2633,7 @@ function CheckoutPage() {
 // --- PROFILE PAGE ---------------------------------------------------------------
 
 function ProfilePage() {
- const { navigate, wishlist, user, logout, products, orders, profileData } = useApp();
+ const { navigate, wishlist, user, logout, products, orders, profileData, myQuotations } = useApp();
  const [tab, setTab] = useState(profileData?.tab || "overview");
  const [trackingOrderId, setTrackingOrderId] = useState<string | null>(profileData?.trackingOrderId || null);
  const [trackingOrder, setTrackingOrder] = useState<any>(null);
@@ -2842,6 +2853,7 @@ function ProfilePage() {
  const tabs = [
  { id: "overview", label: "Overview", icon: User },
  { id: "orders", label: "Orders", icon: Package },
+ { id: "quotations", label: "Quotations", icon: FileText },
  { id: "wishlist", label: "Wishlist", icon: Heart },
  { id: "reviews", label: "Reviews", icon: Star },
  { id: "addresses", label: "Addresses", icon: MapPin },
@@ -3079,6 +3091,48 @@ function ProfilePage() {
  <h3 className="font-semibold text-[#1A1714] text-base mb-1">No Orders Placed Yet</h3>
  <p className="text-xs text-[#7A7064] mb-6">When you place an order, your order details and live tracking will appear here.</p>
  <Btn onClick={() => navigate("shop")}>Explore & Order Spices</Btn>
+ </div>
+ )}
+ </div>
+ )}
+
+ {tab === "quotations" && (
+ <div className="space-y-4">
+ <div className="flex justify-between items-center bg-white rounded-2xl border border-[#1A1714]/8 p-4">
+ <div>
+ <h3 className="font-semibold text-[#1A1714]">Wholesale Quotations</h3>
+ <p className="text-xs text-[#7A7064]">Approved quotations from our direct trade team.</p>
+ </div>
+ <Btn size="sm" variant="ghost" onClick={() => navigate("wholesale")} className="text-xs">Enquire for wholesale</Btn>
+ </div>
+ {myQuotations.length > 0 ? (
+ <div className="space-y-3">
+ {myQuotations.map((q: any) => (
+ <div key={q.id} className="bg-white rounded-2xl border border-[#1A1714]/8 p-5 text-left">
+ <div className="flex items-start justify-between gap-4 flex-wrap">
+ <div>
+ <p className="font-semibold text-[#1A1714] text-sm">{q.quoteNumber || `Quotation #${q.id}`}</p>
+ <p className="text-xs text-[#7A7064] mt-0.5">{q.businessName || q.contactName || q.email}</p>
+ </div>
+ <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${String(q.status).toLowerCase() === "approved" || String(q.status).toLowerCase() === "accepted" ? "bg-green-100 text-green-800" : "bg-amber-50 text-amber-800"}`}>
+ {q.status}
+ </span>
+ </div>
+ <p className="text-xs text-[#7A7064] mt-3">
+ {Array.isArray(q.items) ? `${q.items.length} line item${q.items.length === 1 ? "" : "s"}` : "Quotation items"} · Valid until {q.validUntil ? new Date(q.validUntil).toLocaleDateString("en-IN") : "—"}
+ </p>
+ {String(q.status).toLowerCase() === "approved" && (
+ <p className="text-xs mt-3 text-green-700 font-medium">Approved — our team will reach out to confirm your order.</p>
+ )}
+ </div>
+ ))}
+ </div>
+ ) : (
+ <div className="bg-white rounded-2xl border border-[#1A1714]/8 p-14 text-center">
+ <FileText className="w-12 h-12 text-[#7A7064] mx-auto mb-3" />
+ <p className="font-semibold text-[#1A1714] mb-1">No quotations yet</p>
+ <p className="text-sm text-[#7A7064] mb-5">When our team sends you a quotation, it will appear here.</p>
+ <Btn onClick={() => navigate("wholesale")}>Request a Quote</Btn>
  </div>
  )}
  </div>
@@ -5019,6 +5073,9 @@ export default function App() {
  const [deliveryNotifications, setDeliveryNotifications] = useState<any[]>([]);
  const deliveredNotifiedRef = useRef<Set<number>>(new Set());
 
+ const [realtimeNotifications, setRealtimeNotifications] = useState<any[]>([]);
+ const [myQuotations, setMyQuotations] = useState<any[]>([]);
+
  const [testimonials, setTestimonials] = useState<any[]>([]);
 
  const [cmsSettings, setCmsSettings] = useState(() => {
@@ -5171,35 +5228,229 @@ export default function App() {
     });
   }, [user?.token]);
 
- useEffect(() => {
- if (!user?.token) {
- setDeliveryNotifications([]);
- deliveredNotifiedRef.current = new Set();
- return;
- }
- const interval = setInterval(async () => {
- try {
- const serverOrders = await ordersApi.list();
- if (!serverOrders || !Array.isArray(serverOrders)) return;
- setOrders(serverOrders as any[]);
- for (const o of serverOrders as any[]) {
- if (o.status?.toLowerCase() === 'delivered' && !deliveredNotifiedRef.current.has(o.id)) {
- deliveredNotifiedRef.current.add(o.id);
- setDeliveryNotifications(prev => [...prev, {
- title: 'Product Delivered',
- desc: `Your order #${o.id} has been delivered successfully.`,
- time: 'Just now',
- icon: Truck,
- color: '#2A4A3C'
- }]);
- }
- }
-  } catch (err: any) {
-    if (err?.message?.includes('token') || err?.message?.includes('401')) logout();
-  }
- }, 15000);
- return () => clearInterval(interval);
+ const syncOrders = useCallback((serverOrders: any[]) => {
+   if (!serverOrders || !Array.isArray(serverOrders)) return;
+   setOrders(serverOrders);
+   for (const o of serverOrders) {
+     if (o.status?.toLowerCase() === 'delivered' && !deliveredNotifiedRef.current.has(o.id)) {
+       deliveredNotifiedRef.current.add(o.id);
+       setDeliveryNotifications(prev => [...prev, {
+         title: 'Product Delivered',
+         desc: `Your order #${o.id} has been delivered successfully.`,
+         time: 'Just now',
+         icon: Truck,
+         color: '#2A4A3C'
+       }]);
+     }
+   }
+ }, []);
+
+ const refreshMyQuotations = useCallback(async () => {
+   if (!user?.token) return;
+   try {
+     const list = await wholesaleQuotesApi.mine();
+     if (Array.isArray(list)) setMyQuotations(list);
+   } catch {
+     // Keep previous quotations on transient failures.
+   }
  }, [user?.token]);
+
+ const refreshCatalogSection = useCallback(async (sections: string[]) => {
+   const jobs: Promise<void>[] = [];
+   if (sections.includes('products') || sections.includes('categories')) {
+     jobs.push(
+       Promise.all([productsApi.list(), categoriesApi.list()])
+         .then(([dataP, dataC]) => {
+           setProducts(dataP || []);
+           setCategories([
+             { id: "all", name: "All Spices", count: (dataP || []).length },
+             ...(dataC || []).map((c: any) => ({
+               id: c.slug || String(c.id),
+               name: c.name,
+               count: c.count ?? 0,
+               description: c.description || "",
+               image: c.imageUrl || ""
+             }))
+           ]);
+         })
+         .catch(() => { })
+     );
+   }
+   if (sections.includes('recipes')) {
+     jobs.push(recipesApi.list().then((dataR: any) => setRecipes(dataR || [])).catch(() => { }));
+   }
+   if (sections.includes('reviews')) {
+     jobs.push(reviewsApi.listApproved().then((rows: any) => setTestimonials((rows || []).map((row: any) => ({
+       id: row.review.id,
+       name: row.review.displayName || `${row.customer?.firstName || ""} ${row.customer?.lastName || ""}`.trim() || "Verified customer",
+       text: row.review.comment || "",
+       rating: row.review.rating,
+       product: row.product?.name || "Lepakshi Spices product",
+       role: "Verified customer"
+     })))).catch(() => { }));
+   }
+   if (sections.includes('cms')) {
+     jobs.push(settingsApi.get("homepage_cms").then((d: any) => { if (d?.value) setCmsSettings(d.value); }).catch(() => { }));
+   }
+   if (sections.includes('campaigns')) {
+     jobs.push(campaignsApi.active().then((d: any) => setCampaigns(d || [])).catch(() => { }));
+   }
+   if (sections.includes('coupons')) {
+     window.dispatchEvent(new CustomEvent('couponsRefresh'));
+   }
+   await Promise.all(jobs);
+ }, []);
+
+ const pushNotification = useCallback((n: { id?: string; title: string; desc: string; icon?: any; color?: string }) => {
+   const item = {
+     id: n.id || `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+     title: n.title,
+     desc: n.desc,
+     time: 'Just now',
+     icon: n.icon || Bell,
+     color: n.color || '#2A4A3C'
+   };
+   setRealtimeNotifications(prev => [item, ...prev].slice(0, 20));
+   return item;
+ }, []);
+
+ const handleRealtimeEvent = useCallback((ev: { type: string; data: any }) => {
+   switch (ev.type) {
+     case 'poll':
+       refreshCustomerData().catch(() => { });
+       refreshCatalogSection(['products', 'categories', 'recipes', 'reviews', 'cms', 'campaigns']);
+       refreshMyQuotations();
+       break;
+     case 'product.created':
+     case 'product.updated':
+     case 'product.deleted':
+     case 'product.stock_changed':
+       refreshCatalogSection(['products']);
+       break;
+     case 'category.created':
+     case 'category.updated':
+     case 'category.deleted':
+       refreshCatalogSection(['categories', 'products']);
+       break;
+     case 'recipe.created':
+     case 'recipe.updated':
+     case 'recipe.deleted':
+       refreshCatalogSection(['recipes']);
+       break;
+     case 'review.approved':
+     case 'review.deleted':
+       refreshCatalogSection(['reviews']);
+       break;
+     case 'settings.updated':
+       refreshCatalogSection(['cms', 'campaigns']);
+       break;
+     case 'coupon.created':
+     case 'coupon.updated':
+     case 'coupon.deleted':
+       refreshCatalogSection(['coupons']);
+       break;
+     case 'campaign.created':
+     case 'campaign.updated':
+     case 'campaign.deleted':
+       refreshCatalogSection(['campaigns']);
+       break;
+     case 'cart.changed':
+     case 'wishlist.changed':
+       refreshCustomerData().catch(() => { });
+       break;
+     case 'order.created':
+     case 'order.payment_verified':
+       if (user?.token) ordersApi.list().then(syncOrders).catch(() => { });
+       break;
+     case 'order.status_changed': {
+       if (!user?.token) break;
+       const data = ev.data || {};
+       ordersApi.list().then(syncOrders).catch(() => { });
+       if (data.status) {
+         pushNotification({
+           title: `Order ${data.orderId ? '#' + data.orderId + ' ' : ''}${data.status}`,
+           desc: data.status === 'delivered'
+             ? `Your order #${data.orderId || ''} has been delivered. Enjoy your spices!`
+             : data.status === 'shipped'
+               ? `Your order #${data.orderId || ''} is on its way.`
+               : `Your order #${data.orderId || ''} is now ${data.status}.`
+         });
+         toast(`Order #${data.orderId || ''} is now ${data.status}`);
+       }
+       break;
+     }
+     case 'wholesale.quotation.created':
+     case 'wholesale.quotation.approved':
+     case 'wholesale.quotation.converted': {
+       if (!user?.token) break;
+       const data = ev.data || {};
+       refreshMyQuotations();
+       if (ev.type !== 'wholesale.quotation.created') {
+         const label = ev.type === 'wholesale.quotation.converted' ? 'Wholesale order confirmed' : 'Quotation approved';
+         const ref = data.quoteNumber || data.quotationId;
+         pushNotification({
+           title: label,
+           desc: ref ? `Quotation ${ref} for ${data.businessName || 'your business'} has been ${ev.type === 'wholesale.quotation.converted' ? 'converted to an order' : 'approved'}.` : 'Your quotation status has been updated.'
+         });
+         toast(label, { description: ref ? `Quotation ${ref}` : undefined });
+       }
+       break;
+     }
+     case 'wholesale.order.status_changed': {
+       if (!user?.token) break;
+       const data = ev.data || {};
+       refreshMyQuotations();
+       if (data.status) {
+         const ref = data.orderReference || data.orderId;
+         pushNotification({
+           title: `Wholesale order ${data.status}`,
+           desc: `Your wholesale order${ref ? ' ' + ref : ''} is now ${data.status}.`
+         });
+       }
+       break;
+     }
+     default:
+       break;
+   }
+ }, [user, refreshCustomerData, refreshCatalogSection, refreshMyQuotations, syncOrders, pushNotification]);
+
+ const handleRealtimeEventRef = useRef(handleRealtimeEvent);
+ handleRealtimeEventRef.current = handleRealtimeEvent;
+
+ useEffect(() => {
+   configureRealtime({
+     getToken: () => {
+       try {
+         const raw = localStorage.getItem('spiceora_user') || sessionStorage.getItem('spiceora_user');
+         return raw ? JSON.parse(raw).token || null : null;
+       } catch {
+         return null;
+       }
+     },
+   });
+   stopRealtime();
+   startRealtime();
+   const offEvent = onRealtimeEvent((ev) => handleRealtimeEventRef.current(ev));
+   const offNotif = onRealtimeNotification((n: RealtimeNotification) => {
+     pushNotification({ id: n.id, title: n.title, desc: n.description || '', icon: Bell });
+     toast(n.title, { description: n.description });
+   });
+   return () => {
+     offEvent();
+     offNotif();
+     stopRealtime();
+   };
+ }, [user?.token, pushNotification]);
+
+ useEffect(() => {
+   if (!user?.token) {
+     setDeliveryNotifications([]);
+     deliveredNotifiedRef.current = new Set();
+     setMyQuotations([]);
+     return;
+   }
+   refreshMyQuotations();
+ }, [user?.token, refreshMyQuotations]);
 
  function trackProductView(id: number) {
  setRecentlyViewed(prev => {
@@ -5339,6 +5590,7 @@ export default function App() {
  discount, setDiscount, couponCode, setCouponCode, orders, setOrders, campaigns, clearCart, refreshOrders: refreshCustomerData,
  products, setProducts, categories, setCategories, categoriesLoading, recipes, setRecipes, recipesLoading,
  deliveryNotifications, clearDeliveryNotifications: () => { setDeliveryNotifications([]); deliveredNotifiedRef.current = new Set(); },
+ realtimeNotifications, setRealtimeNotifications, myQuotations, refreshMyQuotations,
  testimonials, setTestimonials, cmsSettings, setCmsSettings
  };
 

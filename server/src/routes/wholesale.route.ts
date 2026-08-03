@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { asyncHandler } from '../middleware/async-handler.js';
-import { listWholesaleInquiriesController, createWholesaleInquiryController, updateWholesaleInquiryController, updateInquiryStatusController, deleteWholesaleInquiryController, listQuotationsController, createQuotationController, updateQuotationController, downloadQuotationPdfController, deleteQuotationController, listWholesaleCatalogueController, viewQuotationController, respondQuotationController, notifyOrderStatusController, getQuotationController, emailQuotationCatalogueController } from '../controllers/wholesale.controller.js';
+import { authenticate } from '../middleware/auth.middleware.js';
+import { listWholesaleInquiriesController, createWholesaleInquiryController, updateWholesaleInquiryController, updateInquiryStatusController, deleteWholesaleInquiryController, listQuotationsController, createQuotationController, updateQuotationController, downloadQuotationPdfController, deleteQuotationController, listWholesaleCatalogueController, viewQuotationController, respondQuotationController, notifyOrderStatusController, getQuotationController, emailQuotationCatalogueController, listMyQuotationsController } from '../controllers/wholesale.controller.js';
 
 const publicRouter = Router();
 publicRouter.post('/', asyncHandler(createWholesaleInquiryController));
@@ -11,6 +12,10 @@ const quotePublicRouter = Router();
 quotePublicRouter.get('/:id/view', viewQuotationController);
 quotePublicRouter.get('/:id/respond', respondQuotationController);
 quotePublicRouter.post('/:id/respond', respondQuotationController);
+
+// Authenticated customer endpoint: list the logged-in customer's own quotations.
+const quoteCustomerRouter = Router();
+quoteCustomerRouter.get('/mine', authenticate, asyncHandler(listMyQuotationsController));
 
 const adminRouter = Router();
 // The current admin frontend does not yet establish an admin JWT session.
@@ -28,4 +33,4 @@ adminRouter.delete('/quotations/:id', asyncHandler(deleteQuotationController));
 adminRouter.post('/quotations/:id/notify-order-status', asyncHandler(notifyOrderStatusController));
 adminRouter.post('/quotations/:id/email-catalogue', asyncHandler(emailQuotationCatalogueController));
 
-export { publicRouter as wholesalePublicRouter, quotePublicRouter as wholesaleQuotePublicRouter, adminRouter as wholesaleAdminRouter };
+export { publicRouter as wholesalePublicRouter, quotePublicRouter as wholesaleQuotePublicRouter, quoteCustomerRouter as wholesaleQuoteCustomerRouter, adminRouter as wholesaleAdminRouter };

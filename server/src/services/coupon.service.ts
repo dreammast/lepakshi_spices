@@ -3,6 +3,7 @@ import { AppError } from '../utils/app-error.js';
 import { db } from '../config/database.js';
 import { orders } from '../db/schema.js';
 import { eq, and } from 'drizzle-orm';
+import { emitAdminAndPublic } from '../realtime/events.js';
 
 export async function listCoupons() { return findAllCoupons(); }
 
@@ -12,9 +13,20 @@ export async function getCoupon(id: number) {
   return c;
 }
 
-export async function createCoupon(data: Parameters<typeof createCouponRecord>[0]) { return createCouponRecord(data); }
-export async function updateCoupon(id: number, data: Record<string, any>) { return updateCouponRecord(id, data); }
-export async function deleteCoupon(id: number) { return deleteCouponRecord(id); }
+export async function createCoupon(data: Parameters<typeof createCouponRecord>[0]) {
+  const created = await createCouponRecord(data);
+  emitAdminAndPublic('coupon.created', { couponId: created, code: data.code ?? null, at: new Date() });
+  return created;
+}
+export async function updateCoupon(id: number, data: Record<string, any>) {
+  const updated = await updateCouponRecord(id, data);
+  emitAdminAndPublic('coupon.updated', { couponId: id, code: data.code ?? null, isActive: data.isActive, at: new Date() });
+  return updated;
+}
+export async function deleteCoupon(id: number) {
+  await deleteCouponRecord(id);
+  emitAdminAndPublic('coupon.deleted', { couponId: id, at: new Date() });
+}
 
 export async function listAvailableCoupons(customerId: number) {
   const customerOrders = await db.select({ id: orders.id }).from(orders).where(eq(orders.customerId, customerId));

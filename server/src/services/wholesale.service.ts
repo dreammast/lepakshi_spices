@@ -1,9 +1,10 @@
-import { findAllWholesaleInquiries, findWholesaleInquiryById, createWholesaleInquiryRecord, updateWholesaleInquiryRecord, updateWholesaleInquiryStatus, findAllQuotations, findQuotationById, createQuotationRecord, updateQuotationRecord, deleteWholesaleInquiry, deleteQuotation } from '../repositories/wholesale.repository.js';
+import { findAllWholesaleInquiries, findWholesaleInquiryById, createWholesaleInquiryRecord, updateWholesaleInquiryRecord, updateWholesaleInquiryStatus, findAllQuotations, findQuotationsForCustomer, findQuotationById, createQuotationRecord, updateQuotationRecord, deleteWholesaleInquiry, deleteQuotation } from '../repositories/wholesale.repository.js';
 import { AppError } from '../utils/app-error.js';
 import { sendWholesaleEnquiryReceived, sendWholesaleInquiryStatus, sendWholesaleQuotation, sendWholesaleQuotationUpdated, sendWholesaleQuotationAccepted, sendWholesaleQuotationRejected, sendWholesaleOrderConfirmation, sendWholesaleOrderStatus } from '../mail/email.service.js';
 import { emailLogEntry, formatTimelineTime } from '../mail/email-log.js';
 import { logger } from '../utils/logger.js';
 import { listProducts } from './product.service.js';
+import { emitAdmin, emitAdminAndUser, notifyAdmin, notifyUser } from '../realtime/events.js';
 
 export function calculateTotals(data: {
   items?: Array<{ quantity?: number; unitPrice?: number; discount?: number; discountPercent?: number; gst?: number; taxPercent?: number; [key: string]: any }>;
@@ -73,6 +74,21 @@ export async function getWholesaleInquiry(id: number) {
 }
 export async function createWholesaleInquiry(data: Parameters<typeof createWholesaleInquiryRecord>[0]) {
   const id = await createWholesaleInquiryRecord(data);
+
+  // Real-time: notify the admin portal of a new B2B enquiry.
+  const inquiryBrief = {
+    inquiryId: id,
+    companyName: data.companyName ?? null,
+    contactName: data.contactName ?? null,
+    email: data.email ?? null,
+    phone: data.phone ?? null,
+    productInterest: data.productInterest ?? null,
+    volume: data.volume ?? null,
+    createdAt: new Date(),
+  };
+  emitAdmin('wholesale.inquiry.created', inquiryBrief);
+  notifyAdmin('wholesale.inquiry.created', 'New Wholesale Enquiry', `${data.companyName || 'Company'} (${data.productInterest || 'products requested'})`, { inquiryId: id });
+
   const result = await sendWholesaleEnquiryReceived({
     contactName: data.contactName,
     companyName: data.companyName,
@@ -97,11 +113,19 @@ export async function createWholesaleInquiry(data: Parameters<typeof createWhole
 }
 
 export async function updateWholesaleInquiry(id: number, data: Record<string, any>) {
-  return updateWholesaleInquiryRecord(id, data);
+  const updated = await updateWholesaleInquiryRecord(id, data);
+  if (data?.status) {
+    emitAdmin('wholesale.inquiry.status_changed', { inquiryId: id, status: data.status, updatedAt: new Date() });
+    notifyAdmin('wholesale.inquiry.status_changed', 'Wholesale Enquiry Updated', `Inquiry ${id} status → ${data.status}`);
+  } else {
+    emitAdmin('wholesale.inquiry.updated', { inquiryId: id, updatedAt: new Date() });
+  }
+  return updated;
 }
 
 export async function setInquiryStatus(id: number, status: string) {
   const inquiry = await updateWholesaleInquiryStatus(id, status);
+  emitAdmin('wholesale.inquiry.status_changed', { inquiryId: id, status, updatedAt: new Date() });
   if (status === 'approved' || status === 'rejected') {
     const result = await sendWholesaleInquiryStatus({
       contactName: inquiry.contactName,
@@ -126,6 +150,13 @@ export async function getQuotation(id: number) {
   const q = await findQuotationById(id);
   if (!q) throw new AppError(404, 'Quotation not found');
   return q;
+}
+
+const USER_VISIBLE_QUOTE_STATUSES = ['approved', 'updated', 'sent', 'viewed', 'accepted', 'rejected', 'converted'];
+
+export async function listMyQuotations(customerId: number | null, email: string | null) {
+  const rows = await findQuotationsForCustomer(customerId, email);
+  return rows.filter((q) => USER_VISIBLE_QUOTE_STATUSES.includes(String(q.status || 'draft')));
 }
 
 const QUOTE_CONTROL_FIELDS = new Set(['id', 'date', 'status', 'attachPdf', 'resend', 'sentBy', 'timeline', 'createdAt', 'updatedAt', 'version', 'approvedAt', 'emailSentAt', 'emailSentBy', 'emailSentVersion', 'inquiryId', 'customerId', 'quoteNumber']);
@@ -213,6 +244,26 @@ export async function createQuotation(data: Record<string, any>) {
     await approveAndSend(created, { attachPdf: data.attachPdf === true, sentBy: data.sentBy, timeStr });
   }
 
+  if (created) {
+    // Real-time: new quotation available for admins + the customer it was prepared for.
+    emitAdminAndUser('wholesale.quotation.created', {
+      quotationId: created.id,
+      quoteNumber: created.quoteNumber ?? null,
+      inquiryId: created.inquiryId ?? null,
+      businessName: created.businessName ?? null,
+      email: created.email ?? null,
+      status: created.status,
+      version: created.version ?? 1,
+      payableAmount: created.payableAmount ?? created.totalAmount ?? 0,
+      createdAt: new Date(),
+    }, { email: created.email });
+    notifyAdmin('wholesale.quotation.created', 'New Quotation', `${created.businessName || 'Customer'} — ${created.quoteNumber || created.id}`, { quotationId: created.id });
+    notifyUser('wholesale.quotation.created', 'New Quotation Available', `A new quotation ${created.quoteNumber || created.id} is ready for your review`, {
+      email: created.email,
+      meta: { quotationId: created.id },
+    });
+  }
+
   return created;
 }
 
@@ -260,6 +311,7 @@ export async function updateQuotation(id: number, data: Record<string, any>) {
     full = await approveAndSend(full, { attachPdf: data.attachPdf === true, sentBy: data.sentBy, timeStr });
   } else if (data.resend === true) {
     full = await resendQuotationEmail(full, { attachPdf: data.attachPdf === true, sentBy: data.sentBy, timeStr });
+    emitAdmin('wholesale.quotation.resend', { quotationId: id, version: full?.version, email: full?.email, sentBy: data.sentBy || null, at: new Date() });
   } else if (newStatus === 'accepted' && prevStatus !== 'accepted' && full) {
     const orderRef = `ORD-${full.id}`;
     const result = await sendWholesaleQuotationAccepted(full, {
@@ -270,12 +322,16 @@ export async function updateQuotation(id: number, data: Record<string, any>) {
       { time: timeStr, event: 'Quotation Accepted by Customer' },
       emailLogEntry({ type: 'wholesale.quotation.accepted', recipient: full.email, status: result ? 'sent' : 'failed', messageId: result?.messageId ?? null, relatedId: full.id }),
     ]);
+    emitAdmin('wholesale.quotation.accepted', { quotationId: id, quoteNumber: full.quoteNumber ?? null, businessName: full.businessName ?? null, email: full.email, at: new Date() });
+    notifyAdmin('wholesale.quotation.accepted', 'Quotation Accepted', `${full.businessName || 'Customer'} accepted ${full.quoteNumber || id}`, { quotationId: id });
   } else if (newStatus === 'rejected' && prevStatus !== 'rejected' && full) {
     const result = await sendWholesaleQuotationRejected(full);
     await appendQuotationTimeline(full, [
       { time: timeStr, event: 'Quotation Rejected by Customer' },
       emailLogEntry({ type: 'wholesale.quotation.rejected', recipient: full.email, status: result ? 'sent' : 'failed', messageId: result?.messageId ?? null, relatedId: full.id }),
     ]);
+    emitAdmin('wholesale.quotation.rejected', { quotationId: id, quoteNumber: full.quoteNumber ?? null, businessName: full.businessName ?? null, email: full.email, at: new Date() });
+    notifyAdmin('wholesale.quotation.rejected', 'Quotation Rejected', `${full.businessName || 'Customer'} rejected ${full.quoteNumber || id}`, { quotationId: id });
   } else if (newStatus === 'converted' && prevStatus !== 'converted' && full) {
     const orderRef = `ORD-${full.id}`;
     const result = await sendWholesaleOrderConfirmation(full, { orderReference: orderRef, attachPdf: true });
@@ -283,6 +339,19 @@ export async function updateQuotation(id: number, data: Record<string, any>) {
       { time: timeStr, event: `Wholesale Order ${orderRef} Created & Confirmed` },
       emailLogEntry({ type: 'wholesale.order.confirmed', recipient: full.email, status: result ? 'sent' : 'failed', messageId: result?.messageId ?? null, relatedId: full.id }),
     ]);
+    emitAdminAndUser('wholesale.quotation.converted', {
+      quotationId: id,
+      quoteNumber: full.quoteNumber ?? null,
+      orderReference: orderRef,
+      businessName: full.businessName ?? null,
+      email: full.email,
+      at: new Date(),
+    }, { email: full.email });
+    notifyAdmin('wholesale.quotation.converted', 'Quotation Converted to Order', `${full.businessName || 'Customer'} — ${orderRef}`, { quotationId: id });
+    notifyUser('wholesale.quotation.converted', 'Quotation Converted to Order', `Your quotation ${full.quoteNumber || id} has been converted to ${orderRef}`, {
+      email: full.email,
+      meta: { quotationId: id },
+    });
   } else if (hasContentChanges && newStatus === prevStatus && QUOTE_EMITTED_STATUSES.includes(prevStatus)) {
     // Edited after it was already sent: mark as Updated, never auto-email.
     await updateQuotationRecord(id, { status: 'updated' });
@@ -290,6 +359,7 @@ export async function updateQuotation(id: number, data: Record<string, any>) {
     await appendQuotationTimeline(full, [
       { time: timeStr, event: `Quotation revised to version ${full?.version} — awaiting resend by admin` },
     ]);
+    emitAdmin('wholesale.quotation.status_changed', { quotationId: id, status: 'updated', version: full?.version, at: new Date() });
   }
 
   return full;
@@ -323,7 +393,23 @@ async function approveAndSend(quotation: any, opts: { attachPdf: boolean; sentBy
       : `Quotation Approved (v${quotation.version}) but email delivery FAILED — resend from admin` },
     emailLogEntry({ type: 'wholesale.quotation.approved', recipient: quotation.email, status: result ? 'sent' : 'failed', messageId: result?.messageId ?? null, relatedId: id }),
   ]);
-  return findQuotationById(id);
+  const approvedResult = await findQuotationById(id);
+  emitAdminAndUser('wholesale.quotation.approved', {
+    quotationId: id,
+    quoteNumber: quotation.quoteNumber ?? null,
+    businessName: quotation.businessName ?? null,
+    email: quotation.email ?? null,
+    version: quotation.version,
+    payableAmount: quotation.payableAmount ?? quotation.totalAmount ?? 0,
+    sentBy,
+    at: new Date(),
+  }, { email: quotation.email });
+  notifyAdmin('wholesale.quotation.approved', 'Quotation Approved & Emailed', `${quotation.businessName || 'Customer'} — v${quotation.version}`, { quotationId: id });
+  notifyUser('wholesale.quotation.approved', 'Quotation Approved', `Your quotation ${quotation.quoteNumber || id} (v${quotation.version}) has been approved`, {
+    email: quotation.email,
+    meta: { quotationId: id },
+  });
+  return approvedResult;
 }
 
 async function resendQuotationEmail(quotation: any, opts: { attachPdf: boolean; sentBy?: string; timeStr: string }) {
@@ -371,6 +457,16 @@ export async function emailQuotationCatalogue(id: number, opts?: { sentBy?: stri
       : `Catalogue email to ${full.email} FAILED` },
     emailLogEntry({ type: 'wholesale.catalogue.emailed', recipient: full.email, status: result ? 'sent' : 'failed', messageId: result?.messageId ?? null, relatedId: id }),
   ]);
+  emitAdmin('wholesale.quotation.catalogue_emailed', {
+    quotationId: id,
+    quoteNumber: full.quoteNumber ?? null,
+    businessName: full.businessName ?? null,
+    email: full.email,
+    version: full.version ?? 1,
+    delivered: result,
+    sentBy,
+    at: new Date(),
+  });
   return findQuotationById(id);
 }
 
@@ -403,6 +499,19 @@ export async function notifyWholesaleOrderStatus(id: number, status: string) {
   await appendQuotationTimeline(full, [
     emailLogEntry({ type: `wholesale.order.${normalized}`, recipient: full.email, status: result ? 'sent' : 'failed', messageId: result?.messageId ?? null, relatedId: full.id }),
   ]);
+  emitAdminAndUser('wholesale.order.status_changed', {
+    orderReference: orderRef,
+    quotationId: id,
+    status: normalized,
+    businessName: full.businessName ?? null,
+    email: full.email ?? null,
+    at: new Date(),
+  }, { email: full.email });
+  notifyAdmin('wholesale.order.status_changed', 'Wholesale Order Status', `${orderRef} → ${normalized}`);
+  notifyUser('wholesale.order.status_changed', 'Order Status Updated', `Your wholesale order ${orderRef} is now ${normalized}`, {
+    email: full.email,
+    meta: { quotationId: id, orderReference: orderRef },
+  });
   return findQuotationById(id);
 }
 
@@ -433,8 +542,14 @@ export async function recordQuotationView(id: number) {
   return findQuotationById(id);
 }
 
-export async function removeWholesaleInquiry(id: number) { return deleteWholesaleInquiry(id); }
-export async function removeQuotation(id: number) { return deleteQuotation(id); }
+export async function removeWholesaleInquiry(id: number) {
+  await deleteWholesaleInquiry(id);
+  emitAdmin('wholesale.inquiry.deleted', { inquiryId: id, at: new Date() });
+}
+export async function removeQuotation(id: number) {
+  await deleteQuotation(id);
+  emitAdmin('wholesale.quotation.deleted', { quotationId: id, at: new Date() });
+}
 export async function listWholesaleCatalogueData() {
   return listProducts();
 }

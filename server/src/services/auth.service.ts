@@ -7,6 +7,7 @@ import { signToken } from '../utils/jwt.util.js';
 import { AppError } from '../utils/app-error.js';
 import { sendRetailWelcome, sendRetailLoginNotification, sendRetailPasswordReset, sendRetailPasswordResetSuccess, sendRetailVerifyEmail } from '../mail/email.service.js';
 import { env } from '../config/env.js';
+import { notifyAdmin, emitAdmin } from '../realtime/events.js';
 
 const SALT_ROUNDS = 10;
 
@@ -47,6 +48,8 @@ export async function registerCustomer(input: {
   await sendVerificationEmail(customer.email);
 
   const token = signToken({ sub: customer.id, email: customer.email, role: customer.role });
+  notifyAdmin('customer.registered', 'New Customer', `${customer.firstName} ${customer.lastName}`.trim() || customer.email, { customerId: customer.id, email: customer.email });
+  emitAdmin('customer.registered', { customerId: customer.id, email: customer.email, name: `${customer.firstName} ${customer.lastName}`.trim(), at: new Date() });
   return { user: sanitizeCustomer(customer), token };
 }
 

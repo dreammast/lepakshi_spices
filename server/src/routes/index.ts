@@ -16,16 +16,18 @@ import { campaignAdminRouter, campaignPublicRouter } from './campaign.route.js';
 import { recipeAdminRouter, recipePublicRouter } from './recipe.route.js';
 import { productReviewRouter, publicReviewRouter, adminReviewRouter } from './review.route.js';
 import { settingsAdminRouter, settingsPublicRouter } from './settings.route.js';
-import { wholesaleAdminRouter, wholesalePublicRouter, wholesaleQuotePublicRouter } from './wholesale.route.js';
+import { wholesaleAdminRouter, wholesalePublicRouter, wholesaleQuotePublicRouter, wholesaleQuoteCustomerRouter } from './wholesale.route.js';
 import packagingRoute from './packaging.route.js';
 import adminCustomerRoute from './admin-customer.route.js';
 import auditRoute from './audit.route.js';
 import { getDashboardStatsController } from '../controllers/dashboard.controller.js';
 import { asyncHandler } from '../middleware/async-handler.js';
 import locationRoute from './location.route.js';
+import realtimeRoute from './realtime.route.js';
 
 const router = Router();
 router.use('/health', healthRoute);
+router.use('/realtime', realtimeRoute);
 router.use('/auth', authRoute);
 router.use('/categories', categoriesRoute);
 router.use('/products', productsRoute);
@@ -54,6 +56,7 @@ router.get('/admin/dashboard/stats', authenticate, requireRole('admin', 'staff',
 router.use('/admin', authenticate, requireRole('admin', 'staff', 'manager'), wholesaleAdminRouter);
 router.use('/settings', settingsPublicRouter);
 router.use('/wholesale-inquiries', wholesalePublicRouter);
+router.use('/wholesale/quotes', wholesaleQuoteCustomerRouter);
 router.use('/wholesale/quotes', wholesaleQuotePublicRouter);
 router.use('/', packagingRoute);
 

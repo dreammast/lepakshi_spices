@@ -25,6 +25,8 @@ import { SmartPricingAssistant } from "./components/SmartPricingAssistant";
 import { useHeartbeat } from "../lib/useHeartbeat";
 import { catalogPacks, findCatalogProduct, makeEmptyItem, matchPack, packPrice, parseQuantityHint } from "../lib/quoteCatalog";
 import { authApi, auditApi, categoriesApi, customersApi, ordersApi, couponsApi, campaignsApi, recipesApi, reviewsApi, wholesaleApi, productsApi, dashboardApi, settingsApi, collectionsApi, type CustomerDetails, type CustomerListItem } from "../lib/apiClient";
+import { configureRealtime, startRealtime, stopRealtime, onRealtimeEvent, onRealtimeNotification, onConnectionStateChange, getConnectionState, type RealtimeNotification, type ConnectionState } from "../lib/realtime";
+import { useRealtimeRefresh } from "../lib/useRealtimeRefresh";
 
 // Brand Tokens 
 const C = {
@@ -539,12 +541,24 @@ function Sidebar({ page, setPage, collapsed, setCollapsed, onLogout }: {
 }
 
 // Header 
-function Header({ page, offset, notifs, bellOpen, onBell, toggleDarkMode, darkMode, openCommandPalette }: {
+function Header({ page, offset, notifs, bellOpen, onBell, toggleDarkMode, darkMode, openCommandPalette, conn }: {
     page: string; offset: number; notifs: typeof NOTIFS; bellOpen: boolean; onBell: () => void;
-    toggleDarkMode: () => void; darkMode: boolean; openCommandPalette: () => void;
+    toggleDarkMode: () => void; darkMode: boolean; openCommandPalette: () => void; conn: ConnectionState;
 }) {
     const [sf, setSf] = useState(false);
     const unread = notifs.filter(n => !n.read).length;
+    const connLabel: Record<ConnectionState, string> = {
+        connecting: "Connecting…",
+        open: "Live",
+        fallback: "Polling",
+        off: "Offline",
+    };
+    const connColor: Record<ConnectionState, string> = {
+        connecting: "#D4921A",
+        open: "#4A7A2A",
+        fallback: "#D4921A",
+        off: "#C94040",
+    };
     const title = {
         dashboard: "Dashboard",
         products: "Products",
@@ -572,6 +586,12 @@ function Header({ page, offset, notifs, bellOpen, onBell, toggleDarkMode, darkMo
             <button onClick={toggleDarkMode} className="w-9 h-9 rounded-xl flex items-center justify-center relative transition-all duration-150 hover:bg-[#F0EDE8] text-[#8B7355]">
                 {darkMode ? <Sparkles className="w-5 h-5 text-amber-500" /> : <Clock className="w-5 h-5" />}
             </button>
+
+            {/* Realtime connection status */}
+            <div className="hidden sm:flex items-center gap-1.5 rounded-full px-2.5 py-1.5" style={{ backgroundColor: "rgba(240,237,232,0.8)", border: `1px solid ${C.border}` }} title={`Realtime: ${connLabel[conn]}`}>
+                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: connColor[conn] }} />
+                <span className="text-[10px] font-semibold" style={{ color: C.muted }}>{connLabel[conn]}</span>
+            </div>
 
             <div className="relative">
                 <button onClick={onBell} className="w-9 h-9 rounded-xl flex items-center justify-center relative transition-all duration-150"
@@ -628,6 +648,52 @@ function Header({ page, offset, notifs, bellOpen, onBell, toggleDarkMode, darkMo
 function fireDashboardRefresh() {
     window.dispatchEvent(new CustomEvent("dashboardRefresh"));
 }
+
+// Maps realtime event types to the admin sections they should refresh.
+// Only the affected sections reload — no full-app churn.
+const REFRESH_MAP: Record<string, string[]> = {
+    "order.created": ["orderRefresh", "dashboardRefresh"],
+    "order.status_changed": ["orderRefresh", "dashboardRefresh"],
+    "order.payment_verified": ["orderRefresh", "dashboardRefresh"],
+    "wholesale.inquiry.created": ["wholesaleRefresh", "dashboardRefresh"],
+    "wholesale.inquiry.updated": ["wholesaleRefresh"],
+    "wholesale.inquiry.status_changed": ["wholesaleRefresh"],
+    "wholesale.inquiry.deleted": ["wholesaleRefresh"],
+    "wholesale.quotation.created": ["quotationRefresh", "wholesaleRefresh"],
+    "wholesale.quotation.status_changed": ["quotationRefresh"],
+    "wholesale.quotation.accepted": ["quotationRefresh"],
+    "wholesale.quotation.rejected": ["quotationRefresh"],
+    "wholesale.quotation.resend": ["quotationRefresh"],
+    "wholesale.quotation.approved": ["quotationRefresh", "wholesaleRefresh"],
+    "wholesale.quotation.converted": ["quotationRefresh", "wholesaleRefresh", "dashboardRefresh"],
+    "wholesale.quotation.responded": ["quotationRefresh"],
+    "wholesale.quotation.viewed": ["quotationRefresh"],
+    "wholesale.quotation.catalogue_emailed": ["quotationRefresh"],
+    "wholesale.quotation.deleted": ["quotationRefresh"],
+    "wholesale.order.status_changed": ["orderRefresh", "wholesaleRefresh", "dashboardRefresh"],
+    "product.created": ["productRefresh", "dashboardRefresh"],
+    "product.updated": ["productRefresh", "catalogRefresh"],
+    "product.deleted": ["productRefresh", "catalogRefresh"],
+    "product.stock_changed": ["productRefresh", "dashboardRefresh"],
+    "category.created": ["catalogRefresh"],
+    "category.updated": ["catalogRefresh"],
+    "category.deleted": ["catalogRefresh"],
+    "recipe.created": ["recipeRefresh"],
+    "recipe.updated": ["recipeRefresh"],
+    "recipe.deleted": ["recipeRefresh"],
+    "review.created": ["reviewRefresh", "dashboardRefresh"],
+    "review.status_changed": ["reviewRefresh"],
+    "review.deleted": ["reviewRefresh"],
+    "review.approved": ["reviewRefresh"],
+    "coupon.created": ["couponRefresh", "dashboardRefresh"],
+    "coupon.updated": ["couponRefresh"],
+    "coupon.deleted": ["couponRefresh"],
+    "campaign.created": ["campaignRefresh"],
+    "campaign.updated": ["campaignRefresh"],
+    "campaign.deleted": ["campaignRefresh"],
+    "settings.updated": ["settingsRefresh"],
+    "customer.registered": ["customerRefresh", "dashboardRefresh"],
+};
 
 const CAT_COLORS = [C.orange, C.yellow, C.green, "#7A5C3A", "#5C3D8F", "#2B7FE2"];
 
@@ -996,6 +1062,8 @@ function ProductsPage() {
     useEffect(() => {
         loadDbData();
     }, []);
+
+    useRealtimeRefresh(["productRefresh", "catalogRefresh", "reviewRefresh"], loadDbData);
 
     // Reviews state
     const [reviews, setReviews] = useState<any[]>(() => {
@@ -1769,6 +1837,7 @@ function OrdersPage() {
     }, [query, statusFilter]);
 
     useEffect(() => { loadOrders(); }, []);
+    useRealtimeRefresh(["orderRefresh"], loadOrders);
 
     const handleReload = () => {
         setHasError(false);
@@ -2392,6 +2461,8 @@ function CustomersPage() {
         loadCustomersFromApi();
     }, []);
 
+    useRealtimeRefresh(["customerRefresh"], loadCustomersFromApi);
+
     useEffect(() => {
         if (!drawer) { setCustomerDetails(null); setDetailsError(null); return; }
         setDetailsLoading(true);
@@ -2822,6 +2893,12 @@ function SettingsPage() {
     useEffect(() => {
         loadPromotionsData();
     }, []);
+
+    useRealtimeRefresh(["couponRefresh", "campaignRefresh", "settingsRefresh"], () => {
+        loadPromotionsData();
+        settingsApi.get('contact_settings').then((d: any) => { if (d?.value) setContacts(d.value); }).catch(() => { });
+        settingsApi.get('tax_settings').then((d: any) => { if (d?.value) setTaxes(d.value); }).catch(() => { });
+    });
 
     const saveAlert = async () => {
         try {
@@ -3368,6 +3445,11 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
         .catch((error: any) => console.warn("Unable to load wholesale quotations", error));
 
     useEffect(() => { refreshInquiries(); refreshQuotations(); }, []);
+
+    useRealtimeRefresh(["wholesaleRefresh"], () => {
+        refreshInquiries();
+        refreshQuotations();
+    });
 
     const saveInquiries = (updated: any[]) => {
         setInquiries(updated);
@@ -4499,11 +4581,17 @@ const DEFAULT_QUOTATIONS: any[] = [];
 function QuotationManagementPage({ navigateTo }: { navigateTo: (p: string) => void }) {
     const [quotations, setQuotations] = useState<any[]>([]);
 
-    useEffect(() => {
+    const loadQuotations = () => {
         wholesaleApi.listQuotations().then((data: any[]) => {
             if (Array.isArray(data)) setQuotations(data);
         }).catch((err: any) => console.warn("Failed to load quotations:", err));
+    };
+
+    useEffect(() => {
+        loadQuotations();
     }, []);
+
+    useRealtimeRefresh(["quotationRefresh"], loadQuotations);
 
     const [activeTab, setActiveTab] = useState<string>("all");
     const [searchQuery, setSearchQuery] = useState<string>("");
@@ -5797,10 +5885,22 @@ function ProductCatalogCMSPage() {
             bulk_packaging: (v: any) => setBulkPackaging(v),
             pdf_template: (v: any) => setPdfTemplate(v),
         };
-        Object.entries(defaults).forEach(([key, setter]) => {
-            settingsApi.get(key).then((data: any) => { if (data?.value) setter(data.value); }).catch(() => { });
-        });
+        const loadAll = () => {
+            Object.entries(defaults).forEach(([key, setter]) => {
+                settingsApi.get(key).then((data: any) => { if (data?.value) setter(data.value); }).catch(() => { });
+            });
+        };
+        loadAll();
+        return undefined;
     }, []);
+
+    useRealtimeRefresh(["catalogRefresh", "settingsRefresh"], () => {
+        settingsApi.get('catalog_settings').then((data: any) => { if (data?.value) setCompanyProfile(data.value); }).catch(() => { });
+        settingsApi.get('contact_settings').then((data: any) => { if (data?.value) setContactSettings(data.value); }).catch(() => { });
+        settingsApi.get('pdf_products').then((data: any) => { if (data?.value) setCatalogProducts(data.value); }).catch(() => { });
+        settingsApi.get('bulk_packaging').then((data: any) => { if (data?.value) setBulkPackaging(data.value); }).catch(() => { });
+        settingsApi.get('pdf_template').then((data: any) => { if (data?.value) setPdfTemplate(data.value); }).catch(() => { });
+    });
 
     const triggerProfileSave = async () => {
         try {
@@ -6955,6 +7055,15 @@ function WebsiteCMSPage() {
         }).catch(() => { });
     }, []);
 
+    useRealtimeRefresh(["recipeRefresh", "settingsRefresh", "reviewRefresh"], () => {
+        loadRecipesFromApi();
+        settingsApi.get('homepage_cms').then((d: any) => { if (d?.value) setHomepage(d.value); }).catch(() => { });
+        settingsApi.get('footer').then((d: any) => { if (d?.value) setFooter(d.value); }).catch(() => { });
+        reviewsApi.adminList().then((data: any[]) => {
+            if (Array.isArray(data)) setTestimonials(data.filter((r: any) => r.status === 'approved' || r.status === 'hidden').map((r: any) => ({ id: r.id, name: r.customerName || r.userEmail, comment: r.comment, rating: r.rating, status: r.status })));
+        }).catch(() => { });
+    });
+
     const handleOpenAddRecipe = () => {
         setEditingRecipe(null);
         setRecipeForm({
@@ -7329,6 +7438,8 @@ export default function App() {
             return false;
         }
     });
+    const [realtimeNotifs, setRealtimeNotifs] = useState<Array<{ id: string; type: string; title: string; message: string; time: string; read: boolean }>>([]);
+    const [connState, setConnState] = useState<ConnectionState>(getConnectionState());
 
     useEffect(() => {
         if (darkMode) {
@@ -7337,6 +7448,49 @@ export default function App() {
             document.documentElement.classList.remove("dark");
         }
     }, [darkMode]);
+
+    // Real-time sync: SSE stream → notifications (bell + toast) + refresh events.
+    useEffect(() => {
+        if (!authenticated) return;
+        configureRealtime({
+            getToken: () => {
+                try {
+                    const raw = localStorage.getItem("spiceora_admin");
+                    return raw ? JSON.parse(raw).token || null : null;
+                } catch {
+                    return null;
+                }
+            },
+        });
+        startRealtime();
+        const offNotif = onRealtimeNotification((n: RealtimeNotification) => {
+            setRealtimeNotifs(prev => [{
+                id: n.id,
+                type: n.type,
+                title: n.title,
+                message: n.description || n.title,
+                time: new Date(n.createdAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }),
+                read: false,
+            }, ...prev].slice(0, 50));
+            toast(n.title, { description: n.description });
+        });
+        const offEvent = onRealtimeEvent((ev) => {
+            if (ev.type === "poll") {
+                window.dispatchEvent(new CustomEvent("pageRefresh"));
+                window.dispatchEvent(new CustomEvent("dashboardRefresh"));
+                return;
+            }
+            (REFRESH_MAP[ev.type] || []).forEach((name) => window.dispatchEvent(new CustomEvent(name)));
+            window.dispatchEvent(new CustomEvent(`realtime:${ev.type}`, { detail: ev.data }));
+        });
+        const offConn = onConnectionStateChange((s) => setConnState(s));
+        return () => {
+            offNotif();
+            offEvent();
+            offConn();
+            stopRealtime();
+        };
+    }, [authenticated]);
 
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
@@ -7418,7 +7572,7 @@ export default function App() {
             }} richColors />
             <Sidebar page={page} setPage={navigate} collapsed={collapsed} setCollapsed={setCollapsed} onLogout={async () => { try { await authApi.adminLogout(); } catch { } localStorage.clear(); sessionStorage.clear(); setAuthenticated(false); }} />
             <div data-headernav>
-                <Header page={page} offset={sideW} notifs={NOTIFS} bellOpen={bellOpen} onBell={() => setBellOpen(v => !v)} toggleDarkMode={toggleDarkMode} darkMode={darkMode} openCommandPalette={() => setCmdOpen(true)} />
+                <Header page={page} offset={sideW} notifs={realtimeNotifs} bellOpen={bellOpen} onBell={() => setBellOpen(v => !v)} toggleDarkMode={toggleDarkMode} darkMode={darkMode} openCommandPalette={() => setCmdOpen(true)} conn={connState} />
             </div>
             <main className="transition-all duration-300 pt-16" style={{ paddingLeft: sideW }}>
                 <div className="p-6 max-w-7xl">

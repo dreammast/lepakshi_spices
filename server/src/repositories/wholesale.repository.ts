@@ -1,4 +1,4 @@
-import { eq, desc } from 'drizzle-orm';
+import { eq, desc, or } from 'drizzle-orm';
 import { db } from '../config/database.js';
 import { wholesaleInquiries, quotations, quotationItems } from '../db/schema.js';
 
@@ -85,6 +85,20 @@ export async function updateWholesaleInquiryStatus(id: number, status: string) {
 
 export async function findAllQuotations() {
   const rows = await db.select().from(quotations).orderBy(desc(quotations.createdAt));
+  return Promise.all(rows.map(async q => {
+    const items = await db.select().from(quotationItems).where(eq(quotationItems.quotationId, q.id));
+    return { ...q, items };
+  }));
+}
+
+export async function findQuotationsForCustomer(customerId: number | null, email: string | null) {
+  if (customerId == null && !email) return [];
+  const conditions: any[] = [];
+  if (customerId != null) conditions.push(eq(quotations.customerId, customerId));
+  if (email) conditions.push(eq(quotations.email, email));
+  const rows = await db.select().from(quotations)
+    .where(conditions.length === 1 ? conditions[0] : or(...conditions));
+  rows.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   return Promise.all(rows.map(async q => {
     const items = await db.select().from(quotationItems).where(eq(quotationItems.quotationId, q.id));
     return { ...q, items };

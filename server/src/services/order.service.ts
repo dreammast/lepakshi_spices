@@ -14,6 +14,7 @@ import { env } from '../config/env.js';
 import { validateCoupon } from './coupon.service.js';
 import { sendRetailOrderConfirmation, sendRetailOrderStatus, sendRetailReceipt, sendRetailPaymentVerified, sendRetailOrderCancelled } from '../mail/email.service.js';
 import { emailLogEntry } from '../mail/email-log.js';
+import { emitAdminAndUser, emitAdminAndPublic, notifyAdmin, notifyUser } from '../realtime/events.js';
 
 function canEmailOrder(order: Awaited<ReturnType<typeof findOrderById>>): order is NonNullable<Awaited<ReturnType<typeof findOrderById>>> & { customerEmail: string } {
   return Boolean(order?.customerEmail);
@@ -66,6 +67,25 @@ export async function createOrder(input: CreateOrderInput) {
 
   input = { ...input, paymentMethod };
   const order = await createOrderRecord(input);
+  if (!order) throw new AppError(500, 'Failed to create order');
+
+  // Real-time: new retail order (admin bell/toast) + stock changed (storefront/admin).
+  const orderNumber = order.orderNumber || String(order.id);
+  const orderAmount = order.total;
+  emitAdminAndPublic('product.stock_changed', { source: 'order', orderId: order.id });
+  notifyAdmin('order.created', 'New Order', `Order ${orderNumber} from ${order.customerName || order.customerEmail || 'customer'} for ₹${orderAmount.toLocaleString('en-IN')}`, { orderId: order.id, orderNumber });
+  emitAdminAndUser('order.created', {
+    orderId: order.id,
+    orderNumber,
+    customerId: order.customerId,
+    customerEmail: order.customerEmail || null,
+    status: order.status,
+    paymentMethod: order.paymentMethod ?? null,
+    couponCode: input.couponCode ?? null,
+    total: orderAmount,
+    createdAt: order.placedAt ?? new Date(),
+  }, { userId: order.customerId, email: order.customerEmail || null });
+
   if (canEmailOrder(order)) {
     const orderUrl = `${env.FRONTEND_URL.replace(/\/$/, '')}/orders/${order.id}`;
     const emailData = { ...order, trackingUrl: orderUrl, invoiceUrl: `${orderUrl}?view=invoice` };
@@ -106,6 +126,25 @@ export async function setOrderStatus(id: number, status: typeof orders.$inferIns
     throw new AppError(404, 'Order not found');
   }
   const notificationStatus = status ?? updated.status;
+
+  // Real-time: push the new status to admins + the order's customer.
+  const orderNumber = updated.orderNumber || String(updated.id);
+  emitAdminAndUser('order.status_changed', {
+    orderId: updated.id,
+    orderNumber,
+    status: notificationStatus,
+    previousStatus: order.status,
+    customerId: updated.customerId,
+    customerEmail: updated.customerEmail ?? null,
+    updatedAt: new Date(),
+  }, { userId: updated.customerId, email: updated.customerEmail });
+  notifyAdmin('order.status_changed', 'Order Status Updated', `Order ${orderNumber} → ${notificationStatus}`);
+  notifyUser('order.status_changed', 'Order Status Updated', `Your order ${orderNumber} is now ${notificationStatus}`, {
+    userId: updated.customerId,
+    email: updated.customerEmail,
+    meta: { orderId: updated.id, status: notificationStatus },
+  });
+
   if (canEmailOrder(updated) && notificationStatus && ['processing', 'shipped', 'delivered', 'cancelled'].includes(notificationStatus)) {
     const orderUrl = `${env.FRONTEND_URL.replace(/\/$/, '')}/orders/${updated.id}`;
     const result = notificationStatus === 'cancelled'
@@ -130,6 +169,25 @@ export async function verifyOrderPayment(id: number, adminName: string) {
   if (!updated) {
     throw new AppError(404, 'Order not found');
   }
+
+  // Real-time: payment verified notification for admins + customer.
+  const orderNumber = updated.orderNumber || String(updated.id);
+  emitAdminAndUser('order.payment_verified', {
+    orderId: updated.id,
+    orderNumber,
+    paymentStatus: 'verified',
+    customerId: updated.customerId,
+    customerEmail: updated.customerEmail ?? null,
+    verifiedBy: adminName,
+    updatedAt: new Date(),
+  }, { userId: updated.customerId, email: updated.customerEmail });
+  notifyAdmin('order.payment_verified', 'Payment Verified', `Payment for order ${orderNumber} verified by ${adminName}`);
+  notifyUser('order.payment_verified', 'Payment Verified', `Your payment for order ${orderNumber} has been verified`, {
+    userId: updated.customerId,
+    email: updated.customerEmail,
+    meta: { orderId: updated.id },
+  });
+
   if (canEmailOrder(updated)) {
     const orderUrl = `${env.FRONTEND_URL.replace(/\/$/, '')}/orders/${updated.id}`;
     const result = await sendRetailPaymentVerified({ ...updated, trackingUrl: orderUrl }, updated.customerEmail);

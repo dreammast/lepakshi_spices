@@ -156,6 +156,10 @@ export const wholesaleCatalogueApi = {
   list: () => api.get<any[]>('/wholesale-inquiries/catalogue')
 };
 
+export const wholesaleQuotesApi = {
+  mine: () => api.get<any[]>('/wholesale/quotes/mine')
+};
+
 export const couponsApi = {
   available: () => api.get<any[]>('/coupons/available'),
   validate: (code: string, cartTotal: number) => api.post<any>('/coupons/validate', { code, cartTotal })

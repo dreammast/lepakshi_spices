@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from 'express';
-import { listWholesaleInquiries, createWholesaleInquiry, updateWholesaleInquiry, setInquiryStatus, listQuotations, createQuotation, updateQuotation, removeWholesaleInquiry, removeQuotation, listWholesaleCatalogueData, respondToQuotation, recordQuotationView, notifyWholesaleOrderStatus, getQuotation, emailQuotationCatalogue } from '../services/wholesale.service.js';
+import type { AuthenticatedRequest } from '../middleware/auth.middleware.js';
+import { listWholesaleInquiries, createWholesaleInquiry, updateWholesaleInquiry, setInquiryStatus, listQuotations, listMyQuotations, createQuotation, updateQuotation, removeWholesaleInquiry, removeQuotation, listWholesaleCatalogueData, respondToQuotation, recordQuotationView, notifyWholesaleOrderStatus, getQuotation, emailQuotationCatalogue } from '../services/wholesale.service.js';
 import { sendSuccess, sendCreated } from '../utils/response.util.js';
 import { verifyQuoteToken } from '../mail/quote-token.js';
 import { wholesaleQuotationWebPage, brandedMessagePage } from '../mail/templates.wholesale.js';
@@ -23,6 +24,14 @@ export async function updateInquiryStatusController(req: Request, res: Response,
 
 export async function listQuotationsController(_req: Request, res: Response, next: NextFunction) {
   try { sendSuccess(res, await listQuotations()); } catch (e) { next(e); }
+}
+
+export async function listMyQuotationsController(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+  try {
+    const customerId = req.user?.sub ?? null;
+    const email = req.user?.email ?? null;
+    sendSuccess(res, await listMyQuotations(customerId, email));
+  } catch (e) { next(e); }
 }
 
 export async function createQuotationController(req: Request, res: Response, next: NextFunction) {
