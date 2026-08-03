@@ -18,6 +18,7 @@ export async function createOrderController(req: AuthenticatedRequest, res: Resp
       shippingAddress: req.body.shippingAddress,
       couponCode: req.body.couponCode,
       discountAmount: req.body.discountAmount,
+      shippingAmount: req.body.shippingAmount,
       paymentMethod: req.body.paymentMethod,
       upiTransactionId: req.body.upiTransactionId,
       payerName: req.body.payerName,

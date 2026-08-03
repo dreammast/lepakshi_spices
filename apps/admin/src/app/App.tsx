@@ -2090,14 +2090,12 @@ function OrdersPage() {
                                                     <span>₹{drawerTarget.tax.toFixed(2)}</span>
                                                 </div>
                                             )}
-                                            {drawerTarget.shipping > 0 && (
-                                                <div className="flex items-center justify-between text-xs text-[#8B7355]">
-                                                    <span>Shipping</span>
-                                                    <span>₹{drawerTarget.shipping.toFixed(2)}</span>
-                                                </div>
-                                            )}
+                                            <div className="flex items-center justify-between text-xs text-[#8B7355]">
+                                                <span>Delivery Charges</span>
+                                                <span>{drawerTarget.shipping > 0 ? `₹${drawerTarget.shipping.toFixed(2)}` : "Free"}</span>
+                                            </div>
                                             <div className="flex items-center justify-between text-xs pt-2 border-t border-[#2C2416]/6 font-semibold text-[#2C2416]">
-                                                <span>Total</span>
+                                                <span>Final Amount Paid</span>
                                                 <span>₹{drawerTarget.total.toFixed(2)}</span>
                                             </div>
                                         </div>

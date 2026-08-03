@@ -42,10 +42,11 @@ export async function createOrder(input: CreateOrderInput) {
     throw new AppError(400, 'Invalid payment method. Only UPI and Cash on Delivery are accepted.');
   }
 
-  // Calculate order total for COD validation
+  // Calculate order total for COD validation (final payable amount)
   const subtotalForValidation = input.items.reduce((sum, item) => sum + Number(item.price) * item.quantity, 0);
   const discountForValidation = Number(input.discountAmount || 0);
-  const orderTotal = subtotalForValidation - discountForValidation;
+  const shippingForValidation = Number(input.shippingAmount || 0);
+  const orderTotal = subtotalForValidation - discountForValidation + shippingForValidation;
 
   if (paymentMethod === 'cod' && orderTotal < COD_MINIMUM_AMOUNT) {
     throw new AppError(400, `Cash on Delivery is only available for orders of ₹${COD_MINIMUM_AMOUNT} or more. Your order total is ₹${orderTotal.toFixed(2)}.`);

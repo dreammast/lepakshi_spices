@@ -20,6 +20,7 @@ export type CreateOrderInput = {
   };
   couponCode?: string;
   discountAmount?: string;
+  shippingAmount?: string;
   paymentMethod?: string;
   upiTransactionId?: string;
   payerName?: string;
@@ -94,6 +95,7 @@ function generateOrderNumber() {
 export async function createOrderRecord(input: CreateOrderInput) {
   const totalAmount = input.items.reduce((sum, item) => sum + Number(item.price) * item.quantity, 0);
   const discount = Number(input.discountAmount || 0);
+  const shipping = Number(input.shippingAmount || 0);
   const now = new Date();
 
   let shippingAddressId = input.shippingAddressId;
@@ -167,8 +169,8 @@ export async function createOrderRecord(input: CreateOrderInput) {
       subtotalAmount: String(totalAmount),
       discountAmount: String(discount),
       taxAmount: '0',
-      shippingAmount: '0',
-      totalAmount: String(Math.max(0, totalAmount - discount)),
+      shippingAmount: String(shipping),
+      totalAmount: String(Math.max(0, totalAmount - discount + shipping)),
       status: 'pending',
       paymentMethod: input.paymentMethod || null,
       couponCode: input.couponCode,

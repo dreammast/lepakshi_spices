@@ -2306,6 +2306,7 @@ function CheckoutPage() {
  items: orderItems,
  couponCode: couponCode || undefined,
  discountAmount: discount,
+ shippingAmount: delivFee,
  paymentMethod: payment,
  ...(payment === "upi" && { upiTransactionId: upiTransactionId.trim(), payerName: payerName.trim() }),
  };
@@ -2367,7 +2368,7 @@ function CheckoutPage() {
   </div>
   <div className="flex justify-between items-center text-xs text-[#7A7064]">
   <span>Total Amount</span>
-  <span className="font-bold text-[#1A1714] text-sm">₹{placedOrder?.total || total.toFixed(2)}</span>
+  <span className="font-bold text-[#1A1714] text-sm">{formatINR(Number(placedOrder?.total ?? placedOrder?.totalAmount ?? 0))}</span>
   </div>
   {addr.name && (
   <div className="flex justify-between items-start text-xs text-[#7A7064] pt-2 border-t border-[#1A1714]/6">
@@ -2589,7 +2590,7 @@ function CheckoutPage() {
  <div className="flex justify-between"><span className="text-[#7A7064]">Subtotal</span><span>₹{subtotal.toFixed(2)}</span></div>
  {discount > 0 && (
  <div className="flex justify-between text-green-600">
- <span>Discount (20%)</span>
+ <span>Discount{couponCode ? ` (${couponCode})` : ""}</span>
  <span>-₹{discount.toFixed(2)}</span>
  </div>
  )}
@@ -2953,7 +2954,7 @@ function ProfilePage() {
  <span className="text-xs font-semibold px-2 py-1 rounded-full bg-amber-50 text-amber-800">
  {o.paymentMethod?.toLowerCase() === 'upi' && o.paymentStatus === 'pending' ? 'Pending Verification' : o.status}
  </span>
- <p className="text-sm font-bold text-[#1A1714] mt-1">₹{o.total}</p>
+ <p className="text-sm font-bold text-[#1A1714] mt-1">{formatINR(o.total)}</p>
  </div>
  </div>
  ))}
@@ -3008,6 +3009,7 @@ function ProfilePage() {
  <div className="space-y-6">
  <div className="p-4 bg-[#FAF8F3] rounded-xl border border-[#1A1714]/8 space-y-2 text-left">
  <p className="text-xs text-[#7A7064]"><span className="font-semibold text-[#1A1714]">Order Status:</span> <span className="capitalize">{trackingOrder.status}</span></p>
+ <p className="text-xs text-[#7A7064]"><span className="font-semibold text-[#1A1714]">Total Amount:</span> <span className="font-bold text-[#1A1714]">{formatINR(Number(trackingOrder?.total ?? trackingOrder?.totalAmount ?? 0))}</span></p>
  <p className="text-xs text-[#7A7064]"><span className="font-semibold text-[#1A1714]">Payment Method:</span> {trackingOrder.paymentMethod?.toLowerCase() === 'upi' ? 'UPI Payment (Scan & Pay)' : trackingOrder.paymentMethod?.toLowerCase() === 'cod' ? 'Cash on Delivery' : trackingOrder.paymentMethod}</p>
  <p className="text-xs text-[#7A7064]"><span className="font-semibold text-[#1A1714]">Payment Status:</span> {
  trackingOrder.paymentMethod?.toLowerCase() === 'upi' && trackingOrder.paymentStatus === 'pending'
@@ -3064,7 +3066,7 @@ function ProfilePage() {
  <p className="text-sm text-[#7A7064] mt-1">{Array.isArray(o.items) ? o.items.map((item: any) => item.product?.name || item.variant?.label || "Product").join(", ") : o.items}</p>
  </div>
  <div className="text-right shrink-0">
- <p className="font-bold text-[#1A1714]">₹{o.total}</p>
+ <p className="font-bold text-[#1A1714]">{formatINR(o.total)}</p>
  <Btn size="sm" variant="ghost" onClick={() => setTrackingOrderId(o.id)} className="mt-1.5 text-xs">Track</Btn>
  </div>
  </div>

@@ -31,6 +31,7 @@ const createOrderSchema = z.object({
   }).optional(),
   couponCode: z.string().optional(),
   discountAmount: z.union([z.string(), z.number()]).optional(),
+  shippingAmount: z.union([z.string(), z.number()]).optional(),
   // Payment fields — required for service-level validation to work correctly
   paymentMethod: z.enum(['upi', 'cod']).optional(),
   upiTransactionId: z.string().optional(),
