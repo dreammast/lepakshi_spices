@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { asyncHandler } from '../middleware/async-handler.js';
-import { listWholesaleInquiriesController, createWholesaleInquiryController, updateWholesaleInquiryController, updateInquiryStatusController, deleteWholesaleInquiryController, listQuotationsController, createQuotationController, updateQuotationController, downloadQuotationPdfController, deleteQuotationController, listWholesaleCatalogueController, viewQuotationController, respondQuotationController, notifyOrderStatusController, getQuotationController } from '../controllers/wholesale.controller.js';
+import { listWholesaleInquiriesController, createWholesaleInquiryController, updateWholesaleInquiryController, updateInquiryStatusController, deleteWholesaleInquiryController, listQuotationsController, createQuotationController, updateQuotationController, downloadQuotationPdfController, deleteQuotationController, listWholesaleCatalogueController, viewQuotationController, respondQuotationController, notifyOrderStatusController, getQuotationController, emailQuotationCatalogueController } from '../controllers/wholesale.controller.js';
 
 const publicRouter = Router();
 publicRouter.post('/', asyncHandler(createWholesaleInquiryController));
@@ -26,5 +26,6 @@ adminRouter.post('/quotations', asyncHandler(createQuotationController));
 adminRouter.put('/quotations/:id', asyncHandler(updateQuotationController));
 adminRouter.delete('/quotations/:id', asyncHandler(deleteQuotationController));
 adminRouter.post('/quotations/:id/notify-order-status', asyncHandler(notifyOrderStatusController));
+adminRouter.post('/quotations/:id/email-catalogue', asyncHandler(emailQuotationCatalogueController));
 
 export { publicRouter as wholesalePublicRouter, quotePublicRouter as wholesaleQuotePublicRouter, adminRouter as wholesaleAdminRouter };

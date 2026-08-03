@@ -1,5 +1,5 @@
 import type { Request, Response, NextFunction } from 'express';
-import { listWholesaleInquiries, createWholesaleInquiry, updateWholesaleInquiry, setInquiryStatus, listQuotations, createQuotation, updateQuotation, removeWholesaleInquiry, removeQuotation, listWholesaleCatalogueData, respondToQuotation, recordQuotationView, notifyWholesaleOrderStatus, getQuotation } from '../services/wholesale.service.js';
+import { listWholesaleInquiries, createWholesaleInquiry, updateWholesaleInquiry, setInquiryStatus, listQuotations, createQuotation, updateQuotation, removeWholesaleInquiry, removeQuotation, listWholesaleCatalogueData, respondToQuotation, recordQuotationView, notifyWholesaleOrderStatus, getQuotation, emailQuotationCatalogue } from '../services/wholesale.service.js';
 import { sendSuccess, sendCreated } from '../utils/response.util.js';
 import { verifyQuoteToken } from '../mail/quote-token.js';
 import { wholesaleQuotationWebPage, brandedMessagePage } from '../mail/templates.wholesale.js';
@@ -159,4 +159,11 @@ export async function notifyOrderStatusController(req: Request, res: Response, n
 
 export async function getQuotationController(req: Request, res: Response, next: NextFunction) {
   try { sendSuccess(res, await getQuotation(Number(req.params.id))); } catch (e) { next(e); }
+}
+
+export async function emailQuotationCatalogueController(req: Request, res: Response, next: NextFunction) {
+  try {
+    const quotation = await emailQuotationCatalogue(Number(req.params.id), { sentBy: req.body?.sentBy });
+    sendSuccess(res, quotation, 'Catalogue emailed to client');
+  } catch (e) { next(e); }
 }

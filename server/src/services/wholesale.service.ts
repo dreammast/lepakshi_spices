@@ -278,7 +278,7 @@ export async function updateQuotation(id: number, data: Record<string, any>) {
     ]);
   } else if (newStatus === 'converted' && prevStatus !== 'converted' && full) {
     const orderRef = `ORD-${full.id}`;
-    const result = await sendWholesaleOrderConfirmation(full, { orderReference: orderRef });
+    const result = await sendWholesaleOrderConfirmation(full, { orderReference: orderRef, attachPdf: true });
     await appendQuotationTimeline(full, [
       { time: timeStr, event: `Wholesale Order ${orderRef} Created & Confirmed` },
       emailLogEntry({ type: 'wholesale.order.confirmed', recipient: full.email, status: result ? 'sent' : 'failed', messageId: result?.messageId ?? null, relatedId: full.id }),
@@ -344,6 +344,32 @@ async function resendQuotationEmail(quotation: any, opts: { attachPdf: boolean; 
       ? `Quotation resent (v${quotation.version}) to ${quotation.email || 'customer'} by ${sentBy}`
       : `Resend attempt for v${quotation.version} FAILED — check email settings` },
     emailLogEntry({ type: 'wholesale.quotation.resend', recipient: quotation.email, status: result ? 'sent' : 'failed', messageId: result?.messageId ?? null, relatedId: id }),
+  ]);
+  return findQuotationById(id);
+}
+
+export async function emailQuotationCatalogue(id: number, opts?: { sentBy?: string }) {
+  const full = await findQuotationById(id);
+  if (!full) throw new AppError(404, 'Quotation not found');
+  if (!full.email) throw new AppError(400, 'No customer email is associated with this quotation.');
+
+  const sentBy = opts?.sentBy || full.salesExecutive || 'Admin';
+  const now = new Date();
+  const isRevision = String(full.status) === 'updated';
+  const result = isRevision
+    ? await sendWholesaleQuotationUpdated(full, { attachPdf: true })
+    : await sendWholesaleQuotation(full, { attachPdf: true });
+
+  await updateQuotationRecord(id, {
+    emailSentAt: result ? now : undefined,
+    emailSentBy: result ? sentBy : undefined,
+    emailSentVersion: result ? Number(full.version) : undefined,
+  });
+  await appendQuotationTimeline(full, [
+    { time: formatTimelineTime(), event: result
+      ? `Catalogue emailed (v${full.version ?? 1}) to ${full.email} by ${sentBy}`
+      : `Catalogue email to ${full.email} FAILED` },
+    emailLogEntry({ type: 'wholesale.catalogue.emailed', recipient: full.email, status: result ? 'sent' : 'failed', messageId: result?.messageId ?? null, relatedId: id }),
   ]);
   return findQuotationById(id);
 }

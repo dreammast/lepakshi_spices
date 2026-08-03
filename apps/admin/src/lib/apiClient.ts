@@ -176,6 +176,7 @@ export const wholesaleApi = {
   approveAndSend: (id: number, attachPdf = false, sentBy = 'Admin') => api.put<any>(`/admin/quotations/${id}`, { status: 'approved', attachPdf, sentBy }),
   resendQuotation: (id: number, attachPdf = false, sentBy = 'Admin') => api.put<any>(`/admin/quotations/${id}`, { resend: true, attachPdf, sentBy }),
   notifyOrderStatus: (id: number, status: string) => api.post<any>(`/admin/quotations/${id}/notify-order-status`, { status }),
+  emailQuotationCatalogue: (id: number, sentBy = 'Admin') => api.post<any>(`/admin/quotations/${id}/email-catalogue`, { sentBy }),
   downloadQuotationPdf: async (id: number): Promise<{ blob: Blob; filename: string }> => {
     const token = getAuthToken();
     const headers: Record<string, string> = {};

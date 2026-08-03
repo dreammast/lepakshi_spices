@@ -192,13 +192,25 @@ export async function sendWholesaleQuotationRejected(quotation: WholesaleQuotati
   });
 }
 
-export async function sendWholesaleOrderConfirmation(quotation: WholesaleQuotationData, ctx?: { orderReference?: string }) {
+export async function sendWholesaleOrderConfirmation(quotation: WholesaleQuotationData, ctx?: { orderReference?: string; attachPdf?: boolean }) {
   if (!quotation.email) return null;
   const orderRef = ctx?.orderReference || `ORD-${quoteId(quotation.id)}`;
+
+  let attachments: EmailAttachment[] = [];
+  if (ctx?.attachPdf) {
+    try {
+      const pdf = await generateQuotationPdf(quotation);
+      attachments = [{ filename: pdf.filename, contentBase64: pdf.base64, contentType: pdf.contentType }];
+    } catch (error) {
+      logger.error({ err: error, quoteId: quoteId(quotation.id) }, 'Order confirmation PDF attachment failed; sending HTML-only email');
+    }
+  }
+
   return sendEmailSafely({
     to: quotation.email,
     subject: `Wholesale order ${orderRef} confirmed - Lepakshi Spices`,
     html: wholesaleTemplates.wholesaleOrderConfirmationEmail(quotation, { orderReference: orderRef }),
+    attachments,
   });
 }
 

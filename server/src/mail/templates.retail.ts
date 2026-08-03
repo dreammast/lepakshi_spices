@@ -37,6 +37,11 @@ export type RetailOrderEmailData = {
   shippingAddress?: any;
   placedAt?: Date | string | null;
   items?: Array<RetailOrderItem>;
+  subtotalAmount?: number | string | null;
+  discountAmount?: number | string | null;
+  shippingAmount?: number | string | null;
+  totalAmount?: number | string | null;
+  couponCode?: string | null;
 };
 
 function orderStatusLabel(order: RetailOrderEmailData) {
@@ -86,10 +91,27 @@ function orderDetailCard(order: RetailOrderEmailData) {
   </div>`;
 }
 
-function orderTotalsLine(order: RetailOrderEmailData) {
+function orderTotalsBlock(order: RetailOrderEmailData) {
+  const currency = order.currency || 'INR';
+  const subtotal = Number(order.subtotalAmount ?? 0);
+  const discount = Number(order.discountAmount ?? 0);
+  const shipping = Number(order.shippingAmount ?? 0);
+  const total = Number(order.total ?? order.totalAmount ?? Math.max(0, subtotal - discount) + shipping);
+
+  const rows = [
+    `<tr><td style="padding:5px 0;color:${COLORS.muted};">Subtotal</td><td style="padding:5px 0;text-align:right;">${formatMoney(subtotal, currency)}</td></tr>`,
+  ];
+  if (discount > 0) {
+    rows.push(`<tr><td style="padding:5px 0;color:${COLORS.muted};">Discount${order.couponCode ? ` (${escapeHtml(order.couponCode)})` : ''}</td><td style="padding:5px 0;text-align:right;color:${COLORS.greenText};">-${formatMoney(discount, currency)}</td></tr>`);
+  }
+  rows.push(`<tr><td style="padding:5px 0;color:${COLORS.muted};">Delivery Charges</td><td style="padding:5px 0;text-align:right;">${shipping > 0 ? formatMoney(shipping, currency) : 'Free'}</td></tr>`);
+  rows.push(`<tr><td style="padding:8px 0 0;border-top:1px solid ${COLORS.border};font-weight:bold;color:${COLORS.text};">Total</td><td style="padding:8px 0 0;border-top:1px solid ${COLORS.border};text-align:right;font-weight:bold;color:${COLORS.text};">${formatMoney(total, currency)}</td></tr>`);
+
   return `<div style="margin-top:16px;text-align:right;">
-    <p style="font-size:18px;font-weight:bold;margin:0 0 16px;">Total: ${formatMoney(order.total, order.currency || 'INR')}</p>
-    ${order.trackingUrl ? `<p style="margin:0;"><a href="${escapeHtml(order.trackingUrl)}" style="display:inline-block;background-color:${COLORS.primary};color:#ffffff;padding:11px 22px;border-radius:10px;text-decoration:none;font-weight:600;font-size:13px;">Track your order</a></p>` : ''}
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;font-size:14px;max-width:340px;margin-left:auto;">
+      <tbody>${rows.join('')}</tbody>
+    </table>
+    ${order.trackingUrl ? `<p style="margin:16px 0 0;"><a href="${escapeHtml(order.trackingUrl)}" style="display:inline-block;background-color:${COLORS.primary};color:#ffffff;padding:11px 22px;border-radius:10px;text-decoration:none;font-weight:600;font-size:13px;">Track your order</a></p>` : ''}
   </div>`;
 }
 
@@ -143,7 +165,7 @@ export function retailOrderConfirmationEmail(order: RetailOrderEmailData) {
     ${orderDetailCard(order)}
     ${sectionTitle('Order Summary')}
     ${orderItemsTable(order.items || [], order.currency || 'INR')}
-    ${orderTotalsLine(order)}
+    ${orderTotalsBlock(order)}
   `;
   return emailLayout('Order confirmed', html);
 }
@@ -154,7 +176,7 @@ export function retailPaymentVerifiedEmail(order: RetailOrderEmailData) {
     ${orderDetailCard(order)}
     ${sectionTitle('Order Summary')}
     ${orderItemsTable(order.items || [], order.currency || 'INR')}
-    ${orderTotalsLine(order)}
+    ${orderTotalsBlock(order)}
   `;
   return emailLayout('Payment verified successfully', html);
 }
@@ -164,7 +186,7 @@ export function retailReceiptEmail(order: RetailOrderEmailData) {
     ${paragraph(`Hi ${escapeHtml(order.customerName)},`)}
     ${paragraph(`This is your invoice and receipt for <strong>${escapeHtml(order.orderNumber)}</strong>.`)}
     ${orderItemsTable(order.items || [], order.currency || 'INR')}
-    <p style="font-size:18px;font-weight:bold;text-align:right;margin:14px 0 0;">Amount paid: ${formatMoney(order.total, order.currency || 'INR')}</p>
+    ${orderTotalsBlock(order)}
     ${order.invoiceUrl ? `<p style="text-align:right;"><a href="${escapeHtml(order.invoiceUrl)}" style="color:${COLORS.primary};font-weight:600;">View invoice</a></p>` : ''}
   `;
   return emailLayout('Your invoice / receipt', html);
@@ -204,7 +226,7 @@ export function retailOrderStatusEmail(order: RetailOrderEmailData) {
     ${smallDivider()}
     ${sectionTitle('Order Summary')}
     ${orderItemsTable(order.items || [], order.currency || 'INR')}
-    ${orderTotalsLine(order)}
+    ${orderTotalsBlock(order)}
   `;
   return emailLayout(meta.title, html);
 }

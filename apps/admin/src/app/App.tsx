@@ -3390,6 +3390,28 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
         return [];
     };
 
+    // Resolve the newest released (approved/sent/updated) quotation for an inquiry
+    // straight from the live database so catalogue actions never reuse old versions.
+    const getLatestQuotationForInquiry = async (inq: any): Promise<any | null> => {
+        try {
+            const quotes = await wholesaleApi.listQuotations();
+            const idStr = String(inq?.id ?? '');
+            const released = (Array.isArray(quotes) ? quotes : []).filter((q: any) =>
+                String(q.inquiryId ?? '') === idStr &&
+                !["draft", "pending_approval", "cancelled"].includes(String(q.status || 'draft'))
+            );
+            released.sort((a: any, b: any) => {
+                const va = Number(a.version ?? 1), vb = Number(b.version ?? 1);
+                if (vb !== va) return vb - va;
+                return new Date(b.updatedAt ?? 0).getTime() - new Date(a.updatedAt ?? 0).getTime();
+            });
+            return released[0] || null;
+        } catch (e) {
+            console.error("Failed to resolve latest quotation for inquiry", e);
+            return null;
+        }
+    };
+
     const saveQuotation = async (q: any) => {
         const dbId = typeof q.id === 'string' && q.id.match(/^\d+$/) ? Number(q.id) : null;
         if (dbId) return await wholesaleApi.updateQuotation(dbId, q);
@@ -3754,285 +3776,26 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
     // Reusable PDF generator for specific inquiry details
     const downloadInquiryPDF = async (inq: any) => {
         try {
-            const { jsPDF } = (window as any).jspdf;
-            const doc = new jsPDF({
-                orientation: "portrait",
-                unit: "mm",
-                format: "a4"
-            });
-
-            // Load template style parameters
-            let template = {
-                headerVisible: true,
-                footerVisible: true,
-                watermark: "OFFICIAL CATALOG",
-                primaryColor: [42, 74, 60],
-                secondaryColor: [201, 146, 10],
-                terms: "Terms: Ex-works / F.O.B dispatch. Sample kits available on request."
-            };
-            try {
-                const templateData = await settingsApi.get('pdf_template');
-                if (templateData?.value) {
-                    const parsed = templateData.value;
-                    const colorMap: Record<string, number[]> = {
-                        green: [42, 74, 60],
-                        gold: [201, 146, 10],
-                        red: [180, 40, 40],
-                        blue: [25, 80, 150]
-                    };
-                    template.watermark = parsed.watermark || template.watermark;
-                    template.terms = parsed.terms || template.terms;
-                    template.primaryColor = colorMap[parsed.primaryColor] || [42, 74, 60];
-                    template.secondaryColor = colorMap[parsed.secondaryColor] || [201, 146, 10];
-                }
-            } catch { }
-
-            // Load products prices from live server API
-            let productsData: any[] = [];
-            try {
-                const liveProducts = await productsApi.list();
-                if (Array.isArray(liveProducts) && liveProducts.length > 0) {
-                    productsData = liveProducts.map((p: any) => ({
-                        name: p.name,
-                        p100: p.basePrice ? `₹${p.basePrice}` : "N/A",
-                        p250: "N/A",
-                        p500: "N/A",
-                        p1000: "Available"
-                    }));
-                }
-            } catch { }
-
-            const primary = template.primaryColor;
-            const secondary = template.secondaryColor;
-
-            // Cover Page
-            doc.setFillColor(250, 248, 243);
-            doc.rect(0, 0, 210, 297, "F");
-
-            doc.setFillColor(primary[0], primary[1], primary[2]);
-            doc.rect(0, 0, 210, 45, "F");
-            if (logoDataUrl) doc.addImage(logoDataUrl, "PNG", 14, 6, 18, 18);
-
-            doc.setFont("Helvetica", "bold");
-            doc.setFontSize(26);
-            doc.setTextColor(secondary[0], secondary[1], secondary[2]);
-            doc.text("Lepakshi Spices", 20, 24);
-
-            doc.setFont("Helvetica", "normal");
-            doc.setFontSize(9);
-            doc.setTextColor(255, 255, 255);
-            doc.text("PREMIUM SPICES & HERBS", 20, 31);
-
-            doc.setFont("Helvetica", "bold");
-            doc.setFontSize(10);
-            doc.setTextColor(secondary[0], secondary[1], secondary[2]);
-            doc.text("B2B DIVISION", 160, 26);
-
-            doc.setFont("Helvetica", "bold");
-            doc.setFontSize(20);
-            doc.setTextColor(26, 23, 20);
-            doc.text("OFFICIAL B2B SOURCING CATALOG", 20, 75);
-
-            doc.setDrawColor(secondary[0], secondary[1], secondary[2]);
-            doc.setLineWidth(0.8);
-            doc.line(20, 80, 190, 80);
-
-            doc.setFont("Helvetica", "bold");
-            doc.setFontSize(12);
-            doc.setTextColor(122, 112, 100);
-            doc.text("Prepared Exclusively For:", 20, 93);
-
-            doc.setFillColor(255, 255, 255);
-            doc.setDrawColor(26, 23, 20, 0.08);
-            doc.rect(20, 98, 170, 120, "FD");
-
-            let cardY = 108;
-
-            doc.setFont("Helvetica", "bold");
-            doc.setFontSize(15);
-            doc.setTextColor(primary[0], primary[1], primary[2]);
-            doc.text(inq.businessName || "Valued B2B Partner", 30, cardY);
-            cardY += 12;
-
-            doc.setFontSize(11);
-
-            doc.setFont("Helvetica", "normal");
-            doc.setTextColor(26, 23, 20);
-            doc.text("Business Name:", 30, cardY);
-            doc.setFont("Helvetica", "bold");
-            doc.text(inq.businessName || "N/A", 75, cardY);
-            cardY += 10;
-
-            doc.setFont("Helvetica", "normal");
-            doc.text("Contact Name:", 30, cardY);
-            doc.setFont("Helvetica", "bold");
-            doc.text(inq.contactName || "N/A", 75, cardY);
-            cardY += 10;
-
-            doc.setFont("Helvetica", "normal");
-            doc.text("Business Email:", 30, cardY);
-            doc.setFont("Helvetica", "bold");
-            doc.text(inq.email || "N/A", 75, cardY);
-            cardY += 10;
-
-            doc.setFont("Helvetica", "normal");
-            doc.text("Mobile Number:", 30, cardY);
-            doc.setFont("Helvetica", "bold");
-            doc.text("+91 " + (inq.phone || "N/A"), 75, cardY);
-            cardY += 10;
-
-            doc.setFont("Helvetica", "normal");
-            doc.text("Selected Product:", 30, cardY);
-            doc.setFont("Helvetica", "bold");
-            doc.text(inq.productInterest || "Mixed Order / All Spices", 75, cardY);
-            cardY += 10;
-
-            doc.setFont("Helvetica", "normal");
-            doc.text("Sourcing Volume:", 30, cardY);
-            doc.setFont("Helvetica", "bold");
-            doc.text(inq.volume || "Mixed Bulk", 75, cardY);
-            cardY += 10;
-
-            doc.setFont("Helvetica", "normal");
-            doc.text("Date Generated:", 30, cardY);
-            doc.setFont("Helvetica", "bold");
-            doc.text(new Date().toLocaleDateString('en-IN'), 75, cardY);
-            cardY += 10;
-
-            doc.setFont("Helvetica", "normal");
-            doc.text("Special Requirements:", 30, cardY);
-            doc.setFont("Helvetica", "normal");
-            doc.setTextColor(122, 112, 100);
-            const splitMsg = doc.splitTextToSize(inq.message || "No specific milling or scheduling requests added.", 110);
-            doc.text(splitMsg, 75, cardY);
-
-            doc.setFont("Helvetica", "normal");
-            doc.setFontSize(8);
-            doc.setTextColor(122, 112, 100);
-            doc.text("Page 1 of 2", 100, 280);
-
-            if (template.watermark) {
-                doc.setFont("Helvetica", "bold");
-                doc.setFontSize(36);
-                doc.setTextColor(200, 200, 200, 0.12);
-                doc.text(template.watermark, 30, 250, null, 45);
+            const latestQuote = await getLatestQuotationForInquiry(inq);
+            if (!latestQuote) {
+                toast.error("No approved quotation found for this inquiry", { description: "Generate and approve a quotation first." });
+                return;
             }
-
-            // Page 2: Table
-            doc.addPage();
-
-            doc.setFillColor(primary[0], primary[1], primary[2]);
-            doc.rect(0, 0, 210, 25, "F");
-            if (logoDataUrl) doc.addImage(logoDataUrl, "PNG", 14, 4, 16, 16);
-
-            doc.setFont("Helvetica", "bold");
-            doc.setFontSize(14);
-            doc.setTextColor(255, 255, 255);
-            doc.text("Lepakshi Spices B2B PRODUCT CATALOG", 20, 16);
-
-            doc.setFont("Helvetica", "bold");
-            doc.setFontSize(13);
-            doc.setTextColor(primary[0], primary[1], primary[2]);
-            doc.text("Commercial Pricing Index", 20, 42);
-
-            doc.setFillColor(primary[0], primary[1], primary[2]);
-            doc.rect(20, 48, 170, 10, "F");
-
-            doc.setFont("Helvetica", "bold");
-            doc.setFontSize(9);
-            doc.setTextColor(255, 255, 255);
-            doc.text("Product Name", 25, 54);
-            doc.text("Category", 85, 54);
-            doc.text("Unit / Weight", 110, 54);
-            doc.text("Wholesale Price", 160, 54);
-
-            let rowY = 58;
-            productsData.forEach((row, idx) => {
-                if (idx % 2 === 1) {
-                    doc.setFillColor(245, 243, 237);
-                    doc.rect(20, rowY, 170, 10, "F");
-                }
-                doc.setDrawColor(26, 23, 20, 0.08);
-                doc.rect(20, rowY, 170, 10, "S");
-
-                doc.setFont("Helvetica", "bold");
-                doc.setTextColor(26, 23, 20);
-                doc.text(row.name, 25, rowY + 6.5);
-
-                doc.setFont("Helvetica", "normal");
-                doc.setTextColor(74, 70, 64);
-                doc.text(row.p100, 85, rowY + 6.5);
-                doc.text(row.p250, 110, rowY + 6.5);
-                doc.text(row.p500, 135, rowY + 6.5);
-                doc.text(row.p1000, 160, rowY + 6.5);
-                rowY += 10;
-            });
-
-            rowY += 12;
-            doc.setFont("Helvetica", "bold");
-            doc.setFontSize(13);
-            doc.setTextColor(primary[0], primary[1], primary[2]);
-            doc.text("Bulk Sourcing Packaging Options", 20, rowY);
-
-            rowY += 6;
-            doc.setFont("Helvetica", "normal");
-            doc.setFontSize(9.5);
-            doc.setTextColor(74, 70, 64);
-            doc.text("For wholesale food service, industrial processing, and mixed packaging contracts:", 20, rowY);
-
-            rowY += 8;
-            const bulkSizes = ["5kg Air-Tight Crate", "10kg Commercial Sack", "15kg Multi-Layer Bag", "25kg Heavy Duty Bulk Sack"];
-            bulkSizes.forEach(size => {
-                doc.setFillColor(secondary[0], secondary[1], secondary[2]);
-                doc.rect(25, rowY - 2.8, 2.5, 2.5, "F");
-                doc.setFont("Helvetica", "bold");
-                doc.setFontSize(9.5);
-                doc.setTextColor(26, 23, 20);
-                doc.text(size, 32, rowY);
-                rowY += 7.5;
-            });
-
-            rowY += 8;
-            doc.setFillColor(250, 248, 243);
-            doc.setDrawColor(secondary[0], secondary[1], secondary[2], 0.3);
-            doc.rect(20, rowY, 170, 26, "FD");
-
-            doc.setFont("Helvetica", "bold");
-            doc.setFontSize(9.5);
-            doc.setTextColor(primary[0], primary[1], primary[2]);
-            doc.text("Lepakshi Spices Sourcing Desk Support Team", 25, rowY + 6);
-
-            // Load contacts dynamically
-            let contactInfo = { whatsapp: "9390645710", email: "dreammasterorigin@gmail.com" };
-            try {
-                const contactData = await settingsApi.get('contact_settings');
-                if (contactData?.value) {
-                    contactInfo.whatsapp = contactData.value.whatsapp || contactInfo.whatsapp;
-                    contactInfo.email = contactData.value.email || contactInfo.email;
-                }
-            } catch { }
-
-            doc.setFont("Helvetica", "normal");
-            doc.setFontSize(8.5);
-            doc.setTextColor(26, 23, 20);
-            doc.text(`WhatsApp/Call Support: +91 ${contactInfo.whatsapp}`, 25, rowY + 13);
-            doc.text(`Official Email: ${contactInfo.email}`, 25, rowY + 19);
-
-            doc.setFont("Helvetica", "normal");
-            doc.setFontSize(8);
-            doc.setTextColor(122, 112, 100);
-            doc.text("Page 2 of 2", 100, 280);
-
-            if (template.watermark) {
-                doc.setFont("Helvetica", "bold");
-                doc.setFontSize(36);
-                doc.setTextColor(200, 200, 200, 0.12);
-                doc.text(template.watermark, 30, 250, null, 45);
+            const dbId = typeof latestQuote.id === 'number' ? latestQuote.id : Number(latestQuote.id);
+            if (!dbId || isNaN(dbId)) {
+                toast.error("Quotation has no server record yet", { description: "Save the quotation first." });
+                return;
             }
-
-            const cleanBusinessName = (inq.businessName || "Partner").trim().replace(/\s+/g, "_");
-            const filename = `Lepakshi Spices_Wholesale_Catalog_${cleanBusinessName}.pdf`;
-            doc.save(filename);
+            // Always regenerate from the live database — never a cached/older version.
+            const { blob, filename } = await wholesaleApi.downloadQuotationPdf(dbId);
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            setTimeout(() => URL.revokeObjectURL(url), 10000);
 
             // Save PDF to history log
             try {
@@ -4061,12 +3824,31 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
         }
     };
 
-    const handleResendCatalog = () => {
+    const handleResendCatalog = async () => {
         if (!activeInquiry?.email) { toast.error("No email address on file for this inquiry"); return; }
-        toast.success("Catalog PDF download triggered", {
-            description: `PDF ready for ${activeInquiry.email}. Server-side email dispatch not yet configured.`
-        });
-        addAuditLog("Email Catalog Resent", `Triggered B2B PDF catalog download for ${activeInquiry.email}`);
+        try {
+            const latestQuote = await getLatestQuotationForInquiry(activeInquiry);
+            if (!latestQuote) {
+                toast.error("No approved quotation found for this inquiry", { description: "Generate and approve a quotation first." });
+                return;
+            }
+            const dbId = typeof latestQuote.id === 'number' ? latestQuote.id : Number(latestQuote.id);
+            if (!dbId || isNaN(dbId)) {
+                toast.error("Quotation has no server record yet", { description: "Save the quotation first." });
+                return;
+            }
+            const sentBy = activeInquiry.assignedExecutive && activeInquiry.assignedExecutive !== "Unassigned"
+                ? activeInquiry.assignedExecutive
+                : latestQuote.salesExecutive || "Admin";
+            // Server sends the latest quotation (v<version>) with PDF only to the customer on the quotation.
+            await wholesaleApi.emailQuotationCatalogue(dbId, sentBy);
+            addAuditLog("Email Catalog Resent", `B2B catalogue emailed to ${activeInquiry.email}`);
+            toast.success("Catalogue emailed to client", { description: `Latest quotation sent to ${activeInquiry.email}.` });
+            await refreshInquiries();
+        } catch (err: any) {
+            console.error(err);
+            toast.error(err.message || "Failed to email catalogue");
+        }
     };
 
     // Real CSV Export
