@@ -3331,6 +3331,7 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
     const [customTerm, setCustomTerm] = useState<string>("");
     const [catalogProducts, setCatalogProducts] = useState<any[]>([]);
     const [defaultGst, setDefaultGst] = useState<number | null>(null);
+    const [quotations, setQuotations] = useState<any[]>([]);
 
     useEffect(() => {
         productsApi.list().then((list: any[]) => {
@@ -3360,7 +3361,13 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
         }))))
         .catch((error: any) => console.warn("Unable to load wholesale inquiries", error));
 
-    useEffect(() => { refreshInquiries(); }, []);
+    const refreshQuotations = () => wholesaleApi.listQuotations()
+        .then((items: any[]) => {
+            if (Array.isArray(items)) setQuotations(items);
+        })
+        .catch((error: any) => console.warn("Unable to load wholesale quotations", error));
+
+    useEffect(() => { refreshInquiries(); refreshQuotations(); }, []);
 
     const saveInquiries = (updated: any[]) => {
         setInquiries(updated);
@@ -3387,18 +3394,20 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
 
     // Inline Quote Builder Helpers 
     const getQuotations = (): any[] => {
-        return [];
+        return quotations;
     };
 
-    // Resolve the newest released (approved/sent/updated) quotation for an inquiry
-    // straight from the live database so catalogue actions never reuse old versions.
+    // Resolve the newest quotation (any non-closed status, drafts included) for an
+    // inquiry straight from the live database so catalogue actions never reuse old
+    // versions. Drafts are allowed so a fresh quotation can be emailed/downloaded
+    // without a separate approve step.
     const getLatestQuotationForInquiry = async (inq: any): Promise<any | null> => {
         try {
             const quotes = await wholesaleApi.listQuotations();
             const idStr = String(inq?.id ?? '');
             const released = (Array.isArray(quotes) ? quotes : []).filter((q: any) =>
                 String(q.inquiryId ?? '') === idStr &&
-                !["draft", "pending_approval", "cancelled"].includes(String(q.status || 'draft'))
+                !["cancelled", "rejected", "converted"].includes(String(q.status || 'draft'))
             );
             released.sort((a: any, b: any) => {
                 const va = Number(a.version ?? 1), vb = Number(b.version ?? 1);
@@ -3524,6 +3533,7 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
 
         try {
             await saveQuotation(finalForm);
+            refreshQuotations();
             if (finalForm.inquiryId) {
                 const dbInqId = Number(finalForm.inquiryId);
                 if (!isNaN(dbInqId) && dbInqId > 0) {
@@ -3562,6 +3572,7 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
             // Update quote status
             const updatedQ = { ...quote, status: "converted", timeline: [...(quote.timeline || []), { time: dateStr, event: `Converted to Order ${orderId}` }] };
             saveQuotation(updatedQ);
+            refreshQuotations();
             // Update inquiry status to converted
             if (quote.inquiryId) {
                 const updated = inquiries.map((inq: any) =>
@@ -3724,6 +3735,20 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
             const dbId = Number(id);
             if (!isNaN(dbId) && dbId > 0) {
                 await wholesaleApi.updateInquiry(dbId, fields);
+                if (fields.status === "approved") {
+                    const latestQuote = await getLatestQuotationForInquiry({ id: dbId });
+                    if (latestQuote) {
+                        const quoteDbId = typeof latestQuote.id === 'number' ? latestQuote.id : Number(latestQuote.id);
+                        if (quoteDbId > 0 && !isNaN(quoteDbId) && String(latestQuote.status) !== "approved") {
+                            const sentBy = fields.assignedExecutive && fields.assignedExecutive !== "Unassigned"
+                                ? fields.assignedExecutive
+                                : latestQuote.salesExecutive || "Admin";
+                            await wholesaleApi.updateQuotation(quoteDbId, { status: "approved", attachPdf: true, sentBy });
+                            addAuditLog("Quotation Approved", `Quotation ${latestQuote.id} approved & emailed to ${latestQuote.email || "customer"} (inquiry ${id} marked approved)`);
+                            refreshQuotations();
+                        }
+                    }
+                }
             }
             await refreshInquiries();
             if (activeInquiry && activeInquiry.id === id) {
@@ -3778,7 +3803,7 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
         try {
             const latestQuote = await getLatestQuotationForInquiry(inq);
             if (!latestQuote) {
-                toast.error("No approved quotation found for this inquiry", { description: "Generate and approve a quotation first." });
+                toast.error("No quotation found for this inquiry", { description: "Generate a quotation first." });
                 return;
             }
             const dbId = typeof latestQuote.id === 'number' ? latestQuote.id : Number(latestQuote.id);
@@ -3829,7 +3854,7 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
         try {
             const latestQuote = await getLatestQuotationForInquiry(activeInquiry);
             if (!latestQuote) {
-                toast.error("No approved quotation found for this inquiry", { description: "Generate and approve a quotation first." });
+                toast.error("No quotation found for this inquiry", { description: "Generate a quotation first." });
                 return;
             }
             const dbId = typeof latestQuote.id === 'number' ? latestQuote.id : Number(latestQuote.id);
@@ -3845,6 +3870,7 @@ function WholesaleManagementPage({ navigateTo }: { navigateTo: (p: string) => vo
             addAuditLog("Email Catalog Resent", `B2B catalogue emailed to ${activeInquiry.email}`);
             toast.success("Catalogue emailed to client", { description: `Latest quotation sent to ${activeInquiry.email}.` });
             await refreshInquiries();
+            refreshQuotations();
         } catch (err: any) {
             console.error(err);
             toast.error(err.message || "Failed to email catalogue");
