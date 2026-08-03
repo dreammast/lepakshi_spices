@@ -2,13 +2,16 @@ import type { Response, NextFunction } from 'express';
 import { db } from '../config/database.js';
 import {
   orders, products, productVariants, customerProfiles,
-  coupons, recipes, reviews, wholesaleInquiries, categories
+  coupons, recipes, reviews, wholesaleInquiries, categories, quotations
 } from '../db/schema.js';
-import { sql, eq, and, gte, lt, count } from 'drizzle-orm';
+import { sql, eq, and, gte, lt, count, notInArray } from 'drizzle-orm';
 import { sendSuccess } from '../utils/response.util.js';
 import type { AuthenticatedRequest } from '../middleware/auth.middleware.js';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+// Revenue is only recognised for orders that are not refunded/cancelled/returned.
+const NON_REVENUE_STATUSES = ['cancelled', 'refunded', 'returned']; 
 
 export async function getDashboardStatsController(_req: AuthenticatedRequest, res: Response, next: NextFunction) {
   try {
@@ -19,6 +22,7 @@ export async function getDashboardStatsController(_req: AuthenticatedRequest, re
     // ── Optimized Aggregates ─────────────────────────────────────
     const [
       { orderCount, totalRevenueVal },
+      { wholesaleRevenueVal },
       { productCount },
       { customerCount },
       { couponCount, activeCouponCount },
@@ -31,8 +35,11 @@ export async function getDashboardStatsController(_req: AuthenticatedRequest, re
     ] = await Promise.all([
       db.select({ 
         orderCount: count(), 
-        totalRevenueVal: sql<number>`sum(cast(${orders.totalAmount} as decimal(12,2)))` 
+        totalRevenueVal: sql<number>`sum(case when ${orders.status} in ('cancelled', 'refunded', 'returned') then 0 else cast(${orders.totalAmount} as decimal(12,2)) end)` 
       }).from(orders).then(res => res[0]),
+      db.select({ 
+        wholesaleRevenueVal: sql<number>`sum(case when ${quotations.status} = 'converted' then cast(${quotations.payableAmount} as decimal(12,2)) else 0 end)` 
+      }).from(quotations).then(res => res[0]),
       db.select({ productCount: count() }).from(products).then(res => res[0]),
       db.select({ customerCount: count() }).from(customerProfiles).where(eq(customerProfiles.role, 'customer')).then(res => res[0]),
       db.select({ 
@@ -74,20 +81,28 @@ export async function getDashboardStatsController(_req: AuthenticatedRequest, re
       { yesterdayCount, yesterdayRev },
       { pendingCount }
     ] = await Promise.all([
-      db.select({ 
-        todayCount: count(), 
-        todayRev: sql<number>`sum(cast(${orders.totalAmount} as decimal(12,2)))` 
+      db.select({
+        todayCount: count(),
+        todayRev: sql<number>`sum(case when ${orders.status} in ('cancelled', 'refunded', 'returned') then 0 else cast(${orders.totalAmount} as decimal(12,2)) end)`
       }).from(orders).where(gte(orders.placedAt, startOfToday)).then(res => res[0]),
-      db.select({ 
-        yesterdayCount: count(), 
-        yesterdayRev: sql<number>`sum(cast(${orders.totalAmount} as decimal(12,2)))` 
+      db.select({
+        yesterdayCount: count(),
+        yesterdayRev: sql<number>`sum(case when ${orders.status} in ('cancelled', 'refunded', 'returned') then 0 else cast(${orders.totalAmount} as decimal(12,2)) end)`
       }).from(orders).where(and(gte(orders.placedAt, startOfYesterday), lt(orders.placedAt, startOfToday))).then(res => res[0]),
       db.select({ pendingCount: count() }).from(orders).where(sql`${orders.status} in ('pending', 'processing')`).then(res => res[0])
     ]);
 
-    const todayRevenue = Number(todayRev || 0);
-    const yesterdayRevenue = Number(yesterdayRev || 0);
-    const totalRevenue = Number(totalRevenueVal || 0);
+    // Wholesale revenue per period (converted quotations bucketed by last update).
+    const [wholesaleToday] = await db.select({
+      value: sql<number>`sum(case when ${quotations.status} = 'converted' then cast(${quotations.payableAmount} as decimal(12,2)) else 0 end)`
+    }).from(quotations).where(gte(quotations.updatedAt, startOfToday));
+    const [wholesaleYesterday] = await db.select({
+      value: sql<number>`sum(case when ${quotations.status} = 'converted' then cast(${quotations.payableAmount} as decimal(12,2)) else 0 end)`
+    }).from(quotations).where(and(gte(quotations.updatedAt, startOfYesterday), lt(quotations.updatedAt, startOfToday)));
+
+    const todayRevenue = Number(todayRev || 0) + Number(wholesaleToday?.value || 0);
+    const yesterdayRevenue = Number(yesterdayRev || 0) + Number(wholesaleYesterday?.value || 0);
+    const totalRevenue = Number(totalRevenueVal || 0) + Number(wholesaleRevenueVal || 0);
     const pendingOrders = Number(pendingCount || 0);
     const activeLeads = Number(activeLeadCount || 0);
     const activeCoupons = Number(activeCouponCount || 0);
@@ -106,8 +121,19 @@ export async function getDashboardStatsController(_req: AuthenticatedRequest, re
              COUNT(*) AS orderCount
       FROM ${orders}
       WHERE ${orders.placedAt} >= ${twelveMonthsAgo}
+        AND ${orders.status} NOT IN ('cancelled', 'refunded', 'returned')
       GROUP BY YEAR(${orders.placedAt}), MONTH(${orders.placedAt})
     `) as unknown as [{ month: number; year: number; revenue: number; orderCount: number }[]];
+
+    const [wholesaleMonthlyStats] = await db.execute(sql`
+      SELECT MONTH(${quotations.updatedAt}) AS month,
+             YEAR(${quotations.updatedAt}) AS year,
+             SUM(${quotations.payableAmount}) AS revenue
+      FROM ${quotations}
+      WHERE ${quotations.updatedAt} >= ${twelveMonthsAgo}
+        AND ${quotations.status} = 'converted'
+      GROUP BY YEAR(${quotations.updatedAt}), MONTH(${quotations.updatedAt})
+    `) as unknown as [{ month: number; year: number; revenue: number }[]];
 
     const monthlyData = [];
     for (let i = 11; i >= 0; i--) {
@@ -115,9 +141,10 @@ export async function getDashboardStatsController(_req: AuthenticatedRequest, re
       const m = d.getMonth() + 1;
       const y = d.getFullYear();
       const match = monthlyStats.find(s => s.month === m && s.year === y);
+      const wholesaleMatch = wholesaleMonthlyStats.find(s => s.month === m && s.year === y);
       monthlyData.push({
         month: MONTHS[d.getMonth()],
-        revenue: Number(match?.revenue || 0),
+        revenue: Number(match?.revenue || 0) + Number(wholesaleMatch?.revenue || 0),
         orders: Number(match?.orderCount || 0)
       });
     }

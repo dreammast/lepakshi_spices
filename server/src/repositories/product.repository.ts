@@ -1,6 +1,6 @@
-import { eq, inArray, type InferModel } from 'drizzle-orm';
+import { eq, inArray, count, sql, type InferModel } from 'drizzle-orm';
 import { db } from '../config/database.js';
-import { bulkPackaging, categories, productImages, productVariants, products } from '../db/schema.js';
+import { bulkPackaging, categories, productImages, productVariants, products, reviews } from '../db/schema.js';
 
 export type ProductRecord = InferModel<typeof products>;
 export type ProductVariantRecord = InferModel<typeof productVariants>;
@@ -71,6 +71,20 @@ export async function findAllActiveProducts() {
   const allImages = await db.select().from(productImages);
   const allPackaging = await db.select().from(bulkPackaging).where(eq(bulkPackaging.isActive, true));
 
+  // Live rating aggregates: only approved reviews count toward a product's rating.
+  const reviewAggs = await db
+    .select({
+      productId: reviews.productId,
+      avgRating: sql<number>`avg(${reviews.rating})`,
+      reviewCount: count(),
+    })
+    .from(reviews)
+    .where(eq(reviews.status, 'approved'))
+    .groupBy(reviews.productId);
+  const reviewMap = new Map(
+    reviewAggs.map(r => [r.productId, { rating: Number(r.avgRating) || 0, reviewCount: Number(r.reviewCount) || 0 }])
+  );
+
   return productRows.map(row => {
     const p = row.product;
     const cat = row.category;
@@ -133,7 +147,8 @@ export async function findAllActiveProducts() {
       stock,
       lowStockThreshold: mainVariant ? mainVariant.lowStockThreshold : 30,
       sold: 0,
-      rating: 0,
+      rating: reviewMap.get(p.id)?.rating ?? 0,
+      reviewCount: reviewMap.get(p.id)?.reviewCount ?? 0,
       status: p.isActive ? (stock > 0 ? "active" : "out-of-stock") : "out-of-stock",
       sku,
       origin: "India",

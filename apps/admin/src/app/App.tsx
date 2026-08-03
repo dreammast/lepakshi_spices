@@ -516,12 +516,11 @@ function Sidebar({ page, setPage, collapsed, setCollapsed, onLogout }: {
             <div className="p-3 shrink-0" style={{ borderTop: "1px solid rgba(255,255,255,0.08)" }}>
                 <div className="flex items-center gap-3 rounded-xl p-2 overflow-hidden" style={{ backgroundColor: "rgba(255,255,255,0.06)" }}>
                     <div className="w-8 h-8 rounded-full shrink-0 flex items-center justify-center text-xs font-bold text-white"
-                        style={{ background: `linear-gradient(135deg, ${C.orange}, ${C.yellow})` }}>AK</div>
+                        style={{ background: `linear-gradient(135deg, ${C.orange}, ${C.yellow})` }}>BN</div>
                     <AnimatePresence>
                         {!collapsed && (
                             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.12 }} className="flex-1 min-w-0">
-                                <p className="text-sm font-medium text-white leading-none truncate">Arjun Kumar</p>
-                                <p className="text-[10px] mt-0.5 truncate" style={{ color: "rgba(255,255,255,0.4)" }}>Head of Operations</p>
+                                <p className="text-sm font-medium text-white leading-none truncate">Bhavana Netha</p>
                             </motion.div>
                         )}
                     </AnimatePresence>
@@ -638,7 +637,7 @@ function Header({ page, offset, notifs, bellOpen, onBell, toggleDarkMode, darkMo
                     )}
                 </AnimatePresence>
             </div>
-            <Av name="Arjun Kumar" size={36} />
+            <Av name="Bhavana Netha" size={36} />
         </header>
     );
 }
@@ -2999,6 +2998,12 @@ function SettingsPage() {
         }
     };
 
+    const handleProfileSave = async () => {
+        setSaved(true);
+        setTimeout(() => setSaved(false), 2000);
+        toast.success("Profile saved successfully");
+    };
+
     const handlePhoto = async () => {
         toast.info("Photo upload not yet configured on server");
     };
@@ -3042,17 +3047,16 @@ function SettingsPage() {
                             <Card className="p-6 space-y-5">
                                 <div className="flex items-center gap-4 pb-5" style={{ borderBottom: `1px solid ${C.border}` }}>
                                     <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-xl font-bold text-white"
-                                        style={{ background: `linear-gradient(135deg, ${C.green}, #6BA342)` }}>AK</div>
+                                        style={{ background: `linear-gradient(135deg, ${C.green}, #6BA342)` }}>BN</div>
                                     <div>
-                                        <p className="font-semibold" style={{ color: C.charcoal }}>Arjun Kumar</p>
-                                        <p className="text-sm" style={{ color: C.muted }}>Head of Operations</p>
+                                        <p className="font-semibold" style={{ color: C.charcoal }}>Bhavana Netha</p>
                                         <Btn icon={photoSaving ? RefreshCw : Camera} variant="secondary" size="sm" onClick={handlePhoto} loading={photoSaving}>
                                             {photoSaving ? "Uploading..." : "Change Photo"}
                                         </Btn>
                                     </div>
                                 </div>
                                 <div className="grid grid-cols-2 gap-4">
-                                    {[["First Name", "Arjun"], ["Last Name", "Kumar"], ["Email", "arjun.kumar@spicehaven.co"], ["Phone", "+44 7700 123456"], ["Job Title", "Head of Operations"], ["Department", "Operations"]].map(([label, val]) => (
+                                    {[["First Name", "Bhavana"], ["Last Name", "Netha"], ["Email", "lepakshispices@gmail.com"], ["Phone", "+91 7995219657"]].map(([label, val]) => (
                                         <div key={label}>
                                             <label className="block text-sm font-medium mb-1.5" style={{ color: C.charcoal }}>{label}</label>
                                             <input defaultValue={val} className="w-full px-3.5 py-2.5 rounded-xl text-sm outline-none"
@@ -3060,14 +3064,8 @@ function SettingsPage() {
                                         </div>
                                     ))}
                                 </div>
-                                <div>
-                                    <label className="block text-sm font-medium mb-1.5" style={{ color: C.charcoal }}>Bio</label>
-                                    <textarea rows={3} defaultValue="Overseeing day-to-day operations at Spice Haven, ensuring premium quality from farm to doorstep."
-                                        className="w-full px-3.5 py-2.5 rounded-xl text-sm outline-none resize-none"
-                                        style={{ backgroundColor: "#F0EDE8", border: "1.5px solid transparent", color: C.charcoal }} />
-                                </div>
                                 <div className="flex items-center gap-3">
-                                    <Btn icon={Save} onClick={handleSave}>Save Changes</Btn>
+                                    <Btn icon={Save} onClick={handleProfileSave}>Save Changes</Btn>
                                     <AnimatePresence>
                                         {saved && (
                                             <motion.span initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }}

@@ -918,17 +918,17 @@ function OurStory() {
  <div>
  <div className="flex items-center gap-3 mb-6">
  <div className="h-px w-8 bg-[#C9920A]" />
- <span className="text-[#C9920A] text-xs font-semibold tracking-[0.2em] uppercase">Since 2018</span>
- </div>
- <h2 className="text-4xl md:text-5xl font-bold text-[#1A1714] mb-6 leading-tight" style={{ fontFamily: "'Bodoni Moda', serif" }}>
- Born From a Journey<br />Across Spice Routes
- </h2>
- <p className="text-[#7A7064] text-lg leading-relaxed mb-5">
- Lepakshi Spices began when our founder, Rajan Menon, traveled the spice trail from Kerala to Kashmir and found something troubling: the world's finest spices were leaving India while Indian homes cooked with inferior imports.
- </p>
- <p className="text-[#7A7064] leading-relaxed mb-8">
- We built Lepakshi Spices to change that — working directly with 47 farming families across 8 states and 3 countries, bringing you the same grade of spice exported to Michelin-starred restaurants, in your kitchen, at a fair price.
- </p>
+  <span className="text-[#C9920A] text-xs font-semibold tracking-[0.2em] uppercase">Since 2012</span>
+  </div>
+  <h2 className="text-4xl md:text-5xl font-bold text-[#1A1714] mb-6 leading-tight" style={{ fontFamily: "'Bodoni Moda', serif" }}>
+  Born From a Legacy<br />of Pure Spices
+  </h2>
+  <p className="text-[#7A7064] text-lg leading-relaxed mb-5">
+  Lepakshi Spices was founded by Bhavana Netha, inspired by her family's years of experience in the spice business—and the belief that every family deserves spices that are pure, fresh, and authentic.
+  </p>
+  <p className="text-[#7A7064] leading-relaxed mb-8">
+  Today, Lepakshi Spices brings trusted, high-quality spices from their source to every kitchen, preserving the rich tradition of Indian flavors with a promise of purity, honesty, and customer trust.
+  </p>
  <Btn size="lg" onClick={() => navigate("founder")}>
  Read Our Full Story <ArrowRight className="w-4 h-4" />
  </Btn>
@@ -1517,15 +1517,31 @@ function ProductPage({ product }: { product: any }) {
  const [imgIdx, setImgIdx] = useState(0);
  const [adding, setAdding] = useState(false);
  const [added, setAdded] = useState(false);
- const isWished = wishlist.has(product.id);
+  const isWished = wishlist.has(product.id);
+  const liveProduct = products.find((p: any) => p.id === product.id) || product;
 
- const [reviewOpen, setReviewOpen] = useState(false);
+  const [reviewOpen, setReviewOpen] = useState(false);
  const [reviewRating, setReviewRating] = useState(5);
  const [reviewName, setReviewName] = useState(user?.name || "");
  const [reviewTitle, setReviewTitle] = useState("");
  const [reviewText, setReviewText] = useState("");
- const [reviewLoading, setReviewLoading] = useState(false);
- const [reviewSuccess, setReviewSuccess] = useState(false);
+  const [reviewLoading, setReviewLoading] = useState(false);
+  const [reviewSuccess, setReviewSuccess] = useState(false);
+  const [productReviews, setProductReviews] = useState<any[]>([]);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const rows = await reviewsApi.listForProduct(product.id);
+        setProductReviews(Array.isArray(rows) ? rows : []);
+      } catch {
+        setProductReviews([]);
+      }
+    };
+    load();
+    window.addEventListener("productReviewsRefresh", load);
+    return () => window.removeEventListener("productReviewsRefresh", load);
+  }, [product.id]);
 
  useEffect(() => {
  if (user) setReviewName(user.name);
@@ -1551,12 +1567,13 @@ function ProductPage({ product }: { product: any }) {
  }
 
  const images = [product.image, product.image, product.image];
- const tabs = [
- { id: "description", label: "Description" },
- { id: "nutrition", label: "Nutrition" },
- { id: "ingredients", label: "Ingredients" },
- { id: "storage", label: "Storage & Origin" },
- ];
+  const tabs = [
+  { id: "description", label: "Description" },
+  { id: "nutrition", label: "Nutrition" },
+  { id: "ingredients", label: "Ingredients" },
+  { id: "storage", label: "Storage & Origin" },
+  { id: "reviews", label: `Reviews (${liveProduct.reviewCount || 0})` },
+  ];
 
  const weightOptions = getWeightOptions(product);
  const retailOptions = weightOptions.filter((option: any) => !option.isWholesale && !option.label.toLowerCase().includes("kg"));
@@ -1639,10 +1656,10 @@ function ProductPage({ product }: { product: any }) {
  <h1 className="text-3xl lg:text-4xl font-bold text-[#1A1714] mb-1 leading-tight" style={{ fontFamily: "'Bodoni Moda', serif" }}>{product.name}</h1>
  <p className="text-[#7A7064] mb-5">{product.subtitle} · {selectedWeightOpt.label.split(" ")[0]}</p>
 
- <div className="flex items-center gap-3 mb-5">
- <StarRating rating={product.rating} count={product.reviewCount} size="md" />
- <button onClick={() => setReviewOpen(true)} className="text-sm text-[#2A4A3C] underline underline-offset-2 hover:text-[#C55A20] transition-colors font-medium cursor-pointer">Write a review</button>
- </div>
+  <div className="flex items-center gap-3 mb-5">
+  <StarRating rating={liveProduct.rating} count={liveProduct.reviewCount} size="md" />
+  <button onClick={() => setReviewOpen(true)} className="text-sm text-[#2A4A3C] underline underline-offset-2 hover:text-[#C55A20] transition-colors font-medium cursor-pointer">Write a review</button>
+  </div>
 
  <div className="flex items-baseline gap-3 mb-5">
  <span className="text-4xl font-bold text-[#1A1714]">{formatINR(selectedWeightOpt.price)}</span>
@@ -1829,25 +1846,61 @@ function ProductPage({ product }: { product: any }) {
  </div>
  </div>
  )}
- {tab === "storage" && (
- <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
- <div>
- <h4 className="font-semibold text-[#1A1714] mb-2 flex items-center gap-2">
- <Package className="w-4 h-4 text-[#2A4A3C]" /> Storage Instructions
- </h4>
- <p className="text-sm text-[#7A7064] leading-relaxed">{product.storage}</p>
- </div>
- <div>
- <h4 className="font-semibold text-[#1A1714] mb-2 flex items-center gap-2">
- <Globe className="w-4 h-4 text-[#2A4A3C]" /> Origin
- </h4>
- <p className="text-sm text-[#7A7064] leading-relaxed">
- Sourced from <strong className="text-[#1A1714]">{product.origin}</strong>. We maintain direct relationships with farming partners, visiting farms annually to ensure quality and fair trade standards.
- </p>
- </div>
- </div>
- )}
- </motion.div>
+  {tab === "storage" && (
+  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+  <div>
+  <h4 className="font-semibold text-[#1A1714] mb-2 flex items-center gap-2">
+  <Package className="w-4 h-4 text-[#2A4A3C]" /> Storage Instructions
+  </h4>
+  <p className="text-sm text-[#7A7064] leading-relaxed">{product.storage}</p>
+  </div>
+  <div>
+  <h4 className="font-semibold text-[#1A1714] mb-2 flex items-center gap-2">
+  <Globe className="w-4 h-4 text-[#2A4A3C]" /> Origin
+  </h4>
+  <p className="text-sm text-[#7A7064] leading-relaxed">
+  Sourced from <strong className="text-[#1A1714]">{product.origin}</strong>. We maintain direct relationships with farming partners, visiting farms annually to ensure quality and fair trade standards.
+  </p>
+  </div>
+  </div>
+  )}
+  {tab === "reviews" && (
+  <div>
+  {productReviews.length === 0 ? (
+  <div className="text-center py-12">
+  <Star className="w-10 h-10 text-[#C9920A] mx-auto mb-3" />
+  <p className="font-semibold text-[#1A1714] mb-1">No reviews yet</p>
+  <p className="text-sm text-[#7A7064]">Be the first to share your experience with {product.name}.</p>
+  </div>
+  ) : (
+  <div className="space-y-4">
+  {productReviews.map((row: any) => {
+  const rev = row.review || row;
+  const name = rev.displayName || `${row.customer?.firstName || ""} ${row.customer?.lastName || ""}`.trim() || "Verified customer";
+  return (
+  <div key={rev.id} className="p-5 bg-[#FAF8F3] rounded-2xl border border-[#1A1714]/8">
+  <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
+  <div className="flex items-center gap-2.5">
+  <div className="w-9 h-9 rounded-full bg-[#2A4A3C]/10 flex items-center justify-center text-[#2A4A3C] font-bold text-sm">
+  {name.charAt(0).toUpperCase()}
+  </div>
+  <div>
+  <p className="font-semibold text-sm text-[#1A1714]">{name}</p>
+  <p className="text-[11px] text-[#7A7064]">{rev.createdAt ? new Date(rev.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : ""}</p>
+  </div>
+  </div>
+  <Stars rating={rev.rating} />
+  </div>
+  {rev.title && <p className="font-semibold text-sm text-[#1A1714] mb-1">{rev.title}</p>}
+  {rev.comment && <p className="text-sm text-[#7A7064] leading-relaxed">{rev.comment}</p>}
+  </div>
+  );
+  })}
+  </div>
+  )}
+  </div>
+  )}
+  </motion.div>
  </AnimatePresence>
  </div>
  </div>
@@ -2825,22 +2878,24 @@ function ProfilePage() {
  });
  toast.success("Review submitted for moderation");
  }
- setReviewModalOpen(false);
- loadUserReviews();
- } catch (err: any) {
- toast.error(err.message || "Failed to save review");
- }
- };
+  setReviewModalOpen(false);
+  loadUserReviews();
+  window.dispatchEvent(new CustomEvent('productReviewsRefresh'));
+  } catch (err: any) {
+  toast.error(err.message || "Failed to save review");
+  }
+  };
 
- const handleDeleteReview = async (id: number) => {
- try {
- await reviewsApi.deleteMyReview(id);
- setUserReviews(prev => prev.filter(r => (r.review?.id || r.id) !== id));
- toast.success("Review deleted");
- } catch (err: any) {
- toast.error(err.message || "Failed to delete review");
- }
- };
+  const handleDeleteReview = async (id: number) => {
+  try {
+  await reviewsApi.deleteMyReview(id);
+  setUserReviews(prev => prev.filter(r => (r.review?.id || r.id) !== id));
+  toast.success("Review deleted");
+  window.dispatchEvent(new CustomEvent('productReviewsRefresh'));
+  } catch (err: any) {
+  toast.error(err.message || "Failed to delete review");
+  }
+  };
 
 
  // Support states
@@ -3497,9 +3552,9 @@ function FarmToKitchenTimeline() {
  {
  num: "01",
  title: "Ethical Sourcing",
- desc: "We partner directly with 47 family-owned farms across India, Spain, and Sri Lanka, cutting out middle-men to pay fair-trade premium wages.",
- image: "https://images.unsplash.com/photo-1500937386664-56d1dfef3854?w=800&h=500&fit=crop&auto=format",
- detail: "Our spice travels are led by strict sourcing criteria: geographic origin, pesticide-free certifications, and curcumin/essential oil content. Rajan Menon personally audits every farm annually."
+  desc: "We partner directly with family-owned farms, cutting out middle-men to pay fair-trade premium wages.",
+  image: "https://images.unsplash.com/photo-1500937386664-56d1dfef3854?w=800&h=500&fit=crop&auto=format",
+  detail: "Our sourcing is led by strict criteria: geographic origin, pesticide-free certifications, and curcumin/essential oil content. Bhavana Netha personally oversees quality and our farming partner relationships."
  },
  {
  num: "02",
@@ -3723,7 +3778,7 @@ function BulkOrderSection() {
  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center gap-3 py-8 text-center">
  <CheckCircle className="w-12 h-12 text-[#2A4A3C]" />
  <h4 className="font-semibold text-base">Inquiry Submitted!</h4>
- <p className="text-xs text-[#7A7064] max-w-xs leading-relaxed">Thank you. Rajan Menon and our sales team will reach out to you directly at the provided email.</p>
+  <p className="text-xs text-[#7A7064] max-w-xs leading-relaxed">Thank you. Bhavana Netha and our sales team will reach out to you directly at the provided email.</p>
  </motion.div>
  ) : (
  <form onSubmit={handleSubmit} className="space-y-4">
@@ -3984,14 +4039,13 @@ function RecipeDetailPage({ recipe }: { recipe: any }) {
 }
 
 function FounderPage() {
- const { navigate, cmsSettings } = useApp();
- useSEO("Our Story & Sourcing", "Learn about Lepakshi Spices's founding journey, Rajan Menon's travel logs along the Indian spice route, and our direct trade cooperative partnerships.");
- const [activeYear, setActiveYear] = useState("2018");
+ const { navigate } = useApp();
+ useSEO("Our Story", "Learn about Lepakshi Spices's founding story, Bhavana Netha's mission to bring pure, authentic, high-quality spices from their source to every kitchen.");
+ const [activeYear, setActiveYear] = useState("2012");
  const timeline = [
- { year: "2018", title: "The Journey Begins", desc: "Our founder, Rajan Menon, sets out along the ancient Indian spice route, documenting family farms from Kerala's pepper coast to the saffron valleys of Kashmir." },
- { year: "2020", title: "First Cooperative Partnerships", desc: "Partnered directly with the first 15 farming families in Kerala, establishing a direct-trade agreement to pay 35% above market rates for organic turmeric and black pepper." },
- { year: "2022", title: "Small-Batch Facility Opened", desc: "Designed and opened our micro-milling plant, building slow-turning cold stone grinding wheels to avoid heating spice aromatic oils during powdering." },
- { year: "2024", title: "Digital Brand Launch", desc: "Expanding our catalog to 8 single-origin spices and launching our digital spice shop, connecting home chefs globally directly with smallholder heritage farms." },
+ { year: "2012", title: "The Founding", desc: "Inspired by her family's legacy in the spice business, Bhavana Netha founded Lepakshi Spices with a simple mission—to make pure, authentic, and high-quality spices accessible to every home." },
+ { year: "2022", title: "Commitment Through the Pandemic", desc: "Through the uncertainty of the pandemic, we worked alongside our farming partners with safety as our highest priority, ensuring every harvest reached families with the quality they trust." },
+ { year: "2026", title: "Digital Brand Launch", desc: "Expanding our catalog to premium single-origin spices and launching our digital spice shop, connecting customers directly with trusted farming communities." },
  ];
 
  return (
@@ -4008,46 +4062,41 @@ function FounderPage() {
  Our Story & Sourcing Philosophy
  </h1>
  <p className="text-white/80 text-base max-w-2xl mx-auto leading-relaxed">
- At Lepakshi Spices, we believe that premium cooking begins with transparency, respect for heritage, and absolute purity. Meet our team and discover our sourcing travel roots.
+ At Lepakshi Spices, we believe every family deserves spices that are pure, fresh, and authentic. Meet our founder Bhavana Netha and discover the story behind our mission.
  </p>
  </div>
  </div>
 
  <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
- {/* Sourcing Travel Logs */}
+ {/* Founder Section */}
  <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center mb-16">
  <Reveal>
  <div className="relative">
- <img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=800&h=1000&fit=crop&auto=format" alt="Rajan Menon" className="rounded-3xl shadow-lg w-full max-h-[500px] object-cover" />
+ <img src="/founder.jpeg" alt="Bhavana Netha" className="rounded-3xl shadow-lg w-full max-h-[500px] object-cover" />
  <div className="absolute -bottom-5 -right-5 bg-white border border-[#1A1714]/8 p-4 rounded-2xl shadow-xl max-w-xs hidden sm:block">
  <p className="text-xs italic text-[#7A7064] leading-relaxed">
- "Supermarket spices sit on shelves losing essential oils for months. We grind in small batches and deliver within days."
+ "Trust isn't built through promises—it's earned through the quality we deliver in every pack."
  </p>
- <p className="text-xs font-bold text-[#1A1714] mt-2.5">— Rajan Menon, Founder</p>
+ <p className="text-xs font-bold text-[#1A1714] mt-2.5">— Bhavana Netha, Founder</p>
  </div>
  </div>
  </Reveal>
 
  <Reveal delay={100}>
  <div>
- <span className="text-xs font-bold text-[#C9920A] uppercase tracking-widest block mb-2">Our Founder's Mission</span>
+ <span className="text-xs font-bold text-[#C9920A] uppercase tracking-widest block mb-2">Meet Bhavana Netha</span>
  <h2 className="text-3xl font-bold text-[#1A1714] mb-5 leading-tight" style={{ fontFamily: "'Bodoni Moda', serif" }}>
- Rajan Menon's Spice Route Travel Log
+ Our Founder's Mission
  </h2>
  <p className="text-sm text-[#7A7064] leading-relaxed mb-6 whitespace-pre-line">
- {cmsSettings?.about?.founderStory || `"In 2018, I spent six months traveling across India's micro-climates. I met fourth-generation farmers cultivating green cardamom in Cardamom Hills, true Ceylon cinnamon bark-peelers in Sri Lanka, and farmers picking saffron threads under cold Kashmir skies.\n\nI was shocked to discover that while the finest A-grade exports left our shores for Michelin-starred kitchens globally, local households were consumed with dust-heavy, chemical-packed commercial spices. We started Lepakshi Spices to restore direct access to single-origin purity."`}
- </p>
+ Growing up in a family with years of experience in the spice business, I witnessed the care, dedication, and hard work that go into producing quality spices. I also realized that every family deserves spices that are pure, fresh, and authentic.
 
- <div className="grid grid-cols-2 gap-4">
- <div className="p-4 bg-white rounded-2xl border border-[#1A1714]/6 shadow-sm">
- <span className="text-2xl font-bold text-[#2A4A3C] block">47</span>
- <span className="text-xs text-[#7A7064]">Partnering Farming Families</span>
- </div>
- <div className="p-4 bg-white rounded-2xl border border-[#1A1714]/6 shadow-sm">
- <span className="text-2xl font-bold text-[#2A4A3C] block">100%</span>
- <span className="text-xs text-[#7A7064]">Lab-Verified A-Grade Purity</span>
- </div>
- </div>
+ That belief inspired me to start Lepakshi Spices while pursuing my engineering degree. My vision is simple—to bring trusted, high-quality spices from their source to every kitchen while preserving the rich tradition of Indian flavors.
+
+ At Lepakshi Spices, every product reflects our commitment to purity, honesty, and customer trust. This is more than a business; it's a promise to deliver the authentic taste of India with the quality every family deserves.
+ </p>
+ <p className="text-sm font-bold text-[#1A1714]">— Bhavana Netha</p>
+ <p className="text-xs text-[#7A7064]">Founder & Student Entrepreneur, Lepakshi Spices</p>
  </div>
  </Reveal>
  </div>
@@ -4080,19 +4129,6 @@ function FounderPage() {
  <p className="text-sm text-[#7A7064] leading-relaxed">{timeline.find(t => t.year === activeYear)?.desc}</p>
  </motion.div>
  </AnimatePresence>
- </div>
-
- {/* Video Placeholder */}
- <div className="mb-16">
- <h3 className="text-2xl font-bold text-[#1A1714] text-center mb-6" style={{ fontFamily: "'Bodoni Moda', serif" }}>Immersive Video Overview</h3>
- <div className="relative rounded-3xl overflow-hidden shadow-lg bg-[#FAF8F3] border border-[#1A1714]/12 flex items-center justify-center cursor-pointer group" style={{ aspectRatio: "16/9" }}>
- <img src="https://images.unsplash.com/photo-1596040033229-a9821ebd058d?w=1200&h=675&fit=crop" alt="Spice processing video" className="absolute inset-0 w-full h-full object-cover group-hover:scale-102 transition-transform duration-500" />
- <div className="absolute inset-0 bg-[#1A2E25]/35 group-hover:bg-[#1A2E25]/45 transition-colors" />
- <div className="relative z-10 w-16 h-16 rounded-full bg-[#C9920A] flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
- <ChevronRight className="w-8 h-8 text-white ml-1 fill-white" />
- </div>
- <span className="absolute bottom-4 left-4 text-xs font-semibold text-white bg-black/40 backdrop-blur-sm px-3 py-1.5 rounded-full">Sourcing Travels Log (Placeholder Player)</span>
- </div>
  </div>
 
  {/* Factory, Packaging, & Quality Standards */}
@@ -5337,10 +5373,13 @@ export default function App() {
      case 'recipe.deleted':
        refreshCatalogSection(['recipes']);
        break;
-     case 'review.approved':
-     case 'review.deleted':
-       refreshCatalogSection(['reviews']);
-       break;
+      case 'review.approved':
+      case 'review.status_changed':
+      case 'review.edited':
+      case 'review.deleted':
+        refreshCatalogSection(['reviews', 'products']);
+        window.dispatchEvent(new CustomEvent('productReviewsRefresh'));
+        break;
      case 'settings.updated':
        refreshCatalogSection(['cms', 'campaigns']);
        break;

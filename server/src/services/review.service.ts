@@ -1,4 +1,4 @@
-import { findApprovedReviewsByProduct, findApprovedReviews, findAllReviews, createReviewRecord, updateReviewStatus, deleteReviewRecord, findReviewsByCustomerId, updateReviewByCustomer, deleteReviewByIdAndCustomer } from '../repositories/review.repository.js';
+import { findApprovedReviewsByProduct, findApprovedReviews, findAllReviews, createReviewRecord, updateReviewStatus, deleteReviewRecord, findReviewsByCustomerId, updateReviewByCustomer, deleteReviewByIdAndCustomer, findReviewById } from '../repositories/review.repository.js';
 import { AppError } from '../utils/app-error.js';
 import { emitAdmin, emitPublic, notifyAdmin } from '../realtime/events.js';
 
@@ -7,8 +7,18 @@ export async function listAllReviews() { return findAllReviews(); }
 export async function listApprovedReviews() { return findApprovedReviews(); }
 
 export async function listMyReviews(customerId: number) { return findReviewsByCustomerId(customerId); }
-export async function editMyReview(id: number, customerId: number, data: Parameters<typeof updateReviewByCustomer>[2]) { return updateReviewByCustomer(id, customerId, data); }
-export async function deleteMyReview(id: number, customerId: number) { return deleteReviewByIdAndCustomer(id, customerId); }
+export async function editMyReview(id: number, customerId: number, data: Parameters<typeof updateReviewByCustomer>[2]) {
+  const updated = await updateReviewByCustomer(id, customerId, data);
+  if (updated) {
+    emitPublic('review.edited', { reviewId: id, productId: updated.productId, status: 'pending', at: new Date() });
+  }
+  return updated;
+}
+export async function deleteMyReview(id: number, customerId: number) {
+  const existing = await findReviewById(id);
+  await deleteReviewByIdAndCustomer(id, customerId);
+  emitPublic('review.deleted', { reviewId: id, productId: existing?.productId ?? null, at: new Date() });
+}
 
 export async function createReview(data: Parameters<typeof createReviewRecord>[0]) {
   const reviewId = await createReviewRecord(data);
@@ -21,14 +31,18 @@ export async function createReview(data: Parameters<typeof createReviewRecord>[0
 export async function setReviewStatus(id: number, status: 'pending' | 'approved' | 'rejected') {
   const updated = await updateReviewStatus(id, status);
   emitAdmin('review.status_changed', { reviewId: id, status, at: new Date() });
+  if (updated) {
+    emitPublic('review.status_changed', { reviewId: id, productId: updated.productId, status, at: new Date() });
+  }
   if (status === 'approved') {
     emitPublic('review.approved', { reviewId: id, status, at: new Date() });
   }
   return updated;
 }
 export async function deleteReview(id: number) {
+  const existing = await findReviewById(id);
   await deleteReviewRecord(id);
   emitAdmin('review.deleted', { reviewId: id, at: new Date() });
-  emitPublic('review.deleted', { reviewId: id, at: new Date() });
+  emitPublic('review.deleted', { reviewId: id, productId: existing?.productId ?? null, at: new Date() });
 }
 
