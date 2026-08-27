@@ -19,7 +19,7 @@ const upload = multer({
     files: 1,
   },
   fileFilter: (_req, file, cb) => {
-    if (ALLOWED_MIME_TYPES.includes(file.mimetype) || file.mimetype.startsWith('image/')) {
+    if (ALLOWED_MIME_TYPES.includes(file.mimetype) || (file.mimetype && file.mimetype.startsWith('image/'))) {
       cb(null, true);
     } else {
       cb(new Error('Only image files (JPEG, PNG, WebP, GIF, SVG, AVIF) are allowed'));
@@ -34,9 +34,9 @@ const uploadAnySingleImage = upload.fields([
 ]);
 
 export function imageUploadMiddleware(req: Request, res: Response, next: NextFunction) {
-  uploadAnySingleImage(req, res, (err) => {
+  uploadAnySingleImage(req, res, (err: any) => {
     if (err) {
-      if (err instanceof multer.MulterError) {
+      if (err instanceof multer.MulterError || err.name === 'MulterError') {
         if (err.code === 'LIMIT_FILE_SIZE') {
           return res.status(413).json({
             success: false,
@@ -55,12 +55,13 @@ export function imageUploadMiddleware(req: Request, res: Response, next: NextFun
     }
 
     // Normalize req.file from multer.fields if present
-    if (req.files) {
-      const files = req.files as { [fieldname: string]: Express.Multer.File[] };
-      if (files.image && files.image.length > 0) {
-        req.file = files.image[0];
-      } else if (files.file && files.file.length > 0) {
-        req.file = files.file[0];
+    const reqWithFiles = req as Request & { files?: { [fieldname: string]: Express.Multer.File[] } };
+    if (reqWithFiles.files) {
+      const filesMap = reqWithFiles.files;
+      if (filesMap.image && filesMap.image.length > 0) {
+        req.file = filesMap.image[0];
+      } else if (filesMap.file && filesMap.file.length > 0) {
+        req.file = filesMap.file[0];
       }
     }
 
