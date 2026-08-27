@@ -317,35 +317,37 @@ function ImageDropzone({ value, onChange }: { value: string; onChange: (url: str
             toast.error("Please select a valid image file");
             return;
         }
+        if (file.size > 10 * 1024 * 1024) {
+            toast.error("Image file size must be under 10 MB");
+            return;
+        }
         setUploading(true);
         setUploadError(null);
         try {
-            const reader = new FileReader();
-            reader.onload = async (e) => {
-                const base64 = e.target?.result as string;
-                try {
-                    const stored = localStorage.getItem("spiceora_admin");
-                    const token = stored ? JSON.parse(stored).token : null;
-                    const res = await fetch(`${API_BASE}/upload`, {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-                        body: JSON.stringify({ image: base64, filename: file.name })
-                    });
-                    const json = await res.json();
-                    if (!res.ok || !json.data?.url || !json.data.url.includes("res.cloudinary.com")) throw new Error(json.message || "Cloudinary upload failed");
-                    const url = json.data.url;
-                    onChange(url);
-                    toast.success("Image uploaded to Cloudinary!");
-                } catch (err) {
-                    setUploadError(err instanceof Error ? err.message : "Cloudinary upload failed");
-                    toast.error(err instanceof Error ? err.message : "Cloudinary upload failed");
-                }
-                setUploading(false);
-            };
-            reader.readAsDataURL(file);
+            const formData = new FormData();
+            formData.append("image", file);
+
+            const stored = localStorage.getItem("spiceora_admin");
+            const token = stored ? JSON.parse(stored).token : null;
+            const res = await fetch(`${API_BASE}/upload`, {
+                method: "POST",
+                headers: {
+                    ...(token ? { Authorization: `Bearer ${token}` } : {})
+                },
+                body: formData
+            });
+            const json = await res.json();
+            if (!res.ok || !json.data?.url || !json.data.url.includes("res.cloudinary.com")) {
+                throw new Error(json.message || "Cloudinary upload failed");
+            }
+            const url = json.data.url;
+            onChange(url);
+            toast.success("Image uploaded to Cloudinary!");
         } catch (err) {
-            setUploadError("Failed to upload image");
-            toast.error("Failed to upload image");
+            const msg = err instanceof Error ? err.message : "Cloudinary upload failed";
+            setUploadError(msg);
+            toast.error(msg);
+        } finally {
             setUploading(false);
         }
     };
