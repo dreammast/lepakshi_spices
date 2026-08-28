@@ -9,9 +9,10 @@ import {
  Instagram, Facebook, Twitter, Youtube, Mail, Globe, Zap, CheckCircle,
  AlertCircle, AlertTriangle, BookOpen, Tag, Clock, HelpCircle, FileText, Phone
 } from "lucide-react";
-import { authApi, campaignsApi, cartApi, ordersApi, productsApi, categoriesApi, couponsApi, locationApi, recipesApi, reviewsApi, settingsApi, wholesaleInquiryApi, wholesaleCatalogueApi, wholesaleQuotesApi, addressesApi, wishlistApi } from "../lib/apiClient";
+import { api, authApi, campaignsApi, cartApi, ordersApi, productsApi, categoriesApi, couponsApi, locationApi, recipesApi, reviewsApi, settingsApi, wholesaleInquiryApi, wholesaleCatalogueApi, wholesaleQuotesApi, addressesApi, wishlistApi } from "../lib/apiClient";
 import { useAuth } from "../context/AuthContext";
 import { configureRealtime, startRealtime, stopRealtime, onRealtimeEvent, onRealtimeNotification, type RealtimeNotification } from "../lib/realtime";
+import { GrandOpening } from "../../../admin/src/components/grand-opening/GrandOpening";
 
 
 // --- DATA & LIVE API INTEGRATION --------------------------------------------------
@@ -38,6 +39,7 @@ export type Product = {
  storage?: string;
  tags?: string[];
  lowStockThreshold?: number;
+ hasRetailVariants?: boolean;
  variants?: { id: number; label?: string | null; weightGrams?: number | null; price: number; stock?: number; lowStockThreshold?: number }[];
  packaging?: { id?: number; label: string; price: number; minOrderQty?: number }[];
 };
@@ -75,6 +77,7 @@ function getWeightOptions(product: Product) {
  isWholesale: true
  }));
  if (retail.length || wholesale.length) return [...retail, ...wholesale];
+ if (product.hasRetailVariants) return wholesale;
  if (product.variants?.length) {
  return product.variants
  .filter(variant => (variant.stock ?? 1) > 0)
@@ -94,10 +97,10 @@ function getWeightOptions(product: Product) {
  };
 
  return [
- { label: "100g Standard", price: prices.p100 },
- { label: "250g Chef Pack", price: prices.p250 },
- { label: "500g Family Pack", price: prices.p500 },
- { label: "1000g Pantry Bag", price: prices.p1000 },
+ { id: undefined, label: "100g Standard", price: prices.p100 },
+ { id: undefined, label: "250g Chef Pack", price: prices.p250 },
+ { id: undefined, label: "500g Family Pack", price: prices.p500 },
+ { id: undefined, label: "1000g Pantry Bag", price: prices.p1000 },
  ];
 }
 
@@ -2354,6 +2357,8 @@ function CheckoutPage() {
  const uniqueVariantIds = [...new Set(items.map(i => i.productVariantId))];
  const serverStock = await productsApi.checkStock(uniqueVariantIds).catch(() => []);
  const stockMap = new Map(serverStock.map((s: any) => [s.id, s.stock]));
+ const inactiveItems = items.filter(item => !serverStock.find((s: any) => s.id === item.productVariantId)?.isActive);
+ if (inactiveItems.length > 0) throw new Error("Some items in your cart are no longer available. Please remove them and try again.");
  const outOfStockItems = items.filter(item => (stockMap.get(item.productVariantId) ?? 0) <= 0);
  if (outOfStockItems.length > 0) throw new Error("Some items in your cart are out of stock. Please remove them and try again.");
  const overStockItems = items.filter(item => item.quantity > (stockMap.get(item.productVariantId) ?? 0));
@@ -5158,9 +5163,20 @@ export default function App() {
  }
 
  const { user, logout, login, signup, resetPassword: forgotPassword } = useAuth();
+ const [showGrandOpening, setShowGrandOpening] = useState(false);
  const [authModalOpen, setAuthModalOpen] = useState<'login' | 'signup' | 'forgot' | 'closed'>('closed');
  const [redirectAfterLogin, setRedirectAfterLogin] = useState<string | null>(null);
  const [users, setUsers] = useState<any[]>([]);
+
+ useEffect(() => {
+  if (!user?.token) { setShowGrandOpening(false); return; }
+  api.get<any>('/launch/status').then(status => setShowGrandOpening(Boolean(status.shouldShowLaunch))).catch(() => setShowGrandOpening(false));
+ }, [user?.token]);
+
+ const completeGrandOpening = async () => {
+  try { await api.post('/launch/complete'); } catch { /* Failsafe: never block access to the portal. */ }
+  setShowGrandOpening(false);
+ };
 
 
  // Automatically process redirectAfterLogin when user logs in
@@ -5636,6 +5652,9 @@ export default function App() {
  return (
  <AppCtx.Provider value={ctx}>
  <div className="min-h-screen bg-[#FAF8F3]">
+ <AnimatePresence>
+ {showGrandOpening && <GrandOpening onComplete={completeGrandOpening} />}
+ </AnimatePresence>
  <Header />
  <AnimatePresence mode="wait">
  <motion.main
@@ -5856,12 +5875,12 @@ function AuthModal() {
  )}
 
  <div>
- <label className="text-[10px] font-semibold text-[#7A7064] uppercase tracking-widest mb-1.5 block">Email Address</label>
+ <label className="text-[10px] font-semibold text-[#7A7064] uppercase tracking-widest mb-1.5 block">{mode === 'login' ? 'Email Address or Admin Username' : 'Email Address'}</label>
  <input
- type="email"
+ type={mode === 'login' ? 'text' : 'email'}
  value={email}
  onChange={e => setEmail(e.target.value)}
- placeholder="ananya@email.com"
+ placeholder={mode === 'login' ? 'ananya@email.com or admin' : 'ananya@email.com'}
  required
  className="w-full bg-[#FAF8F3] border border-[#1A1714]/12 rounded-xl px-4 py-3 text-sm text-[#1A1714] placeholder-[#7A7064] outline-none focus:border-[#2A4A3C] focus:ring-2 focus:ring-[#2A4A3C]/10 transition-all"
  />

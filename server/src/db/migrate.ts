@@ -33,6 +33,22 @@ const TABLE_AUTO_INCREMENT_MAP: Record<string, number> = {
 export async function runMigrations() {
   console.log('[migrate] Checking auto-increment values...');
 
+  // The launch state is intentionally a single, persistent global record.
+  // Create it at startup so the User Portal can never be blocked by a
+  // missing table on a fresh database or deployment.
+  await db.execute(sql.raw(`
+    CREATE TABLE IF NOT EXISTS launch_settings (
+      id INT NOT NULL AUTO_INCREMENT,
+      is_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+      has_launched BOOLEAN NOT NULL DEFAULT FALSE,
+      launched_at DATETIME NULL,
+      launched_by INT NULL,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      PRIMARY KEY (id)
+    )
+  `));
+
   for (const [table, desiredStart] of Object.entries(TABLE_AUTO_INCREMENT_MAP)) {
     try {
       const [rows] = await db.execute(sql.raw(`SELECT MAX(id) AS max_id FROM \`${table}\``)) as any;
@@ -49,6 +65,7 @@ export async function runMigrations() {
 
   // Ensure new columns exist on wholesale_inquiries and quotations
   const columnMigrations = [
+    `ALTER TABLE product_variants ADD COLUMN is_active BOOLEAN NOT NULL DEFAULT TRUE`,
     `ALTER TABLE wholesale_inquiries ADD COLUMN assigned_executive VARCHAR(255) NULL`,
     `ALTER TABLE wholesale_inquiries ADD COLUMN product_interest VARCHAR(255) NULL`,
     `ALTER TABLE wholesale_inquiries ADD COLUMN volume VARCHAR(128) NULL`,

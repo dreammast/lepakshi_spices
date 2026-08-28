@@ -24,10 +24,12 @@ import { getDashboardStatsController } from '../controllers/dashboard.controller
 import { asyncHandler } from '../middleware/async-handler.js';
 import locationRoute from './location.route.js';
 import realtimeRoute from './realtime.route.js';
+import launchRoute from './launch.route.js';
 
 const router = Router();
 router.use('/health', healthRoute);
 router.use('/realtime', realtimeRoute);
+router.use('/launch', launchRoute);
 router.use('/auth', authRoute);
 router.use('/categories', categoriesRoute);
 router.use('/products', productsRoute);

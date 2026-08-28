@@ -66,6 +66,7 @@ export const productVariants = mysqlTable('product_variants', {
   costPrice: decimal('cost_price', { precision: 12, scale: 2 }),
   stock: int('stock').notNull().default(0),
   lowStockThreshold: int('low_stock_threshold').notNull().default(0),
+  isActive: boolean('is_active').notNull().default(true),
   isDefault: boolean('is_default').notNull().default(false),
   attributes: json('attributes').$type<Record<string, unknown>>(),
   createdAt: datetime('created_at').notNull(),

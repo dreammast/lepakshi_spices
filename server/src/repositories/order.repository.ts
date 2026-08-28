@@ -158,7 +158,11 @@ export async function createOrderRecord(input: CreateOrderInput) {
     for (const item of input.items) {
       const result: any = await tx.update(productVariants)
         .set({ stock: sql`${productVariants.stock} - ${item.quantity}`, updatedAt: now })
-        .where(and(eq(productVariants.id, item.productVariantId), gte(productVariants.stock, item.quantity)));
+        .where(and(
+          eq(productVariants.id, item.productVariantId),
+          eq(productVariants.isActive, true),
+          gte(productVariants.stock, item.quantity)
+        ));
       const affectedRows = Array.isArray(result) ? result[0]?.affectedRows : result?.affectedRows;
       if (!affectedRows) throw new Error(`Insufficient stock for product variant ${item.productVariantId}`);
     }

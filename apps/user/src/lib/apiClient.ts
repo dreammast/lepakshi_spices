@@ -86,6 +86,8 @@ export const api = {
 export const authApi = {
   login: (email: string, password: string) =>
     api.post<{ user: any; token: string }>('/auth/login', { email, password }),
+  adminLogin: (username: string, password: string) =>
+    api.post<{ user: any; token: string }>('/auth/admin/login', { username, password }),
   register: (body: { email: string; password: string; firstName: string; lastName?: string; phone?: string }) =>
     api.post<{ user: any; token: string }>('/auth/register', body),
   syncFirebase: (body: { email: string; firstName?: string; lastName?: string; avatarUrl?: string; firebaseUid: string }) =>

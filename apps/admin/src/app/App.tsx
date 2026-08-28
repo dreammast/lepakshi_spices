@@ -998,7 +998,8 @@ function blankProduct() {
         status: "active",
         sku: `SPH-00${Date.now().toString().slice(-2)}`,
         origin: "India",
-        description: ""
+        description: "",
+        variantAvailability: { p100: true, p250: true, p500: true, p1000: true }
     };
 }
 
@@ -1193,11 +1194,18 @@ function ProductsPage() {
     };
 
     const handleStartEdit = (p: any) => {
+        const variantsByWeight = new Map((p.variants || []).map((variant: any) => [variant.weightGrams, variant]));
         setForm({
             ...p,
             imageUrl: p.imageUrl || p.image || "",
             prices: p.prices || defaultPriceVariants(Number(p.basePrice ?? p.price ?? 0)),
-            lowStockThreshold: p.lowStockThreshold || 30
+            lowStockThreshold: p.lowStockThreshold || 30,
+            variantAvailability: {
+                p100: variantsByWeight.get(100)?.isActive ?? true,
+                p250: variantsByWeight.get(250)?.isActive ?? true,
+                p500: variantsByWeight.get(500)?.isActive ?? true,
+                p1000: variantsByWeight.get(1000)?.isActive ?? true,
+            }
         });
         setEditTarget(p);
         setWizardStep(1);
@@ -1217,6 +1225,7 @@ function ProductsPage() {
             categoryName: form.category,
             price: form.price,
             prices: form.prices,
+            variantAvailability: form.variantAvailability,
             stock: form.stock,
             lowStockThreshold: form.lowStockThreshold,
             sku: form.sku,
@@ -1674,6 +1683,20 @@ function ProductsPage() {
                                         <div className="grid grid-cols-2 gap-3">
                                             <Field type="number" label="Initial Sacked Stock" value={form.stock} onChange={v => setForm({ ...form, stock: Number(v) })} />
                                             <Field type="number" label="Low-stock Restock Alert Threshold" value={form.lowStockThreshold} onChange={v => setForm({ ...form, lowStockThreshold: Number(v) })} />
+                                        </div>
+                                        <div className="space-y-2 pt-2">
+                                            <p className="text-[10px] font-semibold text-[#8B7355] uppercase tracking-wider">Quantity availability</p>
+                                            <p className="text-[11px] text-[#8B7355]">Only enabled quantities are available to customers.</p>
+                                            {[
+                                                { key: "p100", label: "100g" }, { key: "p250", label: "250g" },
+                                                { key: "p500", label: "500g" }, { key: "p1000", label: "1kg" }
+                                            ].map(({ key, label }) => {
+                                                const enabled = form.variantAvailability?.[key] ?? true;
+                                                return <label key={key} className="flex items-center justify-between rounded-xl border border-[#2C2416]/10 px-3 py-2 text-xs cursor-pointer">
+                                                    <span className="font-semibold text-[#2C2416]">{label}</span>
+                                                    <input type="checkbox" checked={enabled} onChange={e => setForm({ ...form, variantAvailability: { ...(form.variantAvailability || {}), [key]: e.target.checked } })} aria-label={`${label} available to customers`} className="h-4 w-4 accent-[#2D5016]" />
+                                                </label>;
+                                            })}
                                         </div>
                                     </div>
                                 </div>

@@ -148,6 +148,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   async function login(email: string, password: string) {
+    // The creator account uses the backend's admin username credential rather
+    // than an email address. Route it directly to the protected admin login
+    // endpoint so Firebase's email-only validation does not block the launch.
+    if (!email.includes('@')) {
+      const data = await authApi.adminLogin(email, password);
+      const userData: AuthUser = {
+        id: data.user.id,
+        name: `${data.user.firstName || ""} ${data.user.lastName || ""}`.trim() || email,
+        email: data.user.email,
+        role: data.user.role || "admin",
+        token: data.token,
+        isLoggedIn: true,
+      };
+      setUser(userData);
+      localStorage.setItem("spiceora_user", JSON.stringify(userData));
+      return;
+    }
+
     try {
       await signInWithEmailAndPassword(auth, email, password);
     } catch (err: any) {

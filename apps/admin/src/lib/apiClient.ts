@@ -106,7 +106,7 @@ export const authApi = {
 };
 
 export const productsApi = {
-  list: () => api.get<any[]>('/products'),
+    list: () => api.get<any[]>('/products/admin/all'),
   create: (body: unknown) => api.post<any>('/products', body),
   update: (id: number, body: unknown) => api.put<any>(`/products/${id}`, body),
   remove: (id: number) => api.delete<any>(`/products/${id}`),

@@ -4,6 +4,7 @@ import { authenticate, requireRole } from '../middleware/auth.middleware.js';
 import {
   getProductController,
   listProductsController,
+  listAdminProductsController,
   createProductController,
   updateProductController,
   deleteProductController,
@@ -14,6 +15,7 @@ import {
 const router = Router();
 
 router.get('/', asyncHandler(listProductsController));
+router.get('/admin/all', authenticate, requireRole('admin', 'staff', 'manager'), asyncHandler(listAdminProductsController));
 router.post('/stock-check', asyncHandler(checkStockController));
 router.get('/:slug', asyncHandler(getProductController));
 router.post('/', authenticate, requireRole('admin', 'staff', 'manager'), asyncHandler(createProductController));

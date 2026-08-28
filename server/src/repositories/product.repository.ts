@@ -60,7 +60,7 @@ async function resolveCategoryId(data: { categoryId?: number; categoryName?: str
   return newCat.insertId;
 }
 
-export async function findAllActiveProducts() {
+export async function findAllActiveProducts(includeInactiveVariants = false) {
   const productRows = await db
     .select({ product: products, category: categories })
     .from(products)
@@ -89,7 +89,7 @@ export async function findAllActiveProducts() {
     const p = row.product;
     const cat = row.category;
     const pVariants = allVariants
-      .filter(v => v.productId === p.id)
+      .filter(v => v.productId === p.id && (includeInactiveVariants || v.isActive))
       .sort((a, b) => (a.weightGrams || 999999) - (b.weightGrams || 999999));
     const pImages = allImages.filter(img => img.productId === p.id);
     const primaryImg = pImages.find(img => img.isPrimary) || pImages[0];
@@ -117,6 +117,7 @@ export async function findAllActiveProducts() {
       price,
       basePrice: Number(p.basePrice),
       prices,
+      hasRetailVariants: allVariants.some(v => v.productId === p.id),
       variants: pVariants.map(v => ({
         id: v.id,
         sku: v.sku,
@@ -125,6 +126,7 @@ export async function findAllActiveProducts() {
         price: Number(v.price),
         stock: v.stock,
         lowStockThreshold: v.lowStockThreshold,
+        isActive: v.isActive,
         isDefault: v.isDefault,
         attributes: v.attributes,
       })),
@@ -174,7 +176,8 @@ export async function findProductBySlug(slug: string) {
   if (!product) return null;
 
   const p = product.product;
-  const pVariants = await db.select().from(productVariants).where(eq(productVariants.productId, p.id));
+  const pVariants = (await db.select().from(productVariants).where(eq(productVariants.productId, p.id)))
+    .filter(variant => variant.isActive);
   const pImages = await db.select().from(productImages).where(eq(productImages.productId, p.id));
 
   return {
@@ -202,6 +205,7 @@ export async function createProductRecord(data: {
   basePrice?: string | number;
   price?: string | number;
   prices?: ProductPrices;
+  variantAvailability?: Partial<Record<'p100' | 'p250' | 'p500' | 'p1000', boolean>>;
   stock?: number;
   lowStockThreshold?: number;
   sku?: string;
@@ -238,6 +242,7 @@ export async function createProductRecord(data: {
     price: String(prices[variant.key]),
     stock,
     lowStockThreshold,
+    isActive: data.variantAvailability?.[variant.key] ?? true,
     isDefault: variant.isDefault,
     attributes: { pack: variant.label },
     createdAt: new Date(),
@@ -274,6 +279,7 @@ export async function updateProductRecord(id: number, data: {
   description?: string;
   price?: string | number;
   prices?: ProductPrices;
+  variantAvailability?: Partial<Record<'p100' | 'p250' | 'p500' | 'p1000', boolean>>;
   stock?: number;
   lowStockThreshold?: number;
   sku?: string;
@@ -317,6 +323,9 @@ export async function updateProductRecord(id: number, data: {
       attributes: { pack: variant.label },
       updatedAt: new Date()
     };
+    if (data.variantAvailability?.[variant.key] !== undefined) {
+      variantFields.isActive = data.variantAvailability[variant.key];
+    }
     if (data.stock !== undefined) variantFields.stock = Number(data.stock);
     if (data.lowStockThreshold !== undefined) variantFields.lowStockThreshold = Number(data.lowStockThreshold);
     if (data.sku) variantFields.sku = variant.isDefault ? data.sku : `${data.sku}-${variant.suffix}`;
@@ -332,6 +341,7 @@ export async function updateProductRecord(id: number, data: {
         price: String(prices[variant.key]),
         stock: data.stock !== undefined ? Number(data.stock) : 100,
         lowStockThreshold: data.lowStockThreshold !== undefined ? Number(data.lowStockThreshold) : 30,
+        isActive: data.variantAvailability?.[variant.key] ?? true,
         isDefault: variant.isDefault,
         attributes: { pack: variant.label },
         createdAt: new Date(),
@@ -373,7 +383,7 @@ export async function updateVariantStockRecord(variantId: number, stock: number,
 
 export async function checkVariantsStock(variantIds: number[]) {
   const rows = await db.select().from(productVariants).where(inArray(productVariants.id, variantIds));
-  return rows.map(v => ({ id: v.id, stock: v.stock, label: v.label, productId: v.productId }));
+  return rows.map(v => ({ id: v.id, stock: v.stock, label: v.label, productId: v.productId, isActive: v.isActive }));
 }
 
 

@@ -22,6 +22,7 @@ function figmaAssetResolver(): Plugin {
 
 export default defineConfig({
   envDir: __dirname,
+  publicDir: path.resolve(__dirname, '../admin/public'),
   plugins: [
     figmaAssetResolver(),
     react() as any,

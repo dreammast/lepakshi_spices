@@ -12,8 +12,8 @@ import {
 import { AppError } from '../utils/app-error.js';
 import { emitAdminAndPublic, notifyAdmin } from '../realtime/events.js';
 
-export async function listProducts() {
-  return findAllActiveProducts();
+export async function listProducts(includeInactiveVariants = false) {
+  return findAllActiveProducts(includeInactiveVariants);
 }
 
 export async function getProductDetails(slug: string) {

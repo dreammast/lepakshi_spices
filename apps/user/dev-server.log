@@ -1,0 +1,37 @@
+
+> @lepakshi-spices/user-frontend@0.0.1 dev
+> vite
+
+
+  VITE v6.3.5  ready in 926 ms
+
+  ➜  Local:   http://localhost:5174/
+  ➜  Network: use --host to expose
+  ➜  press h + enter to show help
+10:16:58 pm [vite] .env.development changed, restarting server...
+10:16:58 pm [vite] server restarted.
+10:29:04 pm [vite] vite.config.ts changed, restarting server...
+10:29:04 pm [vite] server restarted.
+10:29:06 pm [vite] (client) hmr update /src/app/App.tsx, /src/styles/index.css
+10:40:04 pm [vite] (client) hmr update /src/app/App.tsx, /src/styles/index.css
+10:40:14 pm [vite] (client) ✨ new dependencies optimized: canvas-confetti
+10:40:14 pm [vite] (client) ✨ optimized dependencies changed. reloading
+10:40:44 pm [vite] (client) page reload .build-verify/index.html
+10:40:59 pm [vite] (client) page reload .build-verify/index.html
+10:49:20 pm [vite] (client) hmr update /src/context/AuthContext.tsx, /src/styles/index.css, /src/app/App.tsx
+10:49:20 pm [vite] (client) hmr invalidate /src/context/AuthContext.tsx Could not Fast Refresh ("useAuth" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+10:49:20 pm [vite] (client) page reload src/context/AuthContext.tsx
+10:49:22 pm [vite] (client) hmr update /src/context/AuthContext.tsx, /src/styles/index.css
+10:49:23 pm [vite] (client) hmr update /src/app/App.tsx, /src/styles/index.css
+10:50:05 pm [vite] (client) page reload .build-verify/index.html
+10:50:05 pm [vite] (client) page reload .build-verify/index.html
+10:50:15 pm [vite] (client) page reload .build-verify/index.html
+10:50:24 pm [vite] (client) page reload .build-verify/index.html
+10:50:24 pm [vite] (client) page reload .build-verify/index.html
+10:50:39 pm [vite] (client) page reload .build-verify/index.html
+10:59:10 pm [vite] (client) hmr update /src/styles/index.css
+10:59:11 pm [vite] (client) hmr update /@fs/E:/lepakshi_spices/apps/admin/src/components/grand-opening/GrandOpening.tsx, /src/styles/index.css
+10:59:11 pm [vite] (client) hmr update /@fs/E:/lepakshi_spices/apps/admin/src/components/grand-opening/CinematicCanvas.tsx, /src/styles/index.css
+10:59:27 pm [vite] (client) page reload .build-verify/index.html
+10:59:27 pm [vite] (client) page reload .build-verify/index.html
+10:59:49 pm [vite] (client) page reload .build-verify/index.html

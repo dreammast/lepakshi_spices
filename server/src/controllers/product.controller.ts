@@ -11,6 +11,14 @@ export async function listProductsController(_req: Request, res: Response, next:
   }
 }
 
+export async function listAdminProductsController(_req: Request, res: Response, next: NextFunction) {
+  try {
+    sendSuccess(res, await listProducts(true));
+  } catch (error) {
+    next(error);
+  }
+}
+
 export async function getProductController(req: Request, res: Response, next: NextFunction) {
   try {
     const product = await getProductDetails(req.params.slug);
