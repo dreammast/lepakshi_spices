@@ -12,7 +12,7 @@ import {
 import { api, authApi, campaignsApi, cartApi, ordersApi, productsApi, categoriesApi, couponsApi, locationApi, recipesApi, reviewsApi, settingsApi, wholesaleInquiryApi, wholesaleCatalogueApi, wholesaleQuotesApi, addressesApi, wishlistApi } from "../lib/apiClient";
 import { useAuth } from "../context/AuthContext";
 import { configureRealtime, startRealtime, stopRealtime, onRealtimeEvent, onRealtimeNotification, type RealtimeNotification } from "../lib/realtime";
-import { GrandOpening } from "../../../admin/src/components/grand-opening/GrandOpening";
+import { GrandOpening } from "../components/grand-opening/GrandOpening";
 
 
 // --- DATA & LIVE API INTEGRATION --------------------------------------------------
