@@ -22,6 +22,7 @@ import {
     PieChart, Pie, Cell,
 } from "recharts";
 import { SmartPricingAssistant } from "./components/SmartPricingAssistant";
+import { LaunchControls } from "../components/grand-opening/LaunchControls";
 import { useHeartbeat } from "../lib/useHeartbeat";
 import { catalogPacks, findCatalogProduct, makeEmptyItem, matchPack, packPrice, parseQuantityHint } from "../lib/quoteCatalog";
 import { authApi, auditApi, categoriesApi, customersApi, ordersApi, couponsApi, campaignsApi, recipesApi, reviewsApi, wholesaleApi, productsApi, dashboardApi, settingsApi, collectionsApi, type CustomerDetails, type CustomerListItem } from "../lib/apiClient";
@@ -2873,6 +2874,7 @@ function SettingsPage() {
 
     const tabs = [
         { id: "profile", label: "Profile", icon: User },
+        { id: "launch", label: "Grand Opening", icon: Sparkles },
         { id: "notifications", label: "Notifications", icon: BellIcon },
         { id: "security", label: "Security", icon: ShieldCheck },
         { id: "promotions", label: "Promotions", icon: Tag },
@@ -3099,6 +3101,23 @@ function SettingsPage() {
                                             </motion.span>
                                         )}
                                     </AnimatePresence>
+                                </div>
+                            </Card>
+                        )}
+
+                        {tab === "launch" && (
+                            <Card className="p-6 space-y-6">
+                                <div>
+                                    <h3 className="font-semibold text-lg" style={{ color: C.charcoal, fontFamily: "'Playfair Display', serif" }}>Grand Opening Launch Controls</h3>
+                                    <p className="text-xs mt-1" style={{ color: C.muted }}>Manage and reset the Grand Opening launch event for administrators.</p>
+                                </div>
+                                <div className="p-4 rounded-2xl border" style={{ backgroundColor: "#FAF8F5", borderColor: C.border }}>
+                                    <p className="text-xs font-medium mb-3" style={{ color: C.charcoal }}>
+                                        When launch is active and uncompleted, logging into the user storefront as Admin will automatically play the Grand Opening film sequence.
+                                    </p>
+                                    <div className="pt-2">
+                                        <LaunchControls isAdmin={true} />
+                                    </div>
                                 </div>
                             </Card>
                         )}
