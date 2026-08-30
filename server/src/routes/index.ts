@@ -30,6 +30,7 @@ const router = Router();
 router.use('/health', healthRoute);
 router.use('/realtime', realtimeRoute);
 router.use('/launch', launchRoute);
+router.use('/admin/launch', launchRoute);
 router.use('/auth', authRoute);
 router.use('/categories', categoriesRoute);
 router.use('/products', productsRoute);

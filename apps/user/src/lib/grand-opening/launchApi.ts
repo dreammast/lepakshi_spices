@@ -34,7 +34,7 @@ export const launchApi = {
 
   async completeLaunch(): Promise<{ success: boolean; message: string }> {
     try {
-      return await apiRequest<{ success: boolean; message: string }>('/admin/launch/complete', {
+      return await apiRequest<{ success: boolean; message: string }>('/launch/complete', {
         method: 'POST',
       });
     } catch (e: any) {
@@ -45,7 +45,7 @@ export const launchApi = {
 
   async resetLaunch(): Promise<{ success: boolean; message: string }> {
     try {
-      return await apiRequest<{ success: boolean; message: string }>('/admin/launch/reset', {
+      return await apiRequest<{ success: boolean; message: string }>('/launch/reset', {
         method: 'POST',
       });
     } catch (e: any) {
@@ -56,7 +56,7 @@ export const launchApi = {
 
   async toggleLaunch(isEnabled: boolean): Promise<{ success: boolean; isEnabled: boolean }> {
     try {
-      return await apiRequest<{ success: boolean; isEnabled: boolean }>('/admin/launch/toggle', {
+      return await apiRequest<{ success: boolean; isEnabled: boolean }>('/launch/toggle', {
         method: 'POST',
         body: JSON.stringify({ isEnabled }),
       });
