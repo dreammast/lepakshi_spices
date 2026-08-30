@@ -104,6 +104,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           sessionStorage.removeItem("spiceora_user");
         }
       } else {
+        // If not a Firebase user, check if we have a valid backend session (e.g. admin login)
+        const saved = localStorage.getItem("spiceora_user") || sessionStorage.getItem("spiceora_user");
+        if (saved) {
+          try {
+            const parsed = JSON.parse(saved);
+            if (parsed.token) {
+              const payload = JSON.parse(atob(parsed.token.split('.')[1]));
+              if (payload.exp * 1000 > Date.now()) {
+                setUser(parsed);
+                setLoading(false);
+                return;
+              }
+            }
+          } catch {}
+        }
         setUser(null);
         localStorage.removeItem("spiceora_user");
         sessionStorage.removeItem("spiceora_user");
@@ -148,15 +163,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   async function login(email: string, password: string) {
-    // The creator account uses the backend's admin username credential rather
-    // than an email address. Route it directly to the protected admin login
-    // endpoint so Firebase's email-only validation does not block the launch.
-    if (!email.includes('@')) {
-      const data = await authApi.adminLogin(email, password);
+    const trimmedInput = email.trim();
+    // 1. If input does not contain '@', it's definitely an admin username
+    if (!trimmedInput.includes('@')) {
+      const data = await authApi.adminLogin(trimmedInput, password);
       const userData: AuthUser = {
         id: data.user.id,
-        name: `${data.user.firstName || ""} ${data.user.lastName || ""}`.trim() || email,
-        email: data.user.email,
+        name: `${data.user.firstName || ""} ${data.user.lastName || ""}`.trim() || trimmedInput,
+        email: data.user.email || trimmedInput,
         role: data.user.role || "admin",
         token: data.token,
         isLoggedIn: true,
@@ -166,14 +180,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
+    // 2. If it contains '@', try Firebase first, then fallback to backend customer login or backend admin login
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      await signInWithEmailAndPassword(auth, trimmedInput, password);
     } catch (err: any) {
-      if (err.code === "auth/configuration-not-found" || err.code === "auth/invalid-api-key" || err.code === "auth/operation-not-allowed" || err.code === "auth/api-key-not-valid" || err.message?.includes("firebase")) {
-        const data = await authApi.login(email, password);
+      try {
+        const data = await authApi.login(trimmedInput, password);
         const userData: AuthUser = {
           id: data.user.id,
-          name: `${data.user.firstName || ""} ${data.user.lastName || ""}`.trim() || email,
+          name: `${data.user.firstName || ""} ${data.user.lastName || ""}`.trim() || trimmedInput,
           email: data.user.email,
           role: data.user.role || "customer",
           token: data.token,
@@ -182,8 +197,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(userData);
         localStorage.setItem("spiceora_user", JSON.stringify(userData));
         return;
+      } catch {
+        try {
+          const data = await authApi.adminLogin(trimmedInput, password);
+          const userData: AuthUser = {
+            id: data.user.id,
+            name: `${data.user.firstName || ""} ${data.user.lastName || ""}`.trim() || trimmedInput,
+            email: data.user.email || trimmedInput,
+            role: data.user.role || "admin",
+            token: data.token,
+            isLoggedIn: true,
+          };
+          setUser(userData);
+          localStorage.setItem("spiceora_user", JSON.stringify(userData));
+          return;
+        } catch {
+          throw new Error(getFriendlyErrorMessage(err.code || err.message));
+        }
       }
-      throw new Error(getFriendlyErrorMessage(err.code || err.message));
     }
   }
 
@@ -197,7 +228,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   async function logout() {
-    await signOut(auth);
+    try {
+      await signOut(auth);
+    } catch {}
     setUser(null);
     localStorage.removeItem("spiceora_user");
     sessionStorage.removeItem("spiceora_user");
