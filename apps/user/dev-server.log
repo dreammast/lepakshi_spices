@@ -8,3 +8,5 @@
   ➜  Local:   http://localhost:5174/
   ➜  Network: use --host to expose
   ➜  press h + enter to show help
+3:29:15 pm [vite] vite.config.ts changed, restarting server...
+3:29:16 pm [vite] server restarted.

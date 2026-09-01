@@ -93,7 +93,10 @@ export async function findAllActiveProducts(includeInactiveVariants = false) {
       .sort((a, b) => (a.weightGrams || 999999) - (b.weightGrams || 999999));
     const pImages = allImages.filter(img => img.productId === p.id);
     const primaryImg = pImages.find(img => img.isPrimary) || pImages[0];
-    const mainVariant = pVariants.find(v => v.isDefault) || pVariants.find(v => v.weightGrams === 100) || pVariants[0];
+    // A catalogue card must represent a real variant, not a synthesized 100g
+    // fallback. pVariants is ordered in the same retail-pack order exposed to
+    // the storefront.
+    const mainVariant = pVariants[0];
 
     const priceByWeight = Object.fromEntries(pVariants.map(v => [v.weightGrams, Number(v.price)]));
     const prices = buildPriceMap(p.basePrice, {
@@ -102,9 +105,10 @@ export async function findAllActiveProducts(includeInactiveVariants = false) {
       p500: priceByWeight[500],
       p1000: priceByWeight[1000],
     });
-    const price = prices.p100;
-    const totalStock = pVariants.reduce((sum, v) => sum + (v.stock || 0), 0);
-    const stock = totalStock;
+    const price = mainVariant ? Number(mainVariant.price) : 0;
+    const totalStock = pVariants.reduce((sum, v) => sum + toNumber(v.stock), 0);
+    // Keep the displayed quantity, price and stock bound to one variant.
+    const stock = mainVariant ? Number(mainVariant.stock) : 0;
     const sku = mainVariant ? mainVariant.sku : `SPH-${p.id}`;
     const imageUrl = primaryImg ? primaryImg.url : "https://images.unsplash.com/photo-1596040033229-a9821ebd058d?w=800&fit=crop";
 
@@ -147,6 +151,8 @@ export async function findAllActiveProducts(includeInactiveVariants = false) {
         minOrderQty: 1,
       })),
       stock,
+      totalStock,
+      displayVariantId: mainVariant?.id ?? null,
       lowStockThreshold: mainVariant ? mainVariant.lowStockThreshold : 30,
       sold: 0,
       rating: reviewMap.get(p.id)?.rating ?? 0,
@@ -158,7 +164,7 @@ export async function findAllActiveProducts(includeInactiveVariants = false) {
       imageUrl,
       image: imageUrl,
       subtitle: cat ? cat.name : "Single Origin",
-      weight: "100g",
+      weight: mainVariant ? (mainVariant.label || `${mainVariant.weightGrams}g`) : "",
       inStock: stock > 0,
       badge: p.isFeatured ? "Featured" : "",
       tags: [],
@@ -383,7 +389,7 @@ export async function updateVariantStockRecord(variantId: number, stock: number,
 
 export async function checkVariantsStock(variantIds: number[]) {
   const rows = await db.select().from(productVariants).where(inArray(productVariants.id, variantIds));
-  return rows.map(v => ({ id: v.id, stock: v.stock, label: v.label, productId: v.productId, isActive: v.isActive }));
+  return rows.map(v => ({ id: v.id, stock: toNumber(v.stock), label: v.label, productId: v.productId, isActive: v.isActive }));
 }
 
 

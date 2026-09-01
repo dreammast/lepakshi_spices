@@ -1,5 +1,5 @@
 import type { Request, Response, NextFunction } from 'express';
-import { getProductDetails, listProducts, createProduct, updateProduct, deleteProduct, updateVariantStock, checkStock } from '../services/product.service.js';
+import { getProductDetails, listProducts, createProduct, updateProduct, deleteProduct, updateVariantStock, checkStock, validateComboAvailability } from '../services/product.service.js';
 import { sendSuccess, sendCreated } from '../utils/response.util.js';
 
 export async function listProductsController(_req: Request, res: Response, next: NextFunction) {
@@ -76,6 +76,19 @@ export async function checkStockController(req: Request, res: Response, next: Ne
     }
     const stockInfo = await checkStock(variantIds.map(Number));
     sendSuccess(res, stockInfo);
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function validateComboController(req: Request, res: Response, next: NextFunction) {
+  try {
+    const items = Array.isArray(req.body.items) ? req.body.items : [];
+    if (!items.length || items.some((item: any) => !Number.isInteger(Number(item.productVariantId)) || Number(item.quantity) <= 0)) {
+      sendSuccess(res, { available: false, unavailableItems: [] });
+      return;
+    }
+    sendSuccess(res, await validateComboAvailability(items.map((item: any) => ({ productVariantId: Number(item.productVariantId), quantity: Number(item.quantity) }))));
   } catch (error) {
     next(error);
   }

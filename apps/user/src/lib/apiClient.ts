@@ -114,7 +114,9 @@ export const authApi = {
 export const productsApi = {
   list: () => api.get<any[]>('/products'),
   get: (slug: string) => api.get<any>(`/products/${slug}`),
-  checkStock: (variantIds: number[]) => api.post<any[]>('/products/stock-check', { variantIds })
+  checkStock: (variantIds: number[]) => api.post<any[]>('/products/stock-check', { variantIds }),
+  validateCombo: (items: { productVariantId: number; quantity: number }[]) =>
+    api.post<{ available: boolean; unavailableItems: { productVariantId: number; label: string; reason: string; availableStock: number }[] }>('/products/combo-availability', { items })
 };
 
 export const categoriesApi = {

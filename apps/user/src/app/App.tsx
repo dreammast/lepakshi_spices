@@ -39,6 +39,9 @@ export type Product = {
  storage?: string;
  tags?: string[];
  lowStockThreshold?: number;
+ stock?: number;
+ totalStock?: number;
+ displayVariantId?: number | null;
  hasRetailVariants?: boolean;
  variants?: { id: number; label?: string | null; weightGrams?: number | null; price: number; stock?: number; lowStockThreshold?: number }[];
  packaging?: { id?: number; label: string; price: number; minOrderQty?: number }[];
@@ -61,7 +64,7 @@ const formatINR = (value: number | string | null | undefined) => `${INR}${Number
 function getWeightOptions(product: Product) {
  const retail = product.variants?.length
  ? product.variants
- .filter(variant => (variant.stock ?? 1) > 0)
+ .filter(variant => Number(variant.stock ?? 0) > 0)
  .sort((a, b) => (a.weightGrams ?? 0) - (b.weightGrams ?? 0))
  .map(variant => ({
  id: variant.id,
@@ -80,7 +83,7 @@ function getWeightOptions(product: Product) {
  if (product.hasRetailVariants) return wholesale;
  if (product.variants?.length) {
  return product.variants
- .filter(variant => (variant.stock ?? 1) > 0)
+ .filter(variant => Number(variant.stock ?? 0) > 0)
  .sort((a, b) => (a.weightGrams ?? 0) - (b.weightGrams ?? 0))
  .map(variant => ({
  id: variant.id,
@@ -110,7 +113,7 @@ function getVariantStock(product: Product, weightLabel?: string): number {
  const match = product.variants.find(v => (v.label || `${v.weightGrams}g`) === weightLabel);
  if (match) return match.stock ?? 0;
  }
- return product.variants.reduce((sum, v) => sum + (v.stock ?? 0), 0);
+ return product.variants.reduce((sum, v) => sum + Number(v.stock ?? 0), 0);
 }
 
 function getLowStockThreshold(product: Product, weightLabel?: number): number {
@@ -276,14 +279,19 @@ function ProductCard({ product, index = 0 }: { product: Product; index?: number 
  const [adding, setAdding] = useState(false);
  const isWished = wishlist.has(product.id);
  const badgeColor: Record<string, string> = { Bestseller: "orange", Premium: "gold", New: "green", Luxury: "gold", Featured: "orange" };
- const totalStock = getVariantStock(product);
- const isOOS = !product.inStock || totalStock <= 0;
+ // API card fields are one concrete first retail variant. The id fallback also
+ // keeps an already-cached response internally consistent.
+ const displayVariant = product.variants?.find(variant => variant.id === product.displayVariantId) || product.variants?.[0];
+ const displayWeight = displayVariant?.label || (displayVariant?.weightGrams ? `${displayVariant.weightGrams}g` : product.weight || "");
+ const displayPrice = displayVariant ? Number(displayVariant.price) : Number(product.price);
+ const displayStock = displayVariant ? Number(displayVariant.stock ?? 0) : Number(product.stock ?? 0);
+ const isOOS = displayStock <= 0;
 
  function handleAdd(e: React.MouseEvent) {
  e.stopPropagation();
  if (isOOS) return;
  setAdding(true);
- setTimeout(() => { addToCart(product); setAdding(false); }, 600);
+ setTimeout(() => { addToCart(product, displayWeight, displayPrice); setAdding(false); }, 600);
  }
 
  return (
@@ -323,21 +331,21 @@ function ProductCard({ product, index = 0 }: { product: Product; index?: number 
  <div className="p-4">
  <p className="text-[10px] font-semibold text-[#7A7064] uppercase tracking-widest mb-1">{product.origin}</p>
  <h3 className="font-semibold text-[#1A1714] leading-tight mb-0.5">{product.name}</h3>
- <p className="text-xs text-[#7A7064] mb-2">{product.subtitle} · {product.weight}</p>
+ <p className="text-xs text-[#7A7064] mb-2">{product.subtitle} · {displayWeight}</p>
  <StarRating rating={product.rating} count={product.reviewCount} />
  <div className="flex items-center justify-between mt-3">
  <div className="flex items-baseline gap-1.5">
- <span className="text-lg font-bold text-[#1A1714]">{formatINR(product.price)}</span>
+ <span className="text-lg font-bold text-[#1A1714]">{formatINR(displayPrice)}</span>
  {product.originalPrice && <span className="text-sm text-[#7A7064] line-through">{formatINR(product.originalPrice)}</span>}
  </div>
  {product.originalPrice && (
  <span className="text-xs font-bold text-[#C55A20]">
- {Math.round((1 - product.price / product.originalPrice) * 100)}% OFF
+ {Math.round((1 - displayPrice / product.originalPrice) * 100)}% OFF
  </span>
  )}
  </div>
  <div className="mt-1.5">
- <StockBadge stock={totalStock} threshold={product.lowStockThreshold} />
+ <StockBadge stock={displayStock} threshold={displayVariant?.lowStockThreshold ?? product.lowStockThreshold} />
  </div>
  </div>
  </div>
@@ -1460,8 +1468,11 @@ function ListCard({ product, index = 0 }: { product: Product; index?: number }) 
  const { navigate, addToCart, toggleWishlist, wishlist } = useApp();
  const [adding, setAdding] = useState(false);
  const isWished = wishlist.has(product.id);
- const totalStock = getVariantStock(product);
- const isOOS = !product.inStock || totalStock <= 0;
+ const displayVariant = product.variants?.find(variant => variant.id === product.displayVariantId) || product.variants?.[0];
+ const displayWeight = displayVariant?.label || (displayVariant?.weightGrams ? `${displayVariant.weightGrams}g` : product.weight || "");
+ const displayPrice = displayVariant ? Number(displayVariant.price) : Number(product.price);
+ const displayStock = displayVariant ? Number(displayVariant.stock ?? 0) : Number(product.stock ?? 0);
+ const isOOS = displayStock <= 0;
  return (
  <Reveal delay={index * 50}>
  <div onClick={() => navigate("product", product)}
@@ -1479,7 +1490,7 @@ function ListCard({ product, index = 0 }: { product: Product; index?: number }) 
  <div>
  <p className="text-[10px] font-semibold text-[#7A7064] uppercase tracking-widest">{product.origin}</p>
  <h3 className="font-semibold text-[#1A1714]">{product.name}</h3>
- <p className="text-xs text-[#7A7064]">{product.subtitle} · {product.weight}</p>
+ <p className="text-xs text-[#7A7064]">{product.subtitle} · {displayWeight}</p>
  </div>
  {product.badge && <Badge color="orange">{product.badge}</Badge>}
  </div>
@@ -1487,8 +1498,8 @@ function ListCard({ product, index = 0 }: { product: Product; index?: number }) 
  <StarRating rating={product.rating} count={product.reviewCount} />
  <div className="flex items-center gap-3">
  <div className="flex flex-col items-end">
- <span className="text-lg font-bold text-[#1A1714]">{formatINR(product.price)}</span>
- <StockBadge stock={totalStock} threshold={product.lowStockThreshold} />
+ <span className="text-lg font-bold text-[#1A1714]">{formatINR(displayPrice)}</span>
+ <StockBadge stock={displayStock} threshold={displayVariant?.lowStockThreshold ?? product.lowStockThreshold} />
  </div>
  {!isOOS && (
  <>
@@ -1496,7 +1507,7 @@ function ListCard({ product, index = 0 }: { product: Product; index?: number }) 
  className="w-9 h-9 rounded-xl bg-[#FAF8F3] flex items-center justify-center hover:bg-red-50 transition-colors">
  <Heart className={`w-4 h-4 ${isWished ? "fill-red-500 text-red-500" : "text-[#7A7064]"}`} />
  </button>
- <Btn size="sm" loading={adding} onClick={e => { e.stopPropagation(); setAdding(true); setTimeout(() => { addToCart(product); setAdding(false); }, 600); }}>
+ <Btn size="sm" loading={adding} onClick={e => { e.stopPropagation(); setAdding(true); setTimeout(() => { addToCart(product, displayWeight, displayPrice); setAdding(false); }, 600); }}>
  {adding ? "..." : "Add"}
  </Btn>
  </>
@@ -4175,7 +4186,14 @@ function BundleBuilderPage() {
  { id: "kraft", label: "Eco Kraft Box", desc: "Recycled sturdy brown box with dry flowers.", bg: "bg-[#E3DAC9]" },
  ];
 
+ const comboVariant = (product: Product) => product.variants?.find(v => v.id === product.displayVariantId) || product.variants?.[0];
+
  function toggleSpice(prod: any) {
+ const variant = comboVariant(prod);
+ if (!variant || Number(variant.stock ?? 0) <= 0) {
+ toast.error(`${prod.name} is currently unavailable. Please choose another spice.`);
+ return;
+ }
  if (selectedSpices.some(s => s.id === prod.id)) {
  setSelectedSpices(prev => prev.filter(s => s.id !== prod.id));
  } else {
@@ -4188,7 +4206,21 @@ function BundleBuilderPage() {
  function handleAddBundle() {
  if (selectedSpices.length < maxSlots) return;
  setLoading(true);
- setTimeout(() => {
+ setTimeout(async () => {
+ const components = selectedSpices.map(product => ({ product, variant: comboVariant(product) })).filter((item: any) => item.variant);
+ if (components.length !== maxSlots) {
+ toast.error("One or more selected spices are unavailable. Please choose another spice.");
+ setLoading(false);
+ return;
+ }
+ try {
+ const availability = await productsApi.validateCombo(components.map((item: any) => ({ productVariantId: item.variant.id, quantity: 1 })));
+ if (!availability.available) {
+ const labels = availability.unavailableItems.map(item => item.label).join(", ");
+ toast.error(`Sorry, ${labels || "a selected spice"} is currently unavailable. Please choose another spice.`);
+ setLoading(false);
+ return;
+ }
  const bundleProduct = {
  id: Math.floor(Math.random() * 1000000 + 10000),
  name: `Custom ${size === "trio" ? "Trio" : "Grand"} Spice Box`,
@@ -4204,7 +4236,11 @@ function BundleBuilderPage() {
  tags: ["custom", "gift-bundle", "selection"],
  };
 
- addToCart(bundleProduct as any, "1 Set", bundlePrice);
+ // Do not create a fake combo SKU or stock record. The cart contains the real
+ // variants, so checkout's existing atomic inventory transaction decrements
+ // each component variant.
+ const componentPrice = bundlePrice / components.length;
+ components.forEach((item: any) => addToCart(item.product, item.variant.label || `${item.variant.weightGrams}g`, componentPrice));
  setLoading(false);
  setAdded(true);
  setTimeout(() => {
@@ -4212,6 +4248,10 @@ function BundleBuilderPage() {
  setSelectedSpices([]);
  navigate("cart");
  }, 1500);
+ } catch (error: any) {
+ toast.error(error.message || "Unable to validate this combo. Please try again.");
+ setLoading(false);
+ }
  }, 1200);
  }
 
@@ -4278,17 +4318,21 @@ function BundleBuilderPage() {
  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
  {products.map((p: any) => {
  const isSelected = selectedSpices.some(s => s.id === p.id);
+ const variant = comboVariant(p);
+ const unavailable = !variant || Number(variant.stock ?? 0) <= 0;
  return (
  <button
  key={p.id}
  onClick={() => toggleSpice(p)}
- className={`p-3.5 rounded-2xl border text-center transition-all cursor-pointer relative ${isSelected ? "border-[#2A4A3C] bg-[#2A4A3C]/6 shadow-sm" : "border-[#1A1714]/12 bg-white hover:border-[#2A4A3C]/30"}`}
+ disabled={unavailable}
+ className={`p-3.5 rounded-2xl border text-center transition-all cursor-pointer relative ${unavailable ? "opacity-50 cursor-not-allowed border-gray-200 bg-gray-50" : isSelected ? "border-[#2A4A3C] bg-[#2A4A3C]/6 shadow-sm" : "border-[#1A1714]/12 bg-white hover:border-[#2A4A3C]/30"}`}
  >
  <div className="w-full rounded-xl overflow-hidden mb-3 aspect-square">
  <img src={p.image} alt={p.name} className="w-full h-full object-cover" />
  </div>
  <span className="text-xs font-semibold text-[#1A1714] block line-clamp-1">{p.name}</span>
  <span className="text-[10px] text-[#7A7064] mt-0.5 block">{p.origin.split(",")[0]}</span>
+ {unavailable ? <span className="text-[9px] text-red-600 mt-1 block">{variant?.label || "Pack"} unavailable</span> : <span className="text-[9px] text-[#7A7064] mt-1 block">{variant?.label || "Standard pack"}</span>}
  {isSelected && (
  <div className="absolute top-2 right-2 w-5 h-5 rounded-full bg-[#2A4A3C] text-white flex items-center justify-center border-2 border-white">
  <Check className="w-3 h-3" />
@@ -5574,9 +5618,12 @@ export default function App() {
  }
 
  function addToCart(product: Product, selectedWeight?: string, price?: number) {
- const weight = selectedWeight || "100g Standard";
- const itemPrice = price !== undefined ? price : product.price;
- const variant = product.variants?.find(v => (v.label || `${v.weightGrams}g`) === weight) || product.variants?.[0];
+ const defaultVariant = product.variants?.find(v => v.id === product.displayVariantId) || product.variants?.[0];
+ const weight = selectedWeight || defaultVariant?.label || (defaultVariant?.weightGrams ? `${defaultVariant.weightGrams}g` : "Standard pack");
+ const variant = product.variants?.find(v => (v.label || `${v.weightGrams}g`) === weight) || defaultVariant;
+ // With no explicit selection, price must come from the same variant as the
+ // selected weight; never from a product-level default for another pack.
+ const itemPrice = price !== undefined ? price : Number(variant?.price ?? product.price);
  const variantId = variant?.id;
  const variantStock = variant?.stock ?? 0;
  logAnalyticsEvent("Add Cart", { productId: product.id, name: product.name, weight, price: itemPrice });

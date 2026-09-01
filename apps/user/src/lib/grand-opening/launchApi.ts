@@ -34,9 +34,10 @@ export const launchApi = {
 
   async completeLaunch(): Promise<{ success: boolean; message: string }> {
     try {
-      return await apiRequest<{ success: boolean; message: string }>('/launch/complete', {
+      const res = await apiRequest<{ message?: string }>('/launch/complete', {
         method: 'POST',
       });
+      return { success: true, message: res?.message || 'Launch completed' };
     } catch (e: any) {
       console.warn('[launchApi] completeLaunch error:', e);
       return { success: false, message: e.message || 'Failed' };
@@ -45,9 +46,10 @@ export const launchApi = {
 
   async resetLaunch(): Promise<{ success: boolean; message: string }> {
     try {
-      return await apiRequest<{ success: boolean; message: string }>('/launch/reset', {
+      const res = await apiRequest<{ message?: string }>('/launch/reset', {
         method: 'POST',
       });
+      return { success: true, message: res?.message || 'Launch reset' };
     } catch (e: any) {
       console.warn('[launchApi] resetLaunch error:', e);
       return { success: false, message: e.message || 'Failed' };
@@ -56,10 +58,11 @@ export const launchApi = {
 
   async toggleLaunch(isEnabled: boolean): Promise<{ success: boolean; isEnabled: boolean }> {
     try {
-      return await apiRequest<{ success: boolean; isEnabled: boolean }>('/launch/toggle', {
+      const res = await apiRequest<{ isEnabled?: boolean }>('/launch/toggle', {
         method: 'POST',
         body: JSON.stringify({ isEnabled }),
       });
+      return { success: true, isEnabled: res?.isEnabled ?? isEnabled };
     } catch (e: any) {
       console.warn('[launchApi] toggleLaunch error:', e);
       return { success: false, isEnabled };

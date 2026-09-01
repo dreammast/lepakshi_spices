@@ -9,7 +9,8 @@ import {
   updateProductController,
   deleteProductController,
   updateVariantStockController,
-  checkStockController
+  checkStockController,
+  validateComboController
 } from '../controllers/product.controller.js';
 
 const router = Router();
@@ -17,6 +18,7 @@ const router = Router();
 router.get('/', asyncHandler(listProductsController));
 router.get('/admin/all', authenticate, requireRole('admin', 'staff', 'manager'), asyncHandler(listAdminProductsController));
 router.post('/stock-check', asyncHandler(checkStockController));
+router.post('/combo-availability', asyncHandler(validateComboController));
 router.get('/:slug', asyncHandler(getProductController));
 router.post('/', authenticate, requireRole('admin', 'staff', 'manager'), asyncHandler(createProductController));
 router.put('/variants/:variantId/stock', authenticate, requireRole('admin', 'staff', 'manager'), asyncHandler(updateVariantStockController));

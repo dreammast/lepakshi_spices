@@ -67,4 +67,30 @@ export async function checkStock(variantIds: number[]) {
   return checkVariantsStock(variantIds);
 }
 
+/** Authoritative stock check for a dynamic combo.  Combos do not own stock;
+ * each requested component is checked against its normal retail variant. */
+export async function validateComboAvailability(items: Array<{ productVariantId: number; quantity: number }>) {
+  const required = new Map<number, number>();
+  for (const item of items) {
+    required.set(item.productVariantId, (required.get(item.productVariantId) || 0) + item.quantity);
+  }
+  const variants = await checkVariantsStock([...required.keys()]);
+  const byId = new Map(variants.map(variant => [variant.id, variant]));
+  const unavailableItems = [...required.entries()].flatMap(([productVariantId, quantity]) => {
+    const variant = byId.get(productVariantId);
+    if (!variant || !variant.isActive || Number(variant.stock) < quantity) {
+      return [{
+        productVariantId,
+        quantity,
+        availableStock: Number(variant?.stock ?? 0),
+        label: variant?.label || `Variant ${productVariantId}`,
+        productId: variant?.productId ?? null,
+        reason: !variant || !variant.isActive ? 'unavailable' : Number(variant.stock) <= 0 ? 'out-of-stock' : 'insufficient-stock'
+      }];
+    }
+    return [];
+  });
+  return { available: unavailableItems.length === 0, unavailableItems };
+}
+
 
